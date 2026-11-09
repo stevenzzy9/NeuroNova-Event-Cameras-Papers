@@ -1,0 +1,190 @@
+                         This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                      Except for this watermark, it is identical to the accepted version;
+                                the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+          EventDrive: Event Cameras for Vision-Language Driving Intelligence
+
+                              Dongyue Lu1,6 Rong Li2 Ao Liang1 Lingdong Kong1,3
+     Wei Yin4            Lai Xing Ng5 Benoit R. Cottereau6,7 Camille Simon Chane8 Wei Tsang Ooi1,6
+               1
+              NUS 2 HKUST(GZ) 3 CNRS@CREATE 4 Horizon Robotics 5 A*STAR, I2 R
+      6
+          IPAL, CNRS IRL 2955, Singapore 7 University Toulouse, CNRS, CerCo, Toulouse, France
+                  8
+                    ETIS UMR 8051, CY Cergy Paris University, ENSEA, CNRS, France
+
+           Perception                                                                                               Understanding
+     What type of driving scene                      1 Scene Type          Object Presence 7                              Locate the car on the right
+         is this?                                                                                                         side of the SUV, identify its
+                                                     2 Traffic Light       Grounding           8                          motion state?
+
+                                                     3 Traffic Flow        Ego Relation        9
+
+
+
+
+                             A mountainous road                                                         (415,228,120,154),
+                             with a tunnel                                                          moving fast
+
+   4 Weather       5 Visibility   6 Road Condition                                                 10 Appearance    11 Environment Relation 12 Status
+
+   13 Object Speed     14 Object Path                                                              17 Waypoint Prediction     16 Ego Speed
+
+     What are the speed and direction                                                                     Given the past waypoints [x1,y1],…,[xn,yn]
+         intents of the highlighted object?                                                               and the image, predict the next n future
+                                                                                                          waypoints.
+
+
+                                  Object Path
+          Accelerating, moving                                                 Ego Path   15                                 [-0.0101, 0.7565,], [-
+     straight ahead.                                                                                                         0.2693, 4.4425] ...
+
+           Prediction                                                                                                        Planning
+Figure 1. Overview of the EventDrive benchmark. The dataset contains 471k event–frame–language samples across four levels
+of driving reasoning spanning 17 subtasks:     Perception evaluates scene-level context such as scene type, traffic, and illumination.
+   Understanding assesses object-centric semantics, including presence, motion state, and grounding. Prediction infers short-horizon
+motion intent of surrounding agents.    Planning estimates ego motion intent and future waypoints from past trajectories. Each task is
+formulated through structured, language-grounded queries, enabling unified evaluation of event–frame models across the autonomy stack.
+
+                                  Abstract                                  ing contributes to reasoning and decision-making across
+                                                                            the full driving loop. We present EventDrive, a large-
+                                                                            scale benchmark and model suite that unifies event streams,
+Event cameras sense the world through asynchronous                          RGB frames, and language supervision across four core
+brightness changes with microsecond latency and high dy-                    dimensions: Perception, Understanding, Prediction, and
+namic range, offering motion fidelity far beyond frame-                     Planning, covering captions, structured QA, grounding,
+based sensors and capturing temporal structure that con-                    motion-state recognition, trajectory forecasting, and plan-
+ventional exposures often miss. These properties make                       ning tasks. Building on this foundation, EventDrive-VLM
+events a powerful complement to RGB in autonomous driv-                     introduces a multi-horizon event pyramid and a modality-
+ing, especially under blur, glare, and rapid motion, where                  routing mixture-of-experts to adaptively encode and fuse
+frame-based perception can become unreliable. However,                      asynchronous and frame-based information for downstream
+existing event-aware vision–language models remain lim-                     reasoning. Comprehensive evaluation across diverse tasks
+ited to generic perception and do not reveal how event sens-
+
+
+
+                                                                       22312
+shows that event streams provide substantial gains in tem-        ior anticipation, where the high temporal density of events
+poral precision, motion awareness, and robustness, bring-         exposes velocity and acceleration. Planning examines ego
+ing event sensing into the center of driving intelligence.        intent and waypoint estimation, leveraging continuous tem-
+                                                                  poral structure for steadier decisions in dynamic environ-
+                                                                  ments. Together, these tasks form a unified evaluation pro-
+1. Introduction                                                   tocol that highlights how temporal cues enhance percep-
+Event cameras have gained increasing attention for their          tion and reasoning across the driving stack while remain-
+ability to record dynamic scenes with microsecond tempo-          ing compatible with classical vision models and modern vi-
+ral precision [6, 17]. Unlike RGB sensors that integrate in-      sion–language architectures.
+tensity over fixed exposure periods, event cameras report            Building upon EventDrive, we develop EventDrive-
+asynchronous brightness changes at the pixel level [35].          VLM, an event-driven vision–language model that inte-
+This design yields high dynamic range, very low latency,          grates asynchronous event cues into unified multimodal rea-
+and natural robustness to motion blur. These sensing advan-       soning. The framework tackles two core challenges in
+tages are especially valuable in autonomous driving, where        event-based driving. First, event streams vary widely in
+reliable perception must be maintained across fast ego mo-        temporal density. To capture motion across scales, we in-
+tion, rapidly moving agents, and challenging illumination         troduce a Dynamic Horizon Encoding module that vox-
+conditions [10, 55]. These characteristics position event         elizes events at multiple temporal resolutions and selects
+sensing as a promising complement to frame-based percep-          the most informative representation via a mixture-of-experts
+tion in safety-critical driving systems.                          gate. This preserves high-frequency dynamics during fast
+    Despite this potential, events for driving research remain    motion while ensuring stable aggregation in low-motion
+fragmented. Most existing efforts focus on upstream su-           regimes. Second, event features must be aligned with the
+pervised tasks, e.g., detection [23, 37, 48], segmentation        LLM’s semantic space. We address this with an Event Q-
+[30, 33, 58], or optical flow estimation [64, 67]. Very few       Former Alignment module that performs cross-attention
+works explore high-level reasoning and decision-making            between learnable event queries and temporally encoded
+that a complete driving stack requires. In contrast, the RGB      representations, enabling motion-focused signals to inte-
+community has made rapid progress toward unified vision           grate cleanly with language reasoning. A lightweight two-
+and language models that couple perception, reasoning, and        stage curriculum first learns event–language alignment with
+control within a single architecture [26, 27, 36, 42, 43, 61],    the LLM frozen, then performs instruction tuning to pro-
+which provides interpretability and scalable instruction-         duce a coherent event-driven perception-to-action pipeline.
+driven behavior. Early attempts to incorporate events into           Comprehensive experiments on EventDrive reveal
+vision and language systems, including grounding [34] and         strong modality contrasts. Frame-only VLMs perform well
+caption-based event language models [41, 47, 65], demon-          in perception but degrade sharply under low light and mo-
+strate encouraging multimodal interactions but remain lim-        tion blur, and show limited spatial reasoning and weak mo-
+ited to generic scenes. They do not address the reason-           tion inference. Event-only models excel in speed and di-
+ing or decision demands that are central to real-world driv-      rection prediction, highlighting the value of high-frequency
+ing. This gap calls for a framework that integrates events        temporal cues, yet lack semantic richness for appearance-
+throughout the autonomy pipeline in a unified and scalable        heavy understanding. Our event–frame fusion model im-
+manner, rather than treating it as an isolated temporal cue.      proves performance across all task families, stabilizing per-
+                                                                  ception under adverse conditions, enhancing grounding and
+    To address this need, we introduce EventDrive, a uni-
+                                                                  relational reasoning, and delivering stronger motion predic-
+fied dataset and benchmark that integrates event streams,
+                                                                  tion and ego intent estimation. These results show that
+synchronized RGB frames, and language supervision across
+                                                                  events and frames provide complementary strengths, and
+the full driving loop. Our goal is to move from passive
+                                                                  their integration yields more reliable multimodal reasoning
+sensing to actionable understanding within a coherent mul-
+                                                                  than either alone.
+timodal interface. We decompose driving into four sequen-
+tial reasoning stages: perception, understanding, predic-            In summary, our main contributions are as follows:
+tion, and planning, each expressed as a language-grounded         • We introduce EventDrive, the first full-stack event and
+task probing a complementary aspect of event-based rea-             language benchmark for autonomous driving that uni-
+soning. Perception assesses robustness under challenging            fies perception, understanding, prediction, and planning
+illumination and motion, where events offer stable edges            within a consistent multimodal framework.
+and temporal gradients that compensate for degraded RGB           • We propose EventDrive-VLM, a general training frame-
+signals. Understanding targets object semantics and spatial         work that equips large vision and language models with
+relations, with asynchronous event cues helping to disam-           the ability to interpret, align, and reason over asyn-
+biguate interactions. Prediction evaluates short-term behav-        chronous event representations.
+
+
+
+                                                             22313
+• We establish a comprehensive evaluation protocol and ex-        models remain confined to captioning or short QA tasks. On
+  tensively analyze how temporal cues improve multimodal          the contrary, our method preserves temporal sparsity and
+  reasoning, offering a foundation for future event-driven        extends event-based VLMs toward comprehensive driving
+  intelligence in real-world driving.                             reasoning across diverse tasks.
+
+2. Related Work                                                   3. EventDrive: A Vision–Language Bench-
+Event Cameras for Driving. Event sensors offer microsec-             mark for Event-Based Driving
+ond latency, high dynamic range, and robustness to motion         In this section, we present the EventDrive dataset and
+blur, making them ideal for driving perception. They have         benchmark in detail. Sec. 3.1 introduces the overall mo-
+been applied to detection [23, 37, 48, 51, 63], segmentation      tivation and task hierarchy that define the dataset design.
+[30, 33, 58], tracking [64], and recognition [13, 20, 31]. De-    Sec. 3.2 describes the annotation pipeline and data compo-
+tection methods include graph- or spike-centric models pre-       sition, highlighting how multimodal inputs are processed
+serving sparsity and asynchrony [14, 15, 18, 50, 53, 56, 64],     into language-grounded supervision. Sec. 3.3 summarizes
+and dense feed-forward models that convert events into            the data splits and benchmark statistics, outlining the scale
+voxel grids or time surfaces for image-based backbones            and coverage of the dataset and its comparison with existing
+[9, 23, 28, 29, 39, 51, 52]. Beyond detection, event-based        event-based vision–language benchmarks.
+segmentation and tracking emphasize temporal continuity
+and motion cues [21, 34, 58]. However, most systems               3.1. Hierarchical Task Framework
+remain limited to low-level perception without connect-
+ing to higher-level reasoning and planning. Our work ad-          Event cameras remain reliable under low light and rapid
+vances this direction by integrating event sensing into a uni-    motion, offering advantages for safety-critical driving
+fied framework that links perception, understanding, and          where conventional frames often fail. Existing event-based
+decision-making for end-to-end driving intelligence.              works focus mainly on isolated perception tasks, while
+Event-Frame Multimodal Learning. Events and RGB                   RGB-based methods have progressed toward unified vi-
+frames are complementary: events capture fine temporal            sion–language–action frameworks. To close this gap, we
+dynamics under extreme lighting, while frames provide             build a dataset that extends event understanding across the
+rich semantic context. Early pipelines relied on late fu-         entire autonomy stack. The driving loop is organized into
+sion [8, 38], whereas later designs introduced shared back-       four sequential steps: environmental perception, object-
+bones and attention-based gating for cross-modal interac-         centric understanding, forward prediction, and ego-driven
+tion [4, 48, 59]. Transformer-based approaches further im-        planning. Each step is formulated as a language-grounded
+proved temporal reasoning and adaptive weighting under            task that aligns event representations with multimodal mod-
+complex motion and illumination [37, 62, 66], benefiting          els, enabling a systematic evaluation of how event signals
+tasks such as deblurring, depth estimation, and segmenta-         contribute to high-level reasoning.
+tion [22, 25, 57]. Yet most frameworks rely on fixed tempo-            Perception describes global scene conditions across six
+ral windows, which fail to capture motion cues that unfold        subtasks: 1 scene type, 2 visibility, 3 traffic flow, 4 weather,
+                                                                  5
+over varying temporal scales [5, 19, 37]. Our method ad-            traffic light, and 6 road condition. Captions and structured
+dresses this by aligning multi-horizon event streams with         QA pairs assess whether models can interpret environmen-
+frame semantics, enabling frequency-adaptive fusion that          tal context from short temporal windows. Event streams
+maintains both temporal precision and semantic coherence.         preserve edge contrast and temporal gradients under chal-
+Event-based VLMs.            While vision-language models         lenging illumination or motion blur, strengthening robust-
+(VLMs) have transformed visual understanding, extend-             ness beyond frame-based perception.
+ing them to asynchronous event data remains challenging                  Understanding captures object-level semantics and
+[33, 34]. The key difficulty lies in embedding sparse, high-      spatial structure using captions, QA pairs, and bounding
+temporal-resolution signals into a shared vision-language         boxes spanning 1 object presence, 2 appearance, 3 motion
+space. Early contrastive approaches adapt CLIP-style align-       state, 4 ego relation, 5 environment relation, and 6 grounding.
+ment for zero-shot recognition [33, 62], but rely on limited-     The asynchronous event signal supplies fine temporal cues
+scale datasets and rasterized inputs, reducing temporal fi-       that support reasoning about motion and spatial relations
+delity. Recent works narrow this gap: EventGPT [47]               that static frames often miss.
+couples an event encoder and temporal aggregator with                  Prediction targets short-horizon behavioral forecasting
+an LLM; EventVL [41] trains on large-scale event-image-           through indicators of 1 speed change and 2 direction change.
+text pairs with spatiotemporal and semantic alignment; and        Each instance uses language queries to evaluate whether
+LLaFEA [65] integrates frame-event fusion with cross-             models can infer future motion trends of surrounding ob-
+attention and duration cues. Despite these advances, most         jects from limited observations. The high temporal density
+
+
+
+                                                             22314
+

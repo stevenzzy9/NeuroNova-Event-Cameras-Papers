@@ -1,0 +1,203 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                    Event Stream Filtering via Probability Flux Estimation
+
+                 Jinze Chen, Wei Zhai*, Yang Cao, Bin Li, Zheng-Jun Zha
+          MoE Key Laboratory of Brain-inspired Intelligent Perception and Cognition,
+                      University of Science and Technology of China
+    chjz@mail.ustc.edu.cn, {wzhai056,forrest,binli,zhazj}@ustc.edu.cn
+
+
+                         Abstract                                               Event Camera                State Information Encoding:        +1   -1
+
+                                                                                                          Process Information Encoding: Event Interval
+                                                                                               Perceive
+    Event cameras asynchronously capture brightness                                                                              = Contrast
+changes with microsecond latency, offering exceptional
+temporal precision but suffering from severe noise and sig-                                    Output
+nal inconsistencies. Unlike conventional signals, events
+carry state information through polarities and process in-              Figure 1. Interpretation of the information encoded in an event
+formation through inter-event time intervals. However, ex-              stream. Each event provides (1) state information through the dis-
+isting event filters often ignore the latter, producing out-            crete irradiance jump at the event time, and (2) process informa-
+puts that are sparser than the raw input and limiting the               tion by constraining the latent irradiance trajectory between events
+reconstruction of continuous irradiance dynamics. We pro-               through the contrast-bound inequality.
+pose the Event Density Flow Filter (EDFilter), a frame-
+work that models event generation as threshold-crossing                 coded by the discrete jump in logarithmic irradiance at the
+probability fluxes arising from the stochastic diffusion of             event time Iti − Iti−1 = pi C and, (2) the process informa-
+irradiance trajectories. EDFilter performs nonparametric,               tion, described by the inequality supt∈[ti−1 ,ti ) |It −Iti−1 | <
+kernel-based estimation of probability flux and reconstructs            C, which constrains the latent irradiance trajectory between
+the continuous event density flow using an O(1) recursive               successive events. Here It denotes the logarithm scene irra-
+solver, enabling real-time processing. The Rotary Event                 diance, ti ∈ R and pi ∈ {−1, 1} the timestamp and polarity
+Dataset (RED), featuring microsecond-resolution ground-                 of the i-th event and C the contrast threshold. Classical sig-
+truth irradiance flow under controlled illumination is also             nal processing approaches model continuous state variables
+presented for event quality evaluation. Experiments demon-              effectively, but they are inherently unsuitable for discon-
+strate that EDFilter achieves high-fidelity, physically inter-          tinuous, asynchronous event polarities and cannot directly
+pretable event denoising and motion reconstruction.                     impose the above inequality constraint on the latent irradi-
+                                                                        ance path. Consequently, most existing event filters ignore
+                                                                        the process information and treat event polarities as if they
+1. Introduction                                                         were continuous signals, often producing outputs that are
+                                                                        even sparser than the raw input and ultimately limiting the
+Event cameras are bio-inspired vision sensors that asyn-                reconstruction of continuous irradiance dynamics.
+chronously report brightness changes with microsecond la-
+                                                                            To bridge this gap, we revisit event generation from a
+tency [11, 22, 29]. Unlike conventional frame-based sen-
+                                                                        stochastic process perspective. Intuitively, an event is trig-
+sors that sample at uniform time intervals, the irregu-
+                                                                        gered whenever the observed brightness trajectory moves
+lar, threshold-triggered event measurements avoid redun-
+                                                                        far enough to cross the ON/OFF threshold. This trajectory
+dant sampling and thus fit into visual motion perception
+                                                                        is affected by thermal noise and exhibits randomness over
+[9, 13, 14, 30]. But this new paradigm also magnifies the
+                                                                        time. The likelihood of this crossing is not determined by
+internal noise of the circuit, as pointed out in [4, 18].
+                                                                        the past events themselves but how the brightness is flow-
+    By analyzing the event generation model [22], we ob-
+                                                                        ing toward the threshold at any moment. This directional
+serve that an event stream conveys two complementary
+                                                                        tendency of irradiance trajectories to cross the boundary is
+types of information about the underlying brightness evolu-
+                                                                        precisely what the probability flux (or current) represents.
+tion, as illustrated in Fig. 1: (1) the state information, en-
+                                                                            Formally, although events appear as discontinuities, the
+  * Correspondence to: Wei Zhai <wzhai056@ustc.edu.cn>                  irradiance evolves continuously and can be modeled as a
+
+
+
+                                                                 8023
+                                   Event
+                                   Clean irradiance
+                                   Perceived irradiance
+                                   Contrast boundary
+
+
+
+
+(a) A stochastic specification of irradiance evolu- (b) A distributional specification obtained by count-   (c) The distributions of discrete event polarities
+tion, where clean irradiance and thermal noise de- ing trajectory densities over irradiance–time space.     conditional on event time, and continuous inter-
+termine the drift and diffusion of observed irradi- The incoming probability flux at the contrast bound-    event times, obtained respectively from the ratio
+ance trajectories, and an event is triggered at the ary corresponds to the instantaneous probability of     of polarity-specific boundary fluxes and their tem-
+contrast boundary.                                  generating an event.                                    poral integrals.
+
+                                            Figure 2. Stochastic analysis of event generation for a single pixel.
+
+threshold-crossing stochastic process. We find that both (1)                          show that EDFilter achieves superior denoising accuracy
+the continuous distribution of inter-event intervals P(ti −                           and temporal precision.
+ti−1 < t) = P(supτ ∈[ti−1 ,ti−1 +t) |Iτ − Iti−1 | ≥ C) and,
+(2) the discrete distribution of event polarities P(pi = ±1 |                     2. Related Work
+ti ) = P(Iti − Iti−1 = ±C ∧ supt∈[ti−1 ,ti ) |It − Iti | < C)
+are determined by the threshold-crossing probability fluxes,                          Discrimitative Filters. Most filters are discriminative.
+as shown in Fig. 2. Estimating this flux from discrete, noisy                     Density-based methods [3, 10, 17, 20, 24, 33] pass only
+events provides a generative formulation of event filtering                       events with sufficient spatiotemporal neighbors. Motion-
+by resampling a clean, filtered event stream.                                     based methods [25, 31] fit local planes to estimate velocity
+    Building on this principle, we propose a generative event                     and filter out events that are not motion-consistent. More
+filtering framework termed Event Density Flow Filter (ED-                         recently, learning-based methods use MLP [16], CNN [1],
+Filter) that estimates threshold-crossing probability fluxes                      or Transformer [19] on event patches to classify each event
+in real time. The proposed EDFilter models the spa-                               as signal or noise. The limitation of these methods is their
+tiotemporal density of events using a nonparametric kernel                        discriminative nature: they can only remove events, not cor-
+smoother optimized via recursive maximum likelihood esti-                         rect them or generate a new, clean stream.
+mation. This formulation leads to an O(1) recursive solver,                           Generative Filters. A few methods [5–7, 32] are gen-
+enabling online operation at sensor time scales.                                  erative, most notably those [6, 7] that convert events into
+    We further propose the Rotary Event Dataset (RED),                            stacked event frames and use a 3D-UNET to denoise and
+which provides microsecond-accurate ground-truth irradi-                          super-resolve these frames. While powerful, these methods
+ance references under controlled motion and lighting con-                         sacrifice the core advantage of event cameras—temporal
+ditions. Comprehensive experiments demonstrate that ED-                           precision—by binning events into synchronous frames.
+Filter achieves superior denoising accuracy and temporal fi-                          Our Approach. The work most closely related to ours
+delity compared with state-of-the-art methods, while main-                        is [23]. Although designed for event simulation, it models
+taining theoretical interpretability and real-time efficiency.                    event generation through stochastic diffusion of irradiance
+    In summary, the main contributions of this work are:                          for continuous-time event simulation. Our method takes the
+1. The interpretation of event sensing as a threshold-                            opposite direction: we infer the diffusion from the observed
+     crossing stochastic process is proposed, revealing that                      events. Crucially, we show that events can be interpreted
+     both inter-event intervals and event polarities are deter-                   as direct samples of boundary probability fluxes, allowing
+     mined by probability fluxes at the contrast boundaries.                      us to bypass solving the full diffusion equation and derive a
+2. A generative, probability-flux-based event filter EDFilter                     principled and efficient formulation for event modeling.
+     is proposed, which estimates boundary-crossing fluxes
+     from discrete events using nonparametric, O(1) recur-                        3. Approach
+     sive kernel smoothers, enabling real-time signal filtering.
+                                                                                  3.1. Theoretical Foundation
+3. The RED dataset with precise microsecond ground truth
+     irradiance references is proposed, which enables precise                     This section derives the probability flux as a physical quan-
+     evaluation of temporal fidelity and supports research on                     tity for characterizing event distributions, as illustrated in
+     physically accurate event sensing models.                                    Fig. 2. This is achieved by modeling the evolving irra-
+4. Extensive experiments on RED and existing datasets                             diance trajectory using a stochastic differential equation
+
+
+
+                                                                           8024
+(SDE) with absorbing boundaries. For clarity, we focus on                completing the proof of the results in Fig. 2(c).
+a single pixel and assume the process starts at 0, but the for-             However, the solution of Eqs. (2) and (3) does not gen-
+mulation naturally extends to multi-pixel settings with spa-             erally admit a closed-form expression [8]. To address this,
+tial coupling and interference effects. Detailed derivations             we reformulate them with the failure rate [12], here as the
+are provided in the supplementary material.                              event density flow (EDF):
+    For a given event pixel, let It denote the logarithmic ir-                                             p± (t)
+radiance intensity. Under realistic conditions—assumed to                            λ± (t) =       Rt                        ,        (9)
+be Markovian and continuous—it follows the SDE:                                                 1 − 0 [p+ (τ ) + p− (τ )]dτ
+                                                                         which describes the instantaneous expected event rate. The
+                dIt = µ(It , t)dt + σ(It , t)dWt ,          (1)          formulation of λ± (t) allows direct estimation from dis-
+where the drift µ(It , t) captures clean scene dynamics and              crete events, since they are unconstrained nonnegative real-
+the diffusion σ(It , t) models thermal noise, with Wt a stan-            valued functions. In this work, we employ nonparamet-
+dard Wiener process, as shown in Fig. 2(a). Each pixel                   ric temporal and spatial kernel-based smoothers to estimate
+contains ON and OFF comparators that continuously com-                   these functions, as the following section shows.
+pare It against contrast thresholds ±C. An event is trig-                3.2. The EDFilter Framework
+gered when It exits the interval [−C, C], with timestamp
+ts = inf{τ > 0 | Iτ ∈   / [−C, C]}. The exit boundary deter-             The proposed EDFilter framework, illustrated in Fig. 3,
+mines the polarity p ∈ {+1, −1}.                                         consists of three sequential components that respectively
+    Associated with this SDE is the Fokker-Planck equation               predict, update, and reconstruct the event density flow.
+[8], which states the probability density function ρ(I, t) of            3.2.1. Sequential Kernel Density Estimation
+It is the solution to the boundary value problem:                        The first step is to generate a continuous density prediction
+              1 2 2                                                      at any given time. This is achieved using a temporal kernel
+ ∂t ρ(I, t) =  ∂ [σ (I, t)ρ(I, t)] − ∂I [µ(I, t)ρ(I, t)], (2)            density estimator (KDE) for each pixel independently. A
+              2 I
+                                                                         rectangular kernel is adopted to model the contribution of
+ subject to ρ(−C, t) = ρ(C, t) = 0, ρ(I, 0) = ρ(I), (3)
+                                                                         sequential events, while both its height and bandwidth are
+where ρ(I) is the initial distribution. To simplify the ex-              treated as parameters to be estimated online. To account
+pression, we introduce the probability flux density as                   for noise, a constant false event rate is also introduced and
+                                                                         optimized jointly. These defines our temporal EDF model:
+                            1
+         J(I, t) = µ(I, t) − ∂I [σ 2 (I, t)ρ(I, t)],
+                                                                                                  
+                                                            (4)
+                            2                                                                     (ψ(t), β− ),
+                                                                                                                    if ψ(t) > 0
+                                                                             (λ+ (t), λ− (t)) = (β+ , −ψ(t)), if ψ(t) < 0         (10)
+representing the instantaneous flow of probability mass,                                          
+                                                                                                      (β+ , β− ),    if ψ(t) = 0
+                                                                                                  
+since it follows the continuity equation                                                                         (
+                                                                                    X                             α, if 0 ≤ t < h
+                  ∂t ρ(I, t) + ∇ · J(I, t) = 0,             (5)            ψ(t) =         pi ϕ(t − ti ), ϕ(t) =                   (11)
+                                                                                    ti <t
+                                                                                                                  0,  otherwise
+and the outgoing fluxes at the boundaries,
+                                                                         where α and h are the height and bandwidth of the rectan-
+                     p± (t) = ∓J(±C, t),                    (6)          gular kernel ϕ(t), ψ(t) is the predicted density, and β± ≥ 0
+                                                                         denote false event rates. Unlike existing event filters, ab-
+constitute the instantaneous ON/OFF event densities as                   normal events are not hard-thresholded but still contribute
+shown in Fig. 2(b). Hence, events can be interpreted as sam-             to the continuous scene modeling process.
+ples drawn from the leaking probability flux at the bound-                   To determine optimal EDF parameters, we adopt the
+ary. Since the number of leaked events should be comple-                 likelihood maximization strategy. If Ne events are observed
+mentary to the remaining trajectories, we have                           in the interval (s, t] with times and polarities {(ti , pi )}N e
+                                                                                                                                      i=1 ,
+                            Z C                                          the log-likelihood is can be derived from Eqs. (7) and (8) as
+           P(ts ≤ t) = 1 −       ρ(I, t)dI,                                             XNe                 Z t
+                             −C
+                        Z t                               (7)              ln L(s, t) =      ln λpi (ti ) −     [λ+ (t) + λ− (t)]dt, (12)
+                                                                                         i=1                s
+                        =        [p+ (τ ) + p− (τ )] dτ.
+                             0                                           which combines the contributions of state and process like-
+The conditional distribution of polarities is derived as:                lihoods, where λp (t) = λ± (t) for p = ±1. To derive
+                                                                         closed-form solutions, we also impose a prior distribution:
+                             p± (t)          p± (t)                                                    γ      γ
+      P(p = ±1 | t) =                 =                 ,   (8)                        f (α, β± , h) ∝ 2 exp − ,                 (13)
+                            P(ts = t)   p− (t) + p+ (t)                                               h          h
+
+
+
+                                                                  8025
+

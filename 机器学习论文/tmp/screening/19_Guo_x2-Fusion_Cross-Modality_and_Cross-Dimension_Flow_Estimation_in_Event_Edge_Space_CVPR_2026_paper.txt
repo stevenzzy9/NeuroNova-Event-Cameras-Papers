@@ -1,0 +1,273 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+            x2 -Fusion: Cross-Modality and Cross-Dimension Flow Estimation
+                                 in Event Edge Space
+
+         Ruishan Guo1,∗ , Ciyu Ruan1,∗ , Haoyang Wang1,∗ , Zihang Gong2 , Jingao Xu3 , Xinlei Chen1,†
+    1
+        Shenzhen International Graduate School, Tsinghua University, 2 Harbin Institute of Technology,
+                                         3
+                                           The University of Hong Kong
+             {grs24, rcy23, haoyang-22}@mails.tsinghua.edu.cn, gongzihang0201@gmail.com
+                                   jingaoxu@hku.hk, chen.xinlei@sz.tsinghua.edu.cn
+
+
+
+                            Abstract                                 Regularization Module      Fusion Module       Modality X (Image-like) Encoder            Heterogenous Space
+
+                                                                              Image / Lidar / Event Encoder         Pretrained Event Edge Encoder              Homogeneous Space
+
+    Estimating dense 2D optical flow and 3D scene flow is                          ①            ②               ③
+
+essential for dynamic scene understanding. Recent work
+combines images, LiDAR, and event data to jointly predict                                                                                                 ①    ···      ④
+
+2D and 3D motion, yet most approaches operate in sepa-
+rate heterogeneous feature spaces. Without a shared latent                                                                     Image-like
+space that all modalities can align to, these systems rely                       Feature
+                                                                                  Stage
+                                                                                              Motion
+                                                                                              Stage
+                                                                                                           Estimation
+                                                                                                             Stage
+                                                                                                                             Data Preprocess                Layer 1~4
+
+on multiple modality-specific blocks, leaving cross-sensor                (a) RPEFlow: Stage-wise fusion                (b) CMX: Pair-wise fusion on image-like encodings
+mismatches unresolved and making fusion unnecessarily                      Luminance              Motion
+complex. Event cameras naturally provide a spatiotempo-
+
+
+
+
+                                                                                                                               Pretrained Event
+                                                                                                                                Edge Encoder
+                                                                               ①
+ral edge signal, which we can treat as an intrinsic edge
+                                                                                                                                                        ①
+field to anchor a unified latent representation, termed the                                         ③
+
+
+Event Edge Space. Building on this idea, we introduce x2 -                     ②
+
+
+Fusion, which reframes multimodal fusion as representa-                    Structure                                                              Event Edge Space
+
+tion unification: event-derived spatiotemporal edges define              (c) VisMoFlow: Fusion in Multiple                  (d) Ours: Edge-centric homogeneous latent
+an edge-centric homogeneous space, and image and LiDAR                          Heterogenous Space                            space with unified alignment and fusion
+
+features are explicitly aligned in this shared representa-         Figure 1. Fusion paradigms for multimodal perception.
+tion. Within this space, we perform reliability-aware adap-        (a) RPEFlow [8]: stage-wise fusion across 2D/3D spaces.
+tive fusion to estimate modality reliability and emphasize         (b) CMX [9]:image-like encodings with pairwise rectifica-
+stable cues under degradation. We further employ cross-            tion/attention at each backbone stage. (c) VisMoFlow [10]: sep-
+dimension contrast learning to tightly couple 2D optical           arate luminance/structure/correlation spaces with dedicated mod-
+flow with 3D scene flow. Extensive experiments on both syn-        ules. (d) Ours: preserves native domains and learns an Event Edge
+                                                                   Space, a shared edge-centric latent space guided by a frozen event
+thetic and real benchmarks show that x2 -Fusion achieves
+                                                                   teacher, that aligns image, LiDAR, and events before fusion.
+state-of-the-art accuracy under standard conditions and de-
+livers substantial improvements in challenging scenarios.              Despite these advances, existing multimodal flow esti-
+                                                                   mation works keep each modality in its native format (im-
+1. Introduction                                                    ages as 2D grids, LiDAR as point clouds, events as asyn-
+                                                                   chronous streams) and fuse them spatially across separate,
+Optical and scene flow estimate dense 2D and 3D mo-
+                                                                   heterogeneous feature spaces. This brings three issues:
+tion correspondences across images, depth maps, and point
+                                                                   (i) High Complexity: Without a shared channel-wise basis,
+clouds, forming a core tool for dynamic scene understand-
+                                                                   fusion requires pairwise alignment between every modality
+ing in autonomous driving, tracking, and 3D reconstruc-
+                                                                   pair, leading to module-heavy architectures with stage-wise
+tion [1–3]. Recent works fuse image, LiDAR, and events
+                                                                   fusion blocks [8], pair-wise rectification/attention units [9],
+via advanced architectures, coupling dense photometry with
+                                                                   or multiple hand-crafted physical spaces [10] (Fig. 1(a-c)).
+accurate geometry to exploit complementarity and outper-
+                                                                   This makes models cumbersome, difficult to train, and hard
+form single-modality baselines [4–7].
+                                                                   to scale to additional modalities.
+   * Equal Contribution. † Corresponding author.                   (ii) Information Erosion: Processing features in sepa-
+
+
+
+                                                             15145
+rate heterogeneous spaces delays fusion to late stages,            formance under normal conditions. Moreover, it signifi-
+where signals have already been corrupted by early-stage           cantly outperforms existing methods under challenging sce-
+modality-specific distortions that become difficult to correct     narios such as extreme lighting and LiDAR sparsity. Our
+through cross-modal interaction.                                   main contributions are summarized as follows:
+(iii) High Fragility: Without a common representational            • To our knowledge, we introduce Event Edge Space, the
+foundation, modalities cannot provide stable priors for one          first edge-centric homogeneous space unifying image, Li-
+another. Under perception degradations such as exposure              DAR, and events representations in a common domain.
+extremes, LiDAR sparsity, or motion blur, the alignment            • Within the homogeneous space, we couple reliability-
+itself breaks down, causing catastrophic failures [11–14].           aware adaptive fusion with cross-dimension contrastive
+Overall, these methods do not align all sensors into a homo-         learning, enabling consistent 2D-3D flow estimation.
+geneous channel-wise latent space, preventing simple, ro-          • We achieve state-of-the-art performance on both synthetic
+bust, and efficient cross-modal interaction.                         and real-world benchmarks, demonstrating the effective-
+Multimodel Fusion in Homogeneous Event Edge Space.                   ness of our approach across diverse scenarios.
+We address this limitation by introducing Event Edge
+Space, the first homogeneous latent space that unifies im-         2. Related Work
+age, LiDAR, and event representations in shared edge-              2.1. Multimodel Fusion Paradigms
+centric domain. This design is motivated by two insights:
+• Why Edge? Edges capture object boundaries and scene              Multimodal sensing enhances scene understanding by com-
+discontinuities in a modality-agnostic manner. They repre-         bining dense appearance, precise geometry, and fine-
+sent consistent structural information across sensors, irre-       grained dynamics [23–28]. In recent 2D/3D motion tasks,
+spective of appearance variations, sampling density differ-        coupling photometric cues with 3D structure [8–10, 29] sig-
+ences, or sensor-specific noise patterns [15–18]. An edge-         nificantly outperforms single-modality baselines [30–35].
+centric latent space thus provides a natural common lan-               However, most prior work models pairwise interac-
+guage for aligning heterogeneous inputs before interaction.        tions across heterogeneous feature spaces via bespoke fu-
+• Why Edge using Event? Event camera records per-pixel             sion blocks: RPEFlow [8] adopts stage-wise attention and
+brightness changes at ultra-high temporal resolution, fir-         mutual-information regularization at the feature, motion,
+ing precisely where strong image gradients persist under           and estimation stages, requiring dedicated fusion for each
+motion, i.e., on moving edges [19, 20]. Spatial aggrega-           branch and stage. VisMoFlow [10] attempts to mitigate
+tion traces pixel-aligned edge curves; temporal aggrega-           modality heterogeneity by constructing three hand-crafted
+tion yields continuous edge trajectories, forming a natu-          physical spaces:luminance, structure, correlation. Although
+ral spatiotemporal edge signal. Moreover, events share 2D          these are described as homogeneous spaces, the three do-
+pixel coordinates with images, while their asynchronous            mains are processed by distinct modules (luminance fu-
+sparse activations mirror LiDAR’s irregular spatiotemporal         sion, structural cross-attention, correlation alignment) and
+sampling [21, 22]. This dual correspondence—geometric              rely on different physical assumptions. Consequently, in-
+alignment with image and structural similarity with Li-            teraction occurs sequentially across these domains rather
+DAR—makes events an ideal anchor for a truly homoge-               than within a unified channel-wise latent space, and the
+neous edge-centric space.                                          overall fusion mechanism remains multi-stage and module-
+                                                                   intensive. Unified RGB–X methods like CMX [9] con-
+    To translate this insight into a practical architecture, we
+                                                                   vert all inputs to image-like encodings and fuse via shared
+introduce three key technical components. First, we pre-
+                                                                   blocks. While providing a common 2D representation, this
+train an Event Edge Encoder to distill stable, motion-aware
+                                                                   grid-based confinement overlooks modality-native proper-
+edge embeddings, then freeze it and use its features as edge
+                                                                   ties such as 3D topology and asynchronous event dynamics.
+prototypes to symmetrically regularize RGB and LiDAR en-
+                                                                       In contrast, we embed images, LiDAR, and events into
+coders, aligning both modalities into the shared Event Edge
+                                                                   a homogeneous edge-centric space. This enables fusion via
+Space. Second, within this homogeneous space, Reliability-
+                                                                   lightweight weighting and unified cross-attention, replacing
+aware Adaptive Fusion estimates global and local reliabil-
+                                                                   stacked modality-wise modules to a simpler, robust design.
+ity from spatiotemporal cues and performs cross-attention
+to produce unified 2D/3D features. Third, Cross-dimension
+                                                                   2.2. Cross-modality and Cross-dimension Learning
+Contrastive Learning explicitly enforces inter-frame mo-
+tion coherence and 2D–3D geometric consistency, enabling           Existing cross-modality learning methods primarily focus
+mutual reinforcement between optical flow and scene flow           on: 1) modeling inter-modal relationships [36–40] and 2)
+tasks to fully exploit complementary cues. Extensive ex-           designing effective fusion strategies [41–49].
+periments on both synthetic and real-world benchmarks                 For relationship modeling, co-learning approaches such
+demonstrate that our approach achieves state-of-the-art per-       as cross-modal distillation [38] learn shared representations
+
+
+
+                                                              15146
+    Trainable                                                                                                               2D
+                 Stop-gradient                Event Edge Space (Sec 3.1)                                                         3D
+    Frozen                                                                             Reliability-aware                                 Cross-dimension
+                                            𝑍 𝐼 ∈ ℝ𝐻×𝑊×𝐶          Edge-anchored                                                         Contrast Learning
+
+
+
+
+                                                                                                                                                                          Flow Estimator
+                                                                   Symmetric           Adaptive Fusion
+
+
+
+
+                                                                                                                                                                            2D Optical
+                                 1×1 Conv
+                    Image                           (𝑥, 𝑦)                                  (Sec 3.2)                                  2𝐷   (Sec 3.3)    2𝐷
+                                                                  Regularization                                                      𝐹𝑡                      𝐹𝑡+1
+                   Encoder                                                                                                                         2𝐷
+RGB                                                                         (𝑥, 𝑦)                                                               Δ𝐹𝑡,𝑡+1
+          ···                                                                         Motion
+
+
+
+
+                                                                                                         Cross-attention
+Images                                      𝑍 𝐸 ∈ ℝ𝐻×𝑊×𝐶
+                                                               (𝑥, 𝑦)
+                                                                                      Decoder                               2𝐷                                                             2D Optical Flow
+                                                                                                                           𝐹𝑓𝑢𝑠𝑒𝑑
+                  Pretrained                        (𝑥, 𝑦)              ℒ𝑎𝑙𝑖𝑔𝑛                     ∑
+                 Event Edge                                                                                                           ℒ𝑝𝑢𝑠ℎ      ℒ𝑝𝑢𝑙𝑙        ℒ𝑝𝑢𝑠ℎ
+
+
+
+
+                                                                                                                                                                          Flow Estimator
+Event                                                                                 Spatial                               3𝐷
+                  Encoder                                                             Decoder
+                                                                                                                           𝐹𝑓𝑢𝑠𝑒𝑑
+
+
+
+
+                                                                                                                                                                             3D Scene
+Stream
+                                             𝑍 𝐿 ∈ ℝ𝑁×𝐶
+                                                               {𝑍 𝐼 , 𝑍 𝐸 , 𝑍 𝐿 }                                                                  3𝐷
+                                 MLP
+                                                                                     Reliability       Adaptive                                  Δ𝐹𝑡,𝑡+1
+                   LiDAR                                  Edge-space Embeddings      Estimation         Fusion                                                                             3D Scene Flow
+LiDAR                                               𝑖                                                                                 𝐹𝑡3𝐷                     3𝐷
+                                                                                                                                                              𝐹𝑡+1
+                   Encoder
+            ··
+Point Cloud ·                                                                                                                                 Fused Feature
+
+
+
+Figure 2. Overview of x2 -Fusion. Given image, events and LiDAR, we first pretrain an Event Edge Encoder to distill motion-aware edge
+features. We then freeze the encoder and use its embeddings as edge prototypes to symmetrically regularize channel-wise representations
+across modalities, aligning them into a shared Event Edge Space (Sec. 3.1). Within this space, Reliability-aware Adaptive Fusion estimates
+global and local reliability and fuses modalities via a cross-attention block to produce 2D/3D features (Sec. 3.2). Finally, Cross-dimension
+Contrast Learning enforces inter-frame coherence and 2D–3D consistency, and the task heads output optical and scene flow (Sec. 3.3).
+
+but are prone to failure propagation when any sensor de-                                     resentations by enforcing intra-frame geometric discrimina-
+grades. Modality dropout [39] improves robustness by sim-                                    tion and inter-frame consistency, enabling cross-dimension
+ulating sensor failures in training. Knowledge-guided meth-                                  synergy that surpasses independent learning.
+ods inject domain priors (e.g., geometric constraints [40])
+but often lack adaptability to unseen scenarios.
+                                                                                             3.1. Event Edge Space
+   Fusion strategies generally fall into two categories:                                     We propose the Event Edge Space to unify multimodal
+attention-based approaches [42, 43], which dynamically                                       features based on the intrinsic geometric commonality of
+weight modalities via gating or cross-attention [44], and                                    motion edges across all three modalities. Leveraging the
+representation-learning methods [45, 46], which align fea-                                   fact that event streams are inherently composed of fine-
+ture spaces by enforcing embedding consistency through                                       grained spatiotemporal edge points, we exploit their tempo-
+contrastive objectives[47], canonical correlation[48], or                                    rally dense and edge-salient nature to construct this homo-
+mutual information regularization [49].                                                      geneous latent space. It serves as a unified feature domain,
+   We propose a unified fusion framework on a shared,                                        anchored by the semantics of motion edges.
+edge-centric latent space. Within this space, cross-modality                                     To faithfully preserve fine-grained spatiotemporal edge
+adaptive attention and cross-dimension contrastive learning                                  cues within this space, we first explicitly pretrain an event
+combine to enable robust multimodal integration.                                             edge encoder (Sec. 3.1.1) to distill stable, motion-aware
+                                                                                             edge representations from raw events. We then freeze the
+3. Method                                                                                    event encoder, treating its features as Edge Prototypes to
+                                                                                             learn bidirectional mappings I ⇔ E and L ⇔ E for aligning
+Overview. To enable robust optical and scene flow es-                                        image and LiDAR features (Sec. 3.1.2).
+timation under all-day, dynamic conditions, we propose
+a unified framework named x2 -Fusion, as illustrated in                                      3.1.1. Event Edge Encoder Pretraining
+Fig. 2, that uses stable scene-edge representations to unify                                 We process event stream by first voxelizing it in space-
+image, events and LiDAR in a shared edge-centric latent                                      time. The resulting voxel tensor is then fed into a sparse 3D
+space, and then performs reliability-aware adaptive fusion                                   convolutional neural network, which outputs a multi-scale
+with joint 2D–3D motion representation learning.                                             event feature pyramid {F E }, where FsE ∈ RHs ×Ws ×Cs
+   For robust multimodal fusion, we first embed image, Li-                                   denotes the event edge feature map at scale s.
+DAR, and events into a homogeneous Event Edge Space,                                            To explicitly bias FsE towards edge-aware representa-
+where frozen event embeddings provide edge-centric pro-                                      tions, we define an event edge strength from raw events.
+totypes to align modality features. Within this shared                                       For each pixel (x, y) in a window, we measure the normal-
+space, Reliability-aware Adaptive Fusion estimates modal-                                    ized event activity ÃE (x, y) and the normalized temporal
+ity reliability from stable edge motion and structural cues                                  variance σ̃t (x, y) of its events, and combine them into
+and drives a single cross-attention block, yielding resilient
+                                                                                                           e^{E}(x,y) = \tilde A^E(x,y)\,\bigl (1 - \tilde \sigma _t(x,y)\bigr ) \in [0,1],           (1)
+2D/3D representations under partial sensor degradations.
+   For joint estimation, the Cross-dimension Contrast                                        where larger eE indicates stronger and more temporally co-
+Learning module jointly optimizes 2D and 3D motion rep-                                      herent motion edges. Scale-specific edge maps eEs are ob-
+
+
+
+
+                                                                                     15147
+

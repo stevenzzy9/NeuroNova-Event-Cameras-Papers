@@ -1,0 +1,192 @@
+                       This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                    Except for this watermark, it is identical to the accepted version;
+                              the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                            240FPS Stereo Vision from Monocular Mixed Spikes
+
+  Yeliduosi Xiaokaiti1,2 Yakun Chang3,4 Yang Bai1,2 Zhaojun Huang1,2 Peiqi Duan1,2 Boxin Shi1,2,5 *
+              1
+                  State Key Laboratory of Multimedia Information Processing, School of Computer Science, Peking University
+              2
+                  National Engineering Research Center of Visual Technology, School of Computer Science, Peking University
+                                       3
+                                           Institute of Information Science, Beijing Jiaotong University
+    4
+        Visual Intelligence +X International Cooperation Joint Laboratory of the MoE 5 PKU-AI2 Robotics Joint Lab of Embodied AI
+                                 {yongqiye, by baiyang, huangzhaojun}@stu.pku.edu.cn
+                              ykchang@bjtu.edu.cn, {duanqi0001, shiboxin}@pku.edu.cn
+
+
+
+                             Abstract                                                                           Left view               Right view
+                                                                              I
+Stereo vision is fundamental for enabling machines to per-
+ceive and interact with the world. While monocular stereo                                          t
+methods offer hardware compactness, they struggle with
+                                                                                  Incident light
+generalization due to reliance on data-driven priors. Binoc-
+ular and multi-view systems improve accuracy but incur                        I
+higher hardware complexity and data inefficiency. In this
+paper, we introduce a monocular solution for high-frame-                                           t                                     Modulator
+rate stereo vision via temporal optical modulation. The                            Modulated
+modulation directs light from two views onto a single sen-
+sor in a mixed manner, while periodically attenuating one
+                                                                                                                                                45°
+view at 60 Hz. To capture the temporal variations intro-
+duced by this modulation, we employ a high-speed spike                        Spike camera                     Beam splitter            Planar mirror
+camera that records the mixed scene as temporally dense
+                                                                                                       (a) Illustration of our system
+spikes. The high temporal resolution of these spikes enables
+the construction of a linear system for efficient binocular                  Mixed spikes                Decoupled stereo video              Depth
+video decoupling. Consequently, we introduce a two-stage
+decoding methodology for achieving high-quality stereo vi-
+sion: An efficient least-squares-based baseline reconstruc-
+tion followed by a deep learning refinement module. Ex-
+perimental results demonstrate that our approach achieves
+240FPS binocular video reconstruction with superior accu-                                (b) Decoupled videos and estimated depth
+racy compared to monocular systems, while maintaining the                  Figure 1. We propose a monocular solution capable of produc-
+hardware compactness and data efficiency. Code is avail-                   ing 240FPS stereo video. (a) Our optical setup mixes light from
+able at https://github.com/yongqiye00/MonoSpikeStereo.                     two views onto a single spike camera via a beam splitter. While
+                                                                           one view remains unmodulated, the other view passes through
+                                                                           an LCD modulator whose transmittance varies periodically. (b)
+1. Introduction                                                            We decouple binocular video from mixed spikes and feed the re-
+                                                                           constructed stereo pair into an off-the-shelf stereo matcher (e.g.,
+Stereo vision serves as a fundamental technology for en-                   DEFOM-Stereo [13]) to estimate depth.
+abling machine interaction with the world. In many high-
+level computer vision tasks, such as detection [16] and
+                                                                           binocular [30, 36], and multi-view [21, 33] configurations.
+tracking [22], stereo vision provides more fine-grained
+                                                                           Monocular systems [1, 25, 31] offer advantages in hard-
+scene understanding capabilities. Existing stereo vision
+                                                                           ware compactness. However, their generalization to un-
+systems can be categorized into monocular [1, 25, 31],
+                                                                           seen scenarios remains limited as they rely heavily on
+  * Corresponding author.                                                  data-driven priors. In contrast, binocular and multi-view
+
+
+
+                                                                     26688
+systems [21, 30] typically employ two or more cameras                            can be further refined through a learning-based module to
+to enhance accuracy. However, this performance advan-                            eliminate residual artifacts induced by motions. We refer
+tage comes at the cost of increased hardware complexity.                         to this learning-based refinement module as SMS-Net, as
+Moreover, in many high-speed scenarios such as compet-                           our goal is Stereo vision from Mixed Spikes. SMS-Net is
+itive sports, autonomous driving, and aerospace applica-                         a fully end-to-end deep learning framework that refines the
+tions [9, 11, 27], the demand for high frame rates in these                      results through multi-scale feature fusion and temporal in-
+systems adversely affects data efficiency.                                       tegration. Furthermore, we introduce a cross-view attention
+    To simultaneously achieve accuracy, hardware compact-                        mechanism [6] to effectively exploit complementary infor-
+ness, and data efficiency, one line of research utilizes two or                  mation between the two views at multiple feature scales,
+more planar mirrors to project multiple views onto separate                      enabling accurate and high-quality reconstruction. To vali-
+sub-regions of a single sensor [5, 10, 18]. In these spatial                     date the quality of the decoupled binocular videos, we apply
+optical modulations, the captured sub-images are then ge-                        them to depth estimation (Fig. 1(b)). Experimental results
+ometrically corrected through epipolar rectification to ob-                      show that our method outperforms monocular approaches
+tain binocular video. However, epipolar rectification relies                     in accuracy, while maintaining the data efficiency and hard-
+on planar scene assumptions, which may lead to geometric                         ware compactness. The main contributions of this work are
+distortion and degraded accuracy. Therefore, another line                        summarized as follows:
+of research projects incident light from two views onto the                      • a monocular solution for 240FPS binocular video recon-
+same sensor in a mixed manner [20]. Although this optical                          struction through mixed-spike decoupling;
+modulation avoids geometric distortions, decoupling binoc-                       • an SMS-Net that enables robust binocular video decou-
+ular videos from the mixed signal still relies on a global                         pling, which is validated on depth estimation; and
+consideration of limited disparity. For mixed signals from                       • a corresponding hardware platform that enables real-
+two views, if we introduce temporal optical modulation to                          world data for testing, along with a data simulator for
+one view, the variations will provide strong cues for effec-                       training.
+tively decoupling binocular videos. However, implement-
+ing temporal modulation requires the camera to operate at a                      2. Related work
+sufficiently high speed. Given the limited frame rate of con-
+ventional digital cameras, a high-speed and data-efficient                       Monocular stereo with mirrors. Monocular stereo vision
+camera is highly desirable.                                                      systems commonly rely on optical modulation to capture
+    Recently developed spike cameras [3, 4, 12] offer read-                      light from multiple viewpoints [5, 10, 18]. Over the past
+out frequencies of up to 40,000 Hz and output 1-bit data.                        decades, numerous such systems have been proposed. Early
+Such characteristics make them ideally suited for our ap-                        approaches, such as the motor-driven mirror assembly by
+plication requirements. Therefore, as shown in Fig. 1(a),                        Teoh and Zhang [24] and the rotating glass plate by Nishi-
+we construct a temporally modulated stereo system using a                        moto and Shirai [19], exploit mechanical movement to ac-
+monocular spike camera. In our system, incident light from                       quire stereo image pairs. However, these pioneering meth-
+one view is reflected by the mirror and optically mixed with                     ods are primarily suitable for static scenes due to their in-
+the other view through the beam splitter. To facilitate binoc-                   herent mechanical constraints. Another line of research uti-
+ular video decoupling, we maintain one view without mod-                         lizes two or more planar mirrors to project multiple view-
+ulation while periodically attenuating the other view at 60                      points onto separate sub-regions of a single sensor. Nene
+Hz using an LCD modulator. Compared to existing stereo                           and Nayar [18] propose four stereo systems that use a sin-
+systems employing two spike cameras [14, 29], our monoc-                         gle camera, establishing the practical viability of this ap-
+ular setup offers more compact hardware and efficient data.                      proach. Their work is formalized by Gluckman and Na-
+    Benefiting from the temporal optical modulation applied                      yar [10], who detail the epipolar geometry and calibration
+to one view, binocular video decoupling from mixed spikes                        for catadioptric stereo with planar mirrors. A common re-
+becomes more tractable. To enable an efficient and fast so-                      quirement for these mirror-based systems is geometric cor-
+lution, we initially consider that motions across consecutive                    rection. In contrast, Pachidis and Lygouras [20] introduce a
+frames are negligible for the high-speed spike camera. This                      method that projects light from two viewpoints onto the sen-
+consideration allows us to construct a linear system where                       sor in a mixed manner, thereby avoiding geometric distor-
+the decoupling problem can be efficiently solved through                         tions at the cost of requiring subsequent separation. Com-
+least-squares optimization. For each modulation period, we                       pared with existing monocular stereo vision with mirrors,
+decouple 4 pairs of binocular frames, thereby achieving a                        the LCD modulator in our approach introduces more tem-
+baseline binocular video at 240FPS1 . These baseline results                     poral information for binocular video reconstruction.
+                                                                                 Stereo vision from spikes. Spike cameras have been
+   1 We drive the LCD modulator at 60 Hz in our current prototype; higher        widely used in many computer vision tasks [3, 34, 35] in-
+frame rates are possible with faster modulators.                                 cluding stereo vision. Zhang et al. [32] demonstrate the fea-
+
+
+
+                                                                            26689
+           (a) Mixed Spike                                         (c) Baseline Decoupling and Mixed Spike Intensity Map
+  𝑓(𝑡)
+    y
+
+
+    x                                 time
+                                                  𝐼!"                                     𝐼$"                                                                                               𝑀!
+                 𝑇!
+
+
+
+    (𝑡"&$ , 𝑡" ) (𝑡" , 𝑡"#$ ) (𝑡"#$ , 𝑡"#% )
+
+  𝑄
+ 𝑓(𝑡)         Eqn. (4)           LSO              𝐼!#                                    𝐼$#                                                                                                𝑀$
+        (b) Equation Collecting                Spike Trigger LSO Least-Squares Optimization          Cross-View Artifacts                                   Texture Loss                                Modulator State
+
+Figure 2. (a) Mixed spikes are sliced by a sliding window of length Tw . (b) We collect all spikes triggered within Tw to construct a
+linear system (Eqn. (4)), which is then solved using the least-squares optimization (LSO). (c) Baseline decoupling results reveal brightness
+inconsistency, residual cross-view artifacts, and texture loss in the right view. The mixed spike intensity maps Mt (t = 1, 2) reconstructed
+by accumulating all spikes during a modulation period can serve as brightness-consistency guidance.
+
+sibility of estimating depth directly from continuous spikes                      learning-based refinement module, i.e., SMS-Net, to effec-
+captured with a monocular camera. However, in regions                             tively remove these artifacts and restore fine details. Finally,
+with low texture or repeated patterns, monocular cues such                        in Sec. 3.3, we describe details of our dataset.
+as shading or perspective are insufficient to disambiguate
+depth. For spike-based stereo vision, constructing a binoc-                       3.1. Baseline decoupling
+ular system is a straightforward solution [14, 29]. Li et                         Imaging model of mixed spikes. The pixels in a spike sen-
+al. [14] propose a dual-task depth estimation framework                           sor operate asynchronously. Each pixel continuously inte-
+with joint training and uncertainty-guided fusion to com-                         grates photo-generated electrons and triggers a spike of 1
+bine monocular and stereo cues. Wang et al. [29] develop a                        when the accumulated electrons reach a threshold Q, after
+hybrid stereo camera platform and introduce a correspond-                         which the electrons are cleared. Due to the discrete sam-
+ing dataset, along with a transformer-based network for                           pling strategy, a discrepancy (∆Q) may exist between the
+dense depth prediction. Gao et al. [8] employ raw dual-                           true number of accumulated electrons and the computed
+view spike streams and iteratively refine depth estimation                        value. Therefore, the accumulated electrons are
+using a recurrent spiking neural network. However, these
+approaches rely on multiple cameras, which inevitably in-                               Q(x,y)+\Delta Q(x,y) = \int _{t_{i-1}}^{t_{i}} \alpha (x,y) I(t,x,y)\, dt,                                                           (1)
+crease hardware complexity and system cost. In contrast,
+our monocular spike camera integrated with a temporal
+modulator achieves competitive performance while signif-                          where ti denotes the timestamp of the i-th detected spike,
+icantly reducing system integration complexity.                                   \alpha  is the photoelectric conversion coefficient, I is the light
+                                                                                  intensity, and (x, y) is spatial coordinates. When we add
+3. Method                                                                         temporal optical modulation, the incident light intensity is
+                                                                                  a mixture of two views. Omitting spatial coordinates (x, y)
+Overview. We present a two-stage framework for achiev-                            for brevity, the imaging model becomes:
+ing stereo vision using a monocular spike camera equipped
+with temporal optical modulation. This modulation intro-
+                                                                                                 Q+\Delta Q = \int _{t_{i-1}}^{t_i} \alpha \bigl [ I^\text {L}(t) + I^\text {R}(t) f(t) \bigr ] \, dt, \label {eq2_model}    (2)
+duces temporal inconsistency in one view within the cap-
+tured mixed spikes, which serves as strong guidance for de-
+coupling binocular videos. In the first stage (Sec. 3.1), we                      where I^\text {L}(t) and I^\text {R}(t) denote the light from two views, and
+find that the spikes are temporally dense, which permits the                      f(t) (see Fig. 2(a)) is the temporal modulation .
+consideration that motion within several adjacent frames is                       Decoupling with least-squares optimization. When ob-
+negligible. This consideration allows us to formulate a lin-                      serving the accumulated electrons (i.e., spikes) within a
+ear system and perform fast baseline decoupling by using                          temporal window Tw , from Eqn. (2) we note that both
+least-squares optimization. In Sec. 3.2, to remove residual                       I^L(t) and I^\text {R}(t) are unknown quantities. Under the assump-
+artifacts in the baseline decoupling results and compensate                       tion that motion is negligible between adjacent time win-
+for texture loss caused by optical modulation, we design a                        dows for temporally dense spikes, we can construct a linear
+
+
+
+                                                                            26690
+

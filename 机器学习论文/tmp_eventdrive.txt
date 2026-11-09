@@ -1,0 +1,732 @@
+                         This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                      Except for this watermark, it is identical to the accepted version;
+                                the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+          EventDrive: Event Cameras for Vision-Language Driving Intelligence
+
+                              Dongyue Lu1,6 Rong Li2 Ao Liang1 Lingdong Kong1,3
+     Wei Yin4            Lai Xing Ng5 Benoit R. Cottereau6,7 Camille Simon Chane8 Wei Tsang Ooi1,6
+               1
+              NUS 2 HKUST(GZ) 3 CNRS@CREATE 4 Horizon Robotics 5 A*STAR, I2 R
+      6
+          IPAL, CNRS IRL 2955, Singapore 7 University Toulouse, CNRS, CerCo, Toulouse, France
+                  8
+                    ETIS UMR 8051, CY Cergy Paris University, ENSEA, CNRS, France
+
+           Perception                                                                                               Understanding
+     What type of driving scene                      1 Scene Type          Object Presence 7                              Locate the car on the right
+         is this?                                                                                                         side of the SUV, identify its
+                                                     2 Traffic Light       Grounding           8                          motion state?
+
+                                                     3 Traffic Flow        Ego Relation        9
+
+
+
+
+                             A mountainous road                                                         (415,228,120,154),
+                             with a tunnel                                                          moving fast
+
+   4 Weather       5 Visibility   6 Road Condition                                                 10 Appearance    11 Environment Relation 12 Status
+
+   13 Object Speed     14 Object Path                                                              17 Waypoint Prediction     16 Ego Speed
+
+     What are the speed and direction                                                                     Given the past waypoints [x1,y1],…,[xn,yn]
+         intents of the highlighted object?                                                               and the image, predict the next n future
+                                                                                                          waypoints.
+
+
+                                  Object Path
+          Accelerating, moving                                                 Ego Path   15                                 [-0.0101, 0.7565,], [-
+     straight ahead.                                                                                                         0.2693, 4.4425] ...
+
+           Prediction                                                                                                        Planning
+Figure 1. Overview of the EventDrive benchmark. The dataset contains 471k event–frame–language samples across four levels
+of driving reasoning spanning 17 subtasks:     Perception evaluates scene-level context such as scene type, traffic, and illumination.
+   Understanding assesses object-centric semantics, including presence, motion state, and grounding. Prediction infers short-horizon
+motion intent of surrounding agents.    Planning estimates ego motion intent and future waypoints from past trajectories. Each task is
+formulated through structured, language-grounded queries, enabling unified evaluation of event–frame models across the autonomy stack.
+
+                                  Abstract                                  ing contributes to reasoning and decision-making across
+                                                                            the full driving loop. We present EventDrive, a large-
+                                                                            scale benchmark and model suite that unifies event streams,
+Event cameras sense the world through asynchronous                          RGB frames, and language supervision across four core
+brightness changes with microsecond latency and high dy-                    dimensions: Perception, Understanding, Prediction, and
+namic range, offering motion fidelity far beyond frame-                     Planning, covering captions, structured QA, grounding,
+based sensors and capturing temporal structure that con-                    motion-state recognition, trajectory forecasting, and plan-
+ventional exposures often miss. These properties make                       ning tasks. Building on this foundation, EventDrive-VLM
+events a powerful complement to RGB in autonomous driv-                     introduces a multi-horizon event pyramid and a modality-
+ing, especially under blur, glare, and rapid motion, where                  routing mixture-of-experts to adaptively encode and fuse
+frame-based perception can become unreliable. However,                      asynchronous and frame-based information for downstream
+existing event-aware vision–language models remain lim-                     reasoning. Comprehensive evaluation across diverse tasks
+ited to generic perception and do not reveal how event sens-
+
+
+
+                                                                       22312
+shows that event streams provide substantial gains in tem-        ior anticipation, where the high temporal density of events
+poral precision, motion awareness, and robustness, bring-         exposes velocity and acceleration. Planning examines ego
+ing event sensing into the center of driving intelligence.        intent and waypoint estimation, leveraging continuous tem-
+                                                                  poral structure for steadier decisions in dynamic environ-
+                                                                  ments. Together, these tasks form a unified evaluation pro-
+1. Introduction                                                   tocol that highlights how temporal cues enhance percep-
+Event cameras have gained increasing attention for their          tion and reasoning across the driving stack while remain-
+ability to record dynamic scenes with microsecond tempo-          ing compatible with classical vision models and modern vi-
+ral precision [6, 17]. Unlike RGB sensors that integrate in-      sion–language architectures.
+tensity over fixed exposure periods, event cameras report            Building upon EventDrive, we develop EventDrive-
+asynchronous brightness changes at the pixel level [35].          VLM, an event-driven vision–language model that inte-
+This design yields high dynamic range, very low latency,          grates asynchronous event cues into unified multimodal rea-
+and natural robustness to motion blur. These sensing advan-       soning. The framework tackles two core challenges in
+tages are especially valuable in autonomous driving, where        event-based driving. First, event streams vary widely in
+reliable perception must be maintained across fast ego mo-        temporal density. To capture motion across scales, we in-
+tion, rapidly moving agents, and challenging illumination         troduce a Dynamic Horizon Encoding module that vox-
+conditions [10, 55]. These characteristics position event         elizes events at multiple temporal resolutions and selects
+sensing as a promising complement to frame-based percep-          the most informative representation via a mixture-of-experts
+tion in safety-critical driving systems.                          gate. This preserves high-frequency dynamics during fast
+    Despite this potential, events for driving research remain    motion while ensuring stable aggregation in low-motion
+fragmented. Most existing efforts focus on upstream su-           regimes. Second, event features must be aligned with the
+pervised tasks, e.g., detection [23, 37, 48], segmentation        LLM’s semantic space. We address this with an Event Q-
+[30, 33, 58], or optical flow estimation [64, 67]. Very few       Former Alignment module that performs cross-attention
+works explore high-level reasoning and decision-making            between learnable event queries and temporally encoded
+that a complete driving stack requires. In contrast, the RGB      representations, enabling motion-focused signals to inte-
+community has made rapid progress toward unified vision           grate cleanly with language reasoning. A lightweight two-
+and language models that couple perception, reasoning, and        stage curriculum first learns event–language alignment with
+control within a single architecture [26, 27, 36, 42, 43, 61],    the LLM frozen, then performs instruction tuning to pro-
+which provides interpretability and scalable instruction-         duce a coherent event-driven perception-to-action pipeline.
+driven behavior. Early attempts to incorporate events into           Comprehensive experiments on EventDrive reveal
+vision and language systems, including grounding [34] and         strong modality contrasts. Frame-only VLMs perform well
+caption-based event language models [41, 47, 65], demon-          in perception but degrade sharply under low light and mo-
+strate encouraging multimodal interactions but remain lim-        tion blur, and show limited spatial reasoning and weak mo-
+ited to generic scenes. They do not address the reason-           tion inference. Event-only models excel in speed and di-
+ing or decision demands that are central to real-world driv-      rection prediction, highlighting the value of high-frequency
+ing. This gap calls for a framework that integrates events        temporal cues, yet lack semantic richness for appearance-
+throughout the autonomy pipeline in a unified and scalable        heavy understanding. Our event–frame fusion model im-
+manner, rather than treating it as an isolated temporal cue.      proves performance across all task families, stabilizing per-
+                                                                  ception under adverse conditions, enhancing grounding and
+    To address this need, we introduce EventDrive, a uni-
+                                                                  relational reasoning, and delivering stronger motion predic-
+fied dataset and benchmark that integrates event streams,
+                                                                  tion and ego intent estimation. These results show that
+synchronized RGB frames, and language supervision across
+                                                                  events and frames provide complementary strengths, and
+the full driving loop. Our goal is to move from passive
+                                                                  their integration yields more reliable multimodal reasoning
+sensing to actionable understanding within a coherent mul-
+                                                                  than either alone.
+timodal interface. We decompose driving into four sequen-
+tial reasoning stages: perception, understanding, predic-            In summary, our main contributions are as follows:
+tion, and planning, each expressed as a language-grounded         • We introduce EventDrive, the first full-stack event and
+task probing a complementary aspect of event-based rea-             language benchmark for autonomous driving that uni-
+soning. Perception assesses robustness under challenging            fies perception, understanding, prediction, and planning
+illumination and motion, where events offer stable edges            within a consistent multimodal framework.
+and temporal gradients that compensate for degraded RGB           • We propose EventDrive-VLM, a general training frame-
+signals. Understanding targets object semantics and spatial         work that equips large vision and language models with
+relations, with asynchronous event cues helping to disam-           the ability to interpret, align, and reason over asyn-
+biguate interactions. Prediction evaluates short-term behav-        chronous event representations.
+
+
+
+                                                             22313
+• We establish a comprehensive evaluation protocol and ex-        models remain confined to captioning or short QA tasks. On
+  tensively analyze how temporal cues improve multimodal          the contrary, our method preserves temporal sparsity and
+  reasoning, offering a foundation for future event-driven        extends event-based VLMs toward comprehensive driving
+  intelligence in real-world driving.                             reasoning across diverse tasks.
+
+2. Related Work                                                   3. EventDrive: A Vision–Language Bench-
+Event Cameras for Driving. Event sensors offer microsec-             mark for Event-Based Driving
+ond latency, high dynamic range, and robustness to motion         In this section, we present the EventDrive dataset and
+blur, making them ideal for driving perception. They have         benchmark in detail. Sec. 3.1 introduces the overall mo-
+been applied to detection [23, 37, 48, 51, 63], segmentation      tivation and task hierarchy that define the dataset design.
+[30, 33, 58], tracking [64], and recognition [13, 20, 31]. De-    Sec. 3.2 describes the annotation pipeline and data compo-
+tection methods include graph- or spike-centric models pre-       sition, highlighting how multimodal inputs are processed
+serving sparsity and asynchrony [14, 15, 18, 50, 53, 56, 64],     into language-grounded supervision. Sec. 3.3 summarizes
+and dense feed-forward models that convert events into            the data splits and benchmark statistics, outlining the scale
+voxel grids or time surfaces for image-based backbones            and coverage of the dataset and its comparison with existing
+[9, 23, 28, 29, 39, 51, 52]. Beyond detection, event-based        event-based vision–language benchmarks.
+segmentation and tracking emphasize temporal continuity
+and motion cues [21, 34, 58]. However, most systems               3.1. Hierarchical Task Framework
+remain limited to low-level perception without connect-
+ing to higher-level reasoning and planning. Our work ad-          Event cameras remain reliable under low light and rapid
+vances this direction by integrating event sensing into a uni-    motion, offering advantages for safety-critical driving
+fied framework that links perception, understanding, and          where conventional frames often fail. Existing event-based
+decision-making for end-to-end driving intelligence.              works focus mainly on isolated perception tasks, while
+Event-Frame Multimodal Learning. Events and RGB                   RGB-based methods have progressed toward unified vi-
+frames are complementary: events capture fine temporal            sion–language–action frameworks. To close this gap, we
+dynamics under extreme lighting, while frames provide             build a dataset that extends event understanding across the
+rich semantic context. Early pipelines relied on late fu-         entire autonomy stack. The driving loop is organized into
+sion [8, 38], whereas later designs introduced shared back-       four sequential steps: environmental perception, object-
+bones and attention-based gating for cross-modal interac-         centric understanding, forward prediction, and ego-driven
+tion [4, 48, 59]. Transformer-based approaches further im-        planning. Each step is formulated as a language-grounded
+proved temporal reasoning and adaptive weighting under            task that aligns event representations with multimodal mod-
+complex motion and illumination [37, 62, 66], benefiting          els, enabling a systematic evaluation of how event signals
+tasks such as deblurring, depth estimation, and segmenta-         contribute to high-level reasoning.
+tion [22, 25, 57]. Yet most frameworks rely on fixed tempo-            Perception describes global scene conditions across six
+ral windows, which fail to capture motion cues that unfold        subtasks: 1 scene type, 2 visibility, 3 traffic flow, 4 weather,
+                                                                  5
+over varying temporal scales [5, 19, 37]. Our method ad-            traffic light, and 6 road condition. Captions and structured
+dresses this by aligning multi-horizon event streams with         QA pairs assess whether models can interpret environmen-
+frame semantics, enabling frequency-adaptive fusion that          tal context from short temporal windows. Event streams
+maintains both temporal precision and semantic coherence.         preserve edge contrast and temporal gradients under chal-
+Event-based VLMs.            While vision-language models         lenging illumination or motion blur, strengthening robust-
+(VLMs) have transformed visual understanding, extend-             ness beyond frame-based perception.
+ing them to asynchronous event data remains challenging                  Understanding captures object-level semantics and
+[33, 34]. The key difficulty lies in embedding sparse, high-      spatial structure using captions, QA pairs, and bounding
+temporal-resolution signals into a shared vision-language         boxes spanning 1 object presence, 2 appearance, 3 motion
+space. Early contrastive approaches adapt CLIP-style align-       state, 4 ego relation, 5 environment relation, and 6 grounding.
+ment for zero-shot recognition [33, 62], but rely on limited-     The asynchronous event signal supplies fine temporal cues
+scale datasets and rasterized inputs, reducing temporal fi-       that support reasoning about motion and spatial relations
+delity. Recent works narrow this gap: EventGPT [47]               that static frames often miss.
+couples an event encoder and temporal aggregator with                  Prediction targets short-horizon behavioral forecasting
+an LLM; EventVL [41] trains on large-scale event-image-           through indicators of 1 speed change and 2 direction change.
+text pairs with spatiotemporal and semantic alignment; and        Each instance uses language queries to evaluate whether
+LLaFEA [65] integrates frame-event fusion with cross-             models can infer future motion trends of surrounding ob-
+attention and duration cues. Despite these advances, most         jects from limited observations. The high temporal density
+
+
+
+                                                             22314
+                  Perception                               Understanding                                    Prediction                                 Planning
+                                                         Appearance              Status                                     [1]
+                                                                                                                         Trajectory
+                                                         Ego Relation         Env. Relation                              Sequence
+                                                                                                Tracked                  Extraction
+                                                                                                object
+                                                                                                                                                   [1] Extract Ego Poses
+                                                                                                                       world coord.
+                        [1] Scene Captioning
+                                                                                               [2] Viewpoint
+                                                                                              Transformation
+                                                                                                                        ego coord.
+                                                                   [1] Object-Attribute                                                 [2] Ego-Centric Coordinate Alignment
+     Visibility      Traffic Flow     Weather                           Captioning              const                  left turn
+                                                                                                                                                     𝑃!"$
+                                                       A white sedan is moving slowly           accelerate             right turn                                           𝑃!%$
+                                                         in front of the ego vehicle,           decelerate             straight
+                                                       positioned ahead of a black car.
+       Road             Scene       Traffic Light                                                  stop                lane change          𝑃!"#              𝑃!
+     Condition
+                                                     [2] Caption to QA                                                                  [3]Construct past and future Trajectory
+                                                                                              [3] Threshold-Based Behavior Labeling
+      [2] Caption to QA                                                                                                                  & Threshold-Based Behavior Labeling
+
+                                                    Which objects are visible in scene?                                                    Given the past ego waypoints [-
+     Q: How is the lighting in this scene?                                                      Predict the behavior of the                0.1, -0.9], …. Predict the next
+                                                    A: bus, train, bridge
+                                                    B: motorcycle, bicycle                      detected agent.                            10 future waypoints.
+                  A: rain-blurred B: low light
+                                                    C: white sedan, black truck                 Speed: accelerating
+                  C: partly cloudy D: foggy
+                                                    D: dark sedan, trees, rocky hillside        Direction: moving straight ahead           [0.0, 0.1], [0.0, 0.2],...
+
+
+Figure 2. Annotation pipelines of EventDrive.      Perception converts scene-level attributes into structured QA; Understanding gen-
+erates object-level semantic captions and transforms them into QA; Prediction extracts trajectories, applies ego-frame transformation,
+and assigns motion labels; Planning constructs ego-centric waypoints and produces corresponding decision-oriented supervision.
+
+of events reveals velocity and acceleration directly, improv-                                             Table 1. Statistics across four driving reasoning tasks.
+ing the fidelity of motion forecasting.                                                              Task                      Source           #Train                  #Test      #Hard
+     Planning evaluates ego-centric decision making using                                                                      DSEC [24]         53,196            12,828             780
+1
+  speed intent, 2 direction intent, and 3 waypoint planning.                                              Perception           M3ED [7]          65,280            32,136          15,396
+                                                                                                                               PKU [37]          46,860            11,400           3,960
+Models must convert multimodal observations into coher-
+ent driving decisions. Event sensing preserves continuous                                               Understanding          DSEC [24]       91,716            28,848              1,812
+awareness of dynamic changes, supporting more stable rea-                                               Prediction             M3ED [7]         7,784             2,810              1,970
+soning in rapidly evolving or low-visibility conditions.                                                Planning               M3ED [7]        46,290            29,526             18,951
+                                                                                                     Total                                   311,126           117,548             42,869
+
+3.2. Language-Grounded Data Generation                                                               Grand Total Samples                                      471, 543
+
+We construct EventDrive through a semi-automatic                                                 to specific spatial regions. For prediction, we use ego-
+pipeline built upon the event datasets DSEC [24],                                                pose to project 3D boxes from [44] into the ego frame,
+M3ED [7], and PKU-DAVIS-SOD [37], which span diverse                                             extract object trajectories, and convert their motion pat-
+environments and illumination conditions. Using synchro-                                         terns into natural-language descriptions of speed and direc-
+nized RGB frames, event streams, bounding boxes, LiDAR,                                          tion intent, paired with corresponding QA items. Ego-level
+and ego-pose signals, we employ Qwen3-VL [2] to gener-                                           planning leverages M3ED trajectory supervision to derive
+ate linguistically structured supervision across the four task                                   speed intent, path intent, and future waypoints, which are
+dimensions. The pipeline, shown in Fig. 2, integrates au-                                        aligned with language queries that evaluate ego decision
+tomatic captioning with controlled question–answer gener-                                        making. Together, these components yield a unified anno-
+ation to ensure both scalability and semantic consistency.                                       tation framework that connects perception, understanding,
+    Scene-level perception labels are produced by prompt-                                        prediction, and planning through temporally and semanti-
+ing Qwen3-VL to generate global captions describing the                                          cally coherent language-grounded supervision.
+six environmental attributes, which are subsequently de-
+composed into balanced question–answer pairs with ex-
+                                                                                                 3.3. Compositional Structure and Statistics
+planatory sentences. Object-level understanding builds                                           We adopt standard training and testing splits and further
+on ground-truth bounding boxes from DSEC. Qwen3-VL                                               introduce a hard split consisting solely of low-light and
+first generates descriptions for the five object attributes,                                     motion-blur sequences. This split enables targeted eval-
+and these descriptions are transformed into visual ques-                                         uation of the advantages of event sensing under condi-
+tion–answer and grounding tasks that link textual queries                                        tions where frame-based perception degrades. As shown
+
+
+
+                                                                                           22315
+          Multi-Horizon Voxelization              Dynamic Horizon Event Aggregation                       Multimodal Alignment
+
+                                                                                                                          Flatten
+                                                           𝐅!          𝐅"          𝐅#                            𝐟   %                      𝐪%
+
+                                  𝐡'
+                                                                   c                                      𝐊, 𝐕                          𝐐
+                                                                       𝐅$
+                                                               Pooling                                           Cross Attention
+     𝓔
+                                                                 𝐟$                                                        𝐳%
+                                                          Gate      Fluctuation                                     Projector
+                                                                                                                                 𝐡%
+                                                                                                         Localize the cyclist with a helmet,
+                                                  Expert        Expert          Expert                   riding a bicycle, moving forward,
+                                                                                                         alongside a car on its left side.
+                                                          𝛼!           𝛼"               𝛼#
+               𝒃!          𝒃"          𝒃#
+           …
+
+
+                       …
+
+
+                                  …
+
+
+
+
+                                                                   x                                                 𝐡'          𝐡%      𝐡&
+                                                      x                       𝐅"   x
+                                                                                                                           LLM
+               𝐄!          𝐄"          𝐄#
+                                                                   +
+                                                 x Multiply                        𝐅%
+                Event Encoder                    + Add c Concat                                       371,173,83,204
+
+Figure 3. EventDrive-VLM Overview. We first convert asynchronous events into multi-horizon voxel tensors that capture motion at
+different temporal scales. A dynamic horizon event encoder then aggregates these representations through a Mixture-of-Experts gating
+mechanism (cf . Sec. 4.1). An Event Q-Former performs cross-attention to extract language-aligned, motion-aware tokens, enabling co-
+herent fusion of multi-modal features within the LLM for unified driving reasoning (cf . Sec. 4.2). A two-stage training curriculum further
+aligns event, visual, and linguistic pathways, strengthening cross-modal grounding and downstream reasoning performance (Sec. 4.3).
+
+in Tab. 1, the dataset contains 471,543 event–frame–text                    (cf . Sec. 4.1), an Event Q-Former that extracts language-
+samples, offering large-scale multimodal supervision across                 aligned and motion-aware representations (cf . Sec. 4.2),
+perception, understanding, prediction, and planning. Com-                   and a two-stage training curriculum that progressively
+pared with existing event–language datasets [41, 47, 65],                   aligns event, visual, and linguistic pathways for unified
+which often rely on simulated data or provide limited real-                 multimodal reasoning (cf . Sec. 4.3).
+world coverage below 100k samples, EventDrive offers a
+significantly broader and more diverse set of real-world an-                4.1. Dynamic Horizon Event Encoder
+notations. It supports a wider range of tasks that connect                  Event data exhibit large variation in temporal density across
+event-driven perception with higher-level reasoning and                     datasets and tasks. Sensors operate at different sampling
+decision-making, forming a more comprehensive bench-                        rates, and the required temporal resolution also depends
+mark for evaluating multimodal driving intelligence.                        on the objective: perception benefits from broader tempo-
+                                                                            ral context, whereas prediction and planning rely on fine-
+4. EventDrive-VLM: A Unified Model for                                      grained motion cues. Conventional voxelization [23] ap-
+   Event-Based Driving Intelligence                                         plies a fixed number of temporal bins and thus compresses
+                                                                            long exposure windows while blurring fast motion, losing
+Building upon EventDrive, our goal is to develop an                         the high-frequency detail essential for motion reasoning.
+event-driven vision–language–action model that can inter-                      To address this issue, we propose a dynamic horizon en-
+pret and generate decisions grounded in the spatio-temporal                 coding strategy that adapts to varying time scales and scene
+structure of event streams. As shown in Fig. 3, the                         dynamics. Given an event stream E = {ek }K       k=1 , where
+core of EventDrive-VLM is a multimodal LLM back-                            each event ek = (xk , yk , tk , pk ) encodes spatial coordi-
+bone that integrates asynchronous event cues with pre-                      nates, timestamp, and polarity pk ∈ {−1, 1}, standard vox-
+trained visual–linguistic knowledge to support coherent rea-                elization maps events into a 4D tensor E ∈ R2×B×H×W :
+soning across driving tasks. To bridge event dynamics                                         X
+with the LLM embedding space, the model incorporates                        E(p, τ, x, y) =           δ(p − pk )δ(x − xk , y − yk )δ(τ − τk ),
+three components: a dynamic horizon event encoder that                                        ek ∈E
+adapts to varying sampling frequencies and motion patterns                                                                                       (1)
+
+
+
+                                                                  22316
+              j        k
+                  −ta
+where τk = ttkb −t  a
+                      B . Instead of relying on a single bin              The Event Q-Former enables each query to attend selec-
+size B, we construct multiple voxel tensors using temporal             tively to temporally informative regions in the event stream,
+resolutions B = {bn }N                                                 producing motion-aware embeddings suitable for down-
+                       n=1 , producing event tensors En that
+capture short-, medium-, and long-horizon motion patterns.             stream multimodal reasoning. This structured attention pre-
+   To adaptively select the most suitable temporal horizon             serves the temporal distinctiveness of events while support-
+for different motion patterns and task requirements, we em-            ing coherent interaction with frame and text representations.
+ploy a Mixture-of-Experts (MoE) [54] gating mechanism                  A lightweight projection layer maps the attended event fea-
+that dynamically weights multi-scale temporal experts ac-              tures into the LLM embedding space, yielding event tokens
+cording to scene dynamics. Each expert network [23] spe-               he that align with the projected frame tokens hf and text
+cializes in one temporal resolution, processing a voxelized            embeddings ht . The concatenated sequence is then used as
+tensor En with bin size bn to produce an encoded feature               the input to the LLM decoder, enabling unified multimodal
+                                                                       reasoning across all driving tasks.
+           Fn = σ(En ),        Fn ∈ RH×W ×d ,            (2)
+                                                                       4.3. Training Curriculum
+where d is the channel dimension. The resulting expert
+                                                                       We adopt a two-stage training curriculum that progresses
+features are concatenated into a contextual representation
+                                                                       from event–language grounding to multimodal instruction
+Fc ∈ RH×W ×(N d) . Global average pooling produces a
+                                                                       following, enabling stable and efficient adaptation of the
+compact descriptor fc ∈ RN d that summarizes multiscale
+                                                                       event-driven VLM.
+temporal cues. The gating logits are then computed as
+                                                                      Event–Language Pre-adaptation. In the first stage, the
+        z = Wg fc + Softplus ϵ ⊙ (Wnoise fc ) ,        (3)             LLM and the frame visual encoder are kept frozen, while
+                                                                       the event encoder, Q-Former, and projection layers are
+where Wg , Wnoise ∈ RN d×N are trainable parameters,                   trained with a language modeling objective on paired cap-
+and ϵ ∼ N (0, 1) introduces controlled stochasticity to en-            tion data. Although frame data are available, gradients flow
+courage expert diversity. Retaining only the largest k log-            only through the event pathway, allowing the model to form
+its focuses computation on the most relevant temporal ex-              a linguistically aligned event representation without alter-
+perts, and softmax normalization yields the weights αn .               ing the pretrained frame semantics. This generative super-
+The aggregated event representation is computed as Fe =                vision encourages the event encoder and Q-Former to or-
+P  N
+   n=1 αn Fn . This adaptive formulation allows the encoder            ganize temporal cues and motion structure into embeddings
+to emphasize high-resolution temporal features when mo-                compatible with the LLM space, providing a stable form of
+tion is fast and to leverage coarse but stable aggregation             cross-modal alignment.
+when dynamics are mild. As a result, the model maintains               Instruction Tuning. In the second stage, we unfreeze
+temporal fidelity across a wide range of driving scenarios             the transformer blocks of the LLM and fine-tune the en-
+while remaining computationally efficient.                             tire event pathway together with these LLM layers on all
+4.2. Event Q-Former Alignment                                          caption and QA data, while keeping the frame visual en-
+                                                                       coder frozen. This phase integrates temporal and semantic
+After obtaining the aggregated event representation Fe , we            signals more tightly, enabling consistent reasoning across
+align it with the LLM embedding space using an Event Q-                perception, understanding, prediction, and planning. Joint
+Former (EQA). Rather than concatenating event and frame                optimization under multimodal instructions yields coherent
+tokens, which ignores modality asymmetry and leads to                  grounding between event dynamics and textual responses,
+high computational cost, the EQA employs cross-attention               forming a unified event-driven perception-to-action model.
+to extract the motion-relevant components of the event rep-
+resentation that matter for language-guided reasoning.                 5. Experiment
+   Following the Q-Former architecture [40], we introduce
+a set of learnable event query tokens qe ∈ RNq ×d , which              5.1. Experimental Settings
+attend to the event feature map Fe ∈ RH×W ×d . After flat-
+                                                                       Implementation Details. We fine-tune Qwen2.5-VL-7B-
+tening Fe into f e ∈ R(HW )×d , the attended event embed-
+                                                                       Instruct [3] with a pretrained RVT [23] backbone as the
+dings are computed as
+                                                                       event encoder. Dynamic horizon encoding uses temporal
+                      (q WQ )(f e WK )⊤                                bins B = 20, 50, 100, and the event projector is a linear
+                     e                   
+   ze = softmax                √            (f e WV ), (4)             layer. The RGB visual tower remains frozen. Training
+                                 d
+                                                                       adopts AdamW [32] with a cosine schedule on 16 NVIDIA
+where WQ , WK , WV ∈ Rd×d are learnable projections.                   H20 GPUs, using a learning rate of 1 × 10−4 for the
+The output ze ∈ RNq ×d forms a compact representation                  event encoder and projector. Mixed precision bf16 is used
+that summarizes the most salient temporal and motion cues.             throughout. Pre-adaptation and instruction tuning each run
+
+
+
+                                                               22317
+Table 2. Comparison across four driving–reasoning tasks in the EventDrive benchmark. For perception, we report QA Accuracy
+on three subsets. For understanding, we report QA Accuracy, grounding Top-1 Accuracy at IoU 0.6, and mIoU. For prediction and
+planning, we report Speed Accuracy and Path Accuracy, and for planning, we also report the mean L2 Error (lower is better).
+All scores are reported in percentage (%), except for L2 Error in meters. Best results are shown in bold and 2nd-best results are underlined.
+                                            Perception                      Understanding         Prediction              Planning
+                        Method
+                                  Acc@D     Acc@M Acc@P               Acc    Acc@60 mIoU       Speed Path      Speed     Path L2 Error
+                                                                  Event-based Models
+              EventGPT-7B [47]     51.40     54.97        52.25      38.78     5.49     8.24   27.84   65.44    28.99    76.08     11.42
+              EventDrive-VLM       62.51     67.07        62.39      54.21    43.43    47.82   34.68   82.25    42.56    84.64     6.89
+                                                               Frame-based Models
+ LLaVA-v1.6-Mistral-7B-hf [45]     58.65     59.24        50.05   40.37    15.02        29.0   18.22   29.68     9.89    87.51      8.13
+  LLaVA-OneVision-1.5-8B [1]       80.81     86.35        72.42   61.62     2.91        12.5   14.38   83.91    56.51    58.50      9.19
+          InternVL2.5-8B [11]      78.42     83.41        75.86   60.02     0.29         2.5   39.72   86.41    12.52    73.34     10.19
+            InternVL3-8B [68]      78.61     86.27        74.37   60.60     0.24        2.31   4.41    91.25    52.04    84.34     9.84
+   Qwen2.5-VL-7B-Instruct [3]      77.71     76.92        62.46   49.98    63.35       60.11   8.47    81.64    39.32    87.41     8.78
+  Qwen2.5-VL-7B-Instruct* [3]      81.52     84.69        75.88   58.44    69.94       67.19   36.84   84.94    53.87    89.44      4.54
+                                                          Event + Frame Models
+              EventDrive-VLM       85.44    86.64     78.89 65.46      72.86   72.56           42.44   87.49   57.03     92.35      3.66
+
+
+Table 3. Comparative results on the Event-Chat dataset [47],                 in a zero-shot manner since its training code is unavailable.
+which evaluates event-driven description/reasoning through De-               We further report zero-shot results on the released portion
+tailed Captioning, Complex Reasoning, and Visual Question                    of the Event-Chat [47] dataset, noting that the absence of an
+Answering. Higher values indicate better performance.
+                                                                             official split limits this evaluation to reference use.
+                 Models     Params         DC        CR      VQA
+                                                                             5.2. Comparative Studies
+                 Frame-based Models
+  LLaVA-7B-v1.5 [46]      7B    2.20              4.04        3.26           Comparisons with Event-Only Methods. Event-only
+   Qwen2-VL-7B [60]       7B    2.38              4.02        2.91           models in Tab. 2 perform well on motion-centric tasks such
+   InternVL2-8B [12]      8B    2.37              4.00        3.71           as speed and path intent, confirming that high-frequency
+  Deepseek-vl-7b [49]     7B    2.41              4.10        3.37           temporal cues are inherently well suited for short-horizon
+                  Event-based Models                                         motion reasoning. They also show reasonable grounding
+    EventGPT-7B [47]      7B    3.52              4.09       4.29            performance despite lacking explicit spatial supervision,
+    EventDrive-VLM        7B    3.43              4.15       3.94            highlighting the structural information encoded in event
+                                                                             streams. Yet, the absence of appearance cues limits their
+for two epochs with a batch size of 128. Packed sequences                    semantic understanding, resulting in lower perception and
+and flattened multimodal inputs are applied with a sequence                  object-centric accuracy. Results on the Event-Chat bench-
+length of 4096 tokens, and FlashAttention 2 [16] accelerates                 mark (Tab. 3) further show that the representations learned
+all attention layers.                                                        from EventDrive transfer across datasets, indicating that
+Evaluation Metrics. We establish a unified evaluation pro-                   the dataset promotes generalizable event–language align-
+tocol across all defined tasks. Perception is evaluated by QA                ment rather than overfitting to a specific annotation style.
+accuracy over six scene attributes. Understanding combines                   Comparisons with Frame-Only Methods. Frame-based
+QA accuracy across five object-level aspects with ground-                    VLMs achieve high accuracy on perception under normal
+ing metrics, including Top-1 localization accuracy at IoU                    conditions but degrade sharply in Acc@P, understanding
+0.6 and mean IoU. Prediction assesses speed and path in-                     Acc@60, and speed-related prediction metrics due to their
+tent accuracy. Planning evaluates intent accuracy together                   inability to encode motion or handle low-light and blur.
+with mean L2 waypoint error across 1, 3, and 5 seconds.                      These limitations lead to unstable spatial reasoning and
+Additional details appear in the supplementary materials.                    poor motion intent inference. Introducing events alleviates
+Baselines. Comparisons include both frame-only and event-                    these issues: event–frame fusion improves all metrics, es-
+only models. Frame-only evaluation covers Qwen2.5 VL                         pecially grounding and speed intent, showing that temporal
+[3], InternVL [11, 68], and LLaVA [1, 45] under zero-shot                    gradients and motion cues are essential for reliable reason-
+inference, which tests robustness in low light and motion-                   ing and cannot be inferred from RGB imagery alone.
+blurred scenes. To isolate the contribution of events, we                    Comparisons across Different Tasks. The four task fam-
+additionally fine-tune a Qwen2.5-VL-7B model using the                       ilies reveal complementary strengths of different modali-
+same instruction tuning protocol as our model. For event-                    ties. Perception is broadly solvable, but event streams of-
+only comparison, we evaluate the open-sourced EventGPT                       fer improved robustness under visual degradations. Un-
+
+
+
+                                                                        22318
+Table 4. Ablation results on the EventDrive benchmark. We re-
+port average QA Accuracy for perception, QA Accuracy and
+mIoU for understanding, and mean Speed/Path Accuracy
+for prediction and planning. Planning additionally includes mean
+L2 Error in meters (lower is better).
+              Per.           Und.       Pre.           Plan.
+   Method                                                                         What type of environment            What objects in this scene
+             Acc      Acc      mIoU    Acc     Acc      L2 Error                  is shown in this scene？             affect driving?
+                          Voxelization
+                                                                           An ancient stone archway            A stone pedestal and
+    N=1      82.40   62.33   69.52     63.96   71.18      4.11                                                 several decorative pillars
+                                                                           lit by strong sunlight.             block the archway.
+    N=5      83.95   64.97   72.25     62.78   73.49      3.88
+               Dynamic Horizon Event Aggregation                           A mountain tunnel with              A car is approaching from
+      Add    76.76  63.89    67.64   62.50    72.49       4.57             the vehicle near the exit.          the opposite direction.
+   Wt.sum    83.84  64.67    70.56   61.08    74.10       3.75
+                     Multimodal Alignments
+   Concat    79.35   61.08  71.93    64.76     72.62      4.01
+ Attention   81.25   65.12  70.23    62.14     75.85      3.69
+      Ours   83.66   65.46    72.56   64.96    74.69     3.66
+
+derstanding exposes significant variance across VLMs, as                          From the ego vehicle’s             Given the scene and current
+                                                                                  view, infer the target             speed 0.8 m/s, determine
+many struggle with spatial relations and grounding from a                         object’s driving behavior.         the ego vehicle’s intent.
+single RGB frame; temporal cues help resolve these ambi-
+                                                                                KEEP, STRAIGHT                      KEEP, STRAIGHT
+guities. Prediction presents the largest modality gap: in-
+ferring speed or direction from static frames is ill-posed,                ACCELERATE, STRAIGHT                ACCELERATE, STRAIGHT
+whereas events directly encode motion, leading to consis-
+tently higher accuracy for event-enhanced models. Planning              Figure 4.      Qualitative results on EventDrive comparing
+                                                                        EventDrive-VLM with Qwen. Events remain reliable under low
+mirrors this pattern, where temporal dynamics from traffic
+                                                                        light and motion, improving scene perception, object understand-
+improve speed intent estimation and reduce trajectory L2
+                                                                        ing, motion prediction, and ego intent estimation.
+error. These trends collectively demonstrate that events pro-
+vide structural and temporal information that complements
+                                                                        tivates only the top-scoring expert, achieves the best over-
+semantics from frames across the full driving chain. A qual-
+                                                                        all results, indicating that event representations benefit from
+itative comparison is shown in Fig. 4.
+                                                                        horizon specialization and that suppressing irrelevant reso-
+5.3. Ablation Studies                                                   lutions is more effective than blending them.
+                                                                        Multimodal Alignment. We study the alignment between
+Multi-Horizon Voxelization. We evaluate the impact of                   event features and the multimodal embedding space. Sim-
+using different numbers of temporal resolutions when vox-               ple concatenation of event and frame tokens leads to subop-
+elizing event streams. As shown in Tab. 4, increasing the               timal performance due to modality imbalance and increased
+number of horizons from one to five improves performance                sequence length. Cross-attention improves grounding and
+across all tasks, particularly in understanding and planning,           planning by enabling token-level interactions, yet remains
+where temporal diversity helps disambiguate object mo-                  inferior to our Event Q-Former. The Q-Former achieves
+tion and spatial relations. However, the performance gain               the best results while maintaining a lower computational
+saturates beyond three horizons, while computational cost               cost, as learnable queries extract only the most salient mo-
+grows proportionally with the number of voxelized tensors.              tion patterns rather than attending to the full spatiotemporal
+Our choice (N = 3), therefore, provides the best trade-off              map. This confirms that structured, query-centric alignment
+between accuracy and efficiency, capturing both short-range             offers both efficiency and stronger motion abstraction.
+motion cues and longer-term temporal context without in-
+curring unnecessary overhead.                                           6. Conclusion
+Dynamic Horizon Event Aggregation. We compare dif-
+ferent strategies for aggregating multi-horizon event fea-              In this work, we introduce EventDrive and EventDrive-
+tures. A naı̈ve summation (“Add”) collapses temporal dis-               VLM to unify event sensing, frames, and language across
+tinctions and yields the weakest results, confirming that in-           the full driving stack. Our results show that high-frequency
+discriminate fusion fails to preserve horizon-specific infor-           temporal cues provide complementary strengths to RGB
+mation. Weighted summation (“Wt.sum”) improves perfor-                  and significantly enhance multimodal perception, reason-
+mance by allowing the model to favor informative horizons,              ing, and control. Event–frame fusion improves robustness
+but still underperforms compared with selecting a single ex-            and motion understanding, highlighting events as a key
+pert. Our MoE-based dynamic horizon module, which ac-                   modality for future driving systems.
+
+
+
+                                                                   22319
+Acknowledgments                                                      [7] Kenneth Chaney, Fernando Cladera, Ziyun Wang, Anthony
+                                                                         Bisulco, M. Ani Hsieh, Christopher Korpela, Vijay Ku-
+This work is under the programme DesCartes and is sup-                   mar, Camillo J. Taylor, and Kostas Daniilidis. M3ED:
+ported by the National Research Foundation, Prime Min-                   Multi-robot, multi-sensor, multi-environment event dataset.
+ister’s Office, Singapore, under its Campus for Research                 In IEEE/CVF Conference on Computer Vision and Pattern
+Excellence and Technological Enterprise (CREATE) pro-                    Recognition Workshops, pages 4016–4023, 2023.
+gramme. The authors also gratefully acknowledge Horizon              [8] Guang Chen, Hu Cao, Canbo Ye, Zhenyan Zhang, Xingbo
+Robotics for its support and computational resources.                    Liu, Xuhui Mo, Zhongnan Qu, Jörg Conradt, Florian
+    The authors would like to sincerely thank the Program                Röhrbein, and Alois Knoll. Multi-cue event information fu-
+                                                                         sion for pedestrian detection with neuromorphic vision sen-
+Chairs, Area Chairs, and Reviewers for the time and effort
+                                                                         sors. Frontiers in Neurorobotics, 13:10, 2019.
+devoted during the review process.
+                                                                     [9] Nicholas FY Chen. Pseudo-labels for supervised learning on
+                                                                         dynamic vision sensor data, applied to object detection under
+References                                                               ego-motion. In IEEE/CVF Conference on Computer Vision
+                                                                         and Pattern Recognition Workshops, pages 644–653, 2018.
+ [1] Xiang An, Yin Xie, Kaicheng Yang, Wenkang Zhang,               [10] Runnan Chen, Youquan Liu, Lingdong Kong, Xinge Zhu,
+     Xiuwei Zhao, Zheng Cheng, Yirui Wang, Songcen Xu,                   Yuexin Ma, Yikang Li, Yuenan Hou, Yu Qiao, and Wenping
+     Changrui Chen, Chunsheng Wu, et al. LLaVA-OneVision-                Wang. CLIP2Scene: Towards label-efficient 3D scene under-
+     1.5: Fully open framework for democratized multimodal               standing by CLIP. In IEEE/CVF Conference on Computer
+     training. arXiv preprint arXiv:2509.23661, 2025.                    Vision and Pattern Recognition, pages 7020–7030, 2023.
+ [2] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui       [11] Zhe Chen, Weiyun Wang, Yue Cao, Yangzhou Liu, Zhang-
+     Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao,              wei Gao, Erfei Cui, Jinguo Zhu, Shenglong Ye, Hao Tian,
+     Chunjiang Ge, Wenbin Ge, Zhifang Guo, Qidong Huang,                 Zhaoyang Liu, et al. Expanding performance boundaries of
+     Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhao-             open-source multimodal models with model, data, and test-
+     hai Li, Mingsheng Li, Mei Li, Kaixin Li, Zicheng Lin, Jun-          time scaling. arXiv preprint arXiv:2412.05271, 2024.
+     yang Lin, Xuejing Liu, Jiawei Liu, Chenglong Liu, Yang Liu,    [12] Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo
+     Dayiheng Liu, Shixuan Liu, Dunjie Lu, Ruilin Luo, Chenxu            Chen, Sen Xing, Muyan Zhong, Qinglong Zhang, Xizhou
+     Lv, Rui Men, Lingchen Meng, Xuancheng Ren, Xingzhang                Zhu, Lewei Lu, et al. InternVL: Scaling up vision founda-
+     Ren, Sibo Song, Yuchong Sun, Jun Tang, Jianhong Tu, Jian-           tion models and aligning for generic visual-linguistic tasks.
+     qiang Wan, Peng Wang, Pengfei Wang, Qiuyue Wang, Yux-               In IEEE/CVF Conference on Computer Vision and Pattern
+     uan Wang, Tianbao Xie, Yiheng Xu, Haiyang Xu, Jin Xu,               Recognition, pages 24185–24198, 2024.
+     Zhibo Yang, Mingkun Yang, Jianxin Yang, An Yang, Bowen         [13] Hoonhee Cho, Hyeonseong Kim, Yujeong Chae, and Kuk-
+     Yu, Fei Zhang, Hang Zhang, Xi Zhang, Bo Zheng, Humen                Jin Yoon. Label-free event-based object recognition via
+     Zhong, Jingren Zhou, Fan Zhou, Jing Zhou, Yuanzhi Zhu,              joint learning with image reconstruction from events. In
+     and Ke Zhu. Qwen3-vl technical report. arXiv preprint               IEEE/CVF International Conference on Computer Vision,
+     arXiv:2511.21631, 2025.                                             pages 19866–19877, 2023.
+ [3] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin        [14] Loı̈c Cordone, Benoı̂t Miramond, and Philippe Thierion. Ob-
+     Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun                ject detection with spiking neural networks on automotive
+     Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhao-                 event data. In International Joint Conference on Neural Net-
+     hai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren               works, pages 1–8, 2022.
+     Fu, Yiheng Xu, Jiabo Ye, Xi Zhang, Tianbao Xie, Zesen          [15] Javier Cuadrado, Ulysse Rançon, Benoit R. Cottereau, Fran-
+     Cheng, Hang Zhang, Zhibo Yang, Haiyang Xu, and Jun-                 cisco Barranco, and Timothée Masquelier. Optical flow es-
+     yang Lin. Qwen2.5-vl technical report. arXiv preprint               timation from event-based cameras and spiking neural net-
+     arXiv:2502.13923, 2025.                                             works. Frontiers in Neuroscience, 17:1160034, 2023.
+ [4] Hu Cao, Guang Chen, Zhijun Li, Yingbai Hu, and Alois           [16] Tri Dao. FlashAttention-2: Faster attention with bet-
+     Knoll. NeuroGrasp: multimodal neural network with euler             ter parallelism and work partitioning.        arXiv preprint
+     region regression for neuromorphic vision-based grasp pose          arXiv:2307.08691, 2023.
+     estimation. IEEE Transactions on Instrumentation and Mea-      [17] Guillermo Gallego, Tobi Delbrück, Garrick Orchard, Chiara
+     surement, 71:1–11, 2022.                                            Bartolozzi, Brian Taba, Andrea Censi, Stefan Leutenegger,
+ [5] Hu Cao, Zehua Zhang, Yan Xia, Xinyi Li, Jiahao Xia, Guang           Andrew J Davison, Jörg Conradt, Kostas Daniilidis, et al.
+     Chen, and Alois Knoll. Embracing events and frames with             Event-based vision: A survey. IEEE Transactions on Pattern
+     hierarchical feature refinement network for object detec-           Analysis and Machine Intelligence, 44(1):154–180, 2022.
+     tion. In European Conference on Computer Vision. Springer,     [18] Daniel Gehrig and Davide Scaramuzza. Pushing the limits of
+     2024.                                                               asynchronous graph-based object detection with event cam-
+ [6] Bharatesh Chakravarthi, Aayush Atul Verma, Kostas Dani-             eras. arXiv preprint arXiv:2211.12324, 2022.
+     ilidis, Cornelia Fermuller, and Yezhou Yang. Recent event      [19] Daniel Gehrig and Davide Scaramuzza. Low-latency auto-
+     camera innovations: A survey. In European Conference on             motive vision with event cameras. Nature, 629(8014):1034–
+     Computer Vision Workshops. Springer, 2024.                          1040, 2024.
+
+
+
+
+                                                               22320
+[20] Daniel Gehrig, Antonio Loquercio, Konstantinos G. Derpa-            object recognition with event cameras. In IEEE/CVF Inter-
+     nis, and Davide Scaramuzza. End-to-end learning of repre-           national Conference on Computer Vision, pages 2146–2156,
+     sentations for asynchronous event-based data. In IEEE/CVF           2021.
+     International Conference on Computer Vision, pages 5633–       [32] Diederik P. Kingma and Jimmy Ba. Adam: A method for
+     5643, 2019.                                                         stochastic optimization. In International Conference for
+[21] Daniel Gehrig, Henri Rebecq, Guillermo Gallego, and Da-             Learning Representations, 2015.
+     vide Scaramuzza. EKLT: asynchronous photometric feature        [33] Lingdong Kong, Youquan Liu, Lai Xing Ng, Benoit R. Cot-
+     tracking using events and frames. International Journal of          tereau, and Wei Tsang Ooi. OpenESS: Event-based semantic
+     Computer Vision, 128(3):601–618, 2020.                              scene understanding with open vocabularies. In IEEE/CVF
+[22] Daniel Gehrig, Michelle Rüegg, Mathias Gehrig, Javier              Conference on Computer Vision and Pattern Recognition,
+     Hidalgo-Carrió, and Davide Scaramuzza. Combining events            pages 15686–15698, 2024.
+     and frames using recurrent asynchronous multimodal net-        [34] Lingdong Kong, Dongyue Lu, Ao Liang, Rong Li, Yuhao
+     works for monocular depth prediction. IEEE Robotics and             Dong, Tianshuai Hu, Lai Xing Ng, Wei Tsang Ooi, and
+     Automation Letters, 6(2):2822–2829, 2021.                           Benoit R Cottereau. Talk2Event: Grounded understanding
+[23] Mathias Gehrig and Davide Scaramuzza. Recurrent vi-                 of dynamic scenes from event cameras. In Advances in Neu-
+     sion transformers for object detection with event cameras.          ral Information Processing Systems, 2025.
+     In IEEE/CVF Conference on Computer Vision and Pattern          [35] Lingdong Kong, Dongyue Lu, Xiang Xu, Lai Xing Ng,
+     Recognition, pages 13884–13893, 2023.                               Wei Tsang Ooi, and Benoit R. Cottereau. EventFly: Event
+[24] Mathias Gehrig, Willem Aarents, Daniel Gehrig, and Davide           camera perception from ground to the sky. In IEEE/CVF
+     Scaramuzza. DSEC: A stereo event camera dataset for driv-           Conference on Computer Vision and Pattern Recognition,
+     ing scenarios. IEEE Robotics and Automation Letters, 6(3):          pages 1472–1484, 2025.
+     4947–4954, 2021.                                               [36] Lingdong Kong, Xiang Xu, Jiawei Ren, Wenwei Zhang,
+[25] Ryuhei Hamaguchi, Yasutaka Furukawa, Masaki Onishi, and             Liang Pan, Kai Chen, Wei Tsang Ooi, and Ziwei Liu. Multi-
+     Ken Sakurada. Hierarchical neural memory network for low            modal data-efficient 3D scene understanding for autonomous
+     latency event processing. In IEEE/CVF Conference on Com-            driving. IEEE Transactions on Pattern Analysis and Machine
+     puter Vision and Pattern Recognition, pages 22867–22876,            Intelligence, 47(5):3748–3765, 2025.
+     2023.                                                          [37] Dianze Li, Yonghong Tian, and Jianing Li. SODFormer:
+[26] Tianshuai Hu, Xiaolu Liu, Song Wang, Yiyao Zhu, Ao                  Streaming object detection with transformer using events and
+     Liang, Lingdong Kong, Guoyang Zhao, Zeying Gong, Jun                frames. IEEE Transactions on Pattern Analysis and Machine
+     Cen, Zhiyu Huang, Xiaoshuai Hao, Linfeng Li, Hang Song,             Intelligence, 45(11):14020–14037, 2023.
+     Xiangtai Li, Jun Ma, Shaojie Shen, Jianke Zhu, Dacheng         [38] Jianing Li, Siwei Dong, Zhaofei Yu, Yonghong Tian, and
+     Tao, Ziwei Liu, and Junwei Liang. Vision-language-action            Tiejun Huang. Event-based vision enhanced: A joint de-
+     models for autonomous driving: Past, present, and future.           tection framework in autonomous driving. In IEEE Inter-
+     arXiv preprint arXiv:2512.16760, 2025.                              national Conference on Multimedia and Expo, pages 1396–
+[27] Yihan Hu, Jiazhi Yang, Li Chen, Keyu Li, Chonghao Sima,             1401, 2019.
+     Xizhou Zhu, Siqi Chai, Senyao Du, Tianwei Lin, Wen-            [39] Jianing Li, Jia Li, Lin Zhu, Xijie Xiang, Tiejun Huang, and
+     hai Wang, et al. Planning-oriented autonomous driving.              Yonghong Tian. Asynchronous spatio-temporal memory net-
+     In IEEE/CVF conference on computer vision and pattern               work for continuous event-based object detection. IEEE
+     recognition, pages 17853–17862, 2023.                               Transactions on Image Processing, 31:2975–2987, 2022.
+[28] Massimiliano Iacono, Stefan Weber, Arren Glover, and           [40] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi.
+     Chiara Bartolozzi. Towards event-driven object detection            BLIP-2: Bootstrapping language-image pre-training with
+     with off-the-shelf deep learning. In IEEE/RSJ International         frozen image encoders and large language models. In In-
+     Conference on Intelligent Robots and Systems, pages 1–9,            ternational Conference on Machine Learning, pages 19730–
+     2018.                                                               19742. PMLR, 2023.
+[29] Zhuangyi Jiang, Pengfei Xia, Kai Huang, Walter Stechele,       [41] Pengteng Li, Yunfan Lu, Pinghao Song, Wuyang Li, Huizai
+     Guang Chen, Zhenshan Bing, and Alois Knoll. Mixed frame-            Yao, and Hui Xiong. EventVL: Understand event streams
+     /event-driven fast pedestrian detection. In IEEE Interna-           via multimodal large language model. arXiv preprint
+     tional Conference on Robotics and Automation, pages 8332–           arXiv:2501.13707, 2025.
+     8338, 2019.                                                    [42] Rong Li, Shijie Li, Lingdong Kong, Xulei Yang, and Jun-
+[30] Linglin Jing, Yiming Ding, Yunpeng Gao, Zhigang Wang,               wei Liang. SeeGround: See and ground for zero-shot open-
+     Xu Yan, Dong Wang, Gerald Schaefer, Hui Fang, Bin                   vocabulary 3D visual grounding. In IEEE/CVF Conference
+     Zhao, and Xuelong Li. HPL-ESS: Hybrid pseudo-labeling               on Computer Vision and Pattern Recognition, pages 3707–
+     for unsupervised event-based semantic segmentation. In              3717, 2025.
+     IEEE/CVF Conference on Computer Vision and Pattern             [43] Rong Li et al. 3EED: Ground everything everywhere in 3D.
+     Recognition, pages 23128–23137, 2024.                               arXiv preprint arXiv:2511.01755, 2025.
+[31] Junho Kim, Jaehyeok Bae, Gangin Park, Dongsu Zhang, and        [44] Ao Liang, Lingdong Kong, Dongyue Lu, Youquan Liu,
+     Young Min Kim. N-ImageNet: Towards robust, fine-grained             Jian Fang, Huaici Zhao, and Wei Tsang Ooi. Perspective-
+
+
+
+
+                                                               22321
+     invariant 3D object detection. In IEEE/CVF International                mentation from still images. In European Conference on
+     Conference on Computer Vision, pages 27725–27738, 2025.                 Computer Vision, pages 341–357. Springer, 2022.
+[45] Haotian Liu, Chunyuan Li, Yuheng Li, and Yong Jae Lee.             [59] Abhishek Tomy, Anshul Paigwar, Khushdeep S Mann,
+     Improved baselines with visual instruction tuning. arXiv                Alessandro Renzaglia, and Christian Laugier. Fusing event-
+     preprint arXiv:2310.03744, 2023.                                        based and RGB camera for robust object detection in adverse
+[46] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee.                conditions. In IEEE International Conference on Robotics
+     Visual instruction tuning. In Advances in Neural Information            and Automation, pages 933–939, 2022.
+     Processing Systems, pages 34892–34916, 2023.                       [60] Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan,
+[47] Shaoyu Liu, Jianing Li, Guanghui Zhao, Yunjian Zhang, Xin               Jinze Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin
+     Meng, Fei Richard Yu, Xiangyang Ji, and Ming Li. Event-                 Ge, Yang Fan, Kai Dang, Mengfei Du, Xuancheng Ren, Rui
+     GPT: Event stream understanding with multimodal large lan-              Men, Dayiheng Liu, Chang Zhou, Jingren Zhou, and Jun-
+     guage models. arXiv preprint arXiv:2412.00832, 2024.                    yang Lin. Qwen2-VL: Enhancing vision-language model’s
+[48] Dongyue Lu, Lingdong Kong, Gim Hee Lee, Camille Simon                   perception of the world at any resolution. arXiv preprint
+     Chane, and Wei Tsang Ooi. FlexEvent: Towards flexible                   arXiv:2409.12191, 2024.
+     event-frame object detection at varying operational frequen-       [61] Xinshuo Weng, Boris Ivanovic, Yan Wang, Yue Wang, and
+     cies. In Advances in Neural Information Processing Systems,             Marco Pavone. PARA-Drive: Parallelized architecture for
+     2025.                                                                   real-time autonomous driving. In IEEE/CVF Conference
+[49] Haoyu Lu, Wen Liu, Bo Zhang, Bingxuan Wang, Kai                         on Computer Vision and Pattern Recognition, pages 15449–
+     Dong, Bo Liu, Jingxiang Sun, Tongzheng Ren, Zhuoshu Li,                 15458, 2024.
+     Yaofeng Sun, Chengqi Deng, Hanwei Xu, Zhenda Xie, and              [62] Ziyi Wu, Xudong Liu, and Igor Gilitschenski. EventCLIP:
+     Chong Ruan. DeepSeek-VL: Towards real-world vision-                     Adapting CLIP for event-based object recognition. arXiv
+     language understanding. arXiv preprint arXiv:2403.05525,                preprint arXiv:2306.06354, 2023.
+     2024.                                                              [63] Ziyi Wu, Mathias Gehrig, Qing Lyu, Xudong Liu, and Igor
+[50] Nico Messikommer, Daniel Gehrig, Antonio Loquercio, and                 Gilitschenski. LEOD: Label-efficient object detection for
+     Davide Scaramuzza. Event-based asynchronous sparse con-                 event cameras. In IEEE/CVF Conference on Computer Vi-
+     volutional networks. In European Conference on Computer                 sion and Pattern Recognition, pages 16933–16943, 2024.
+     Vision, pages 415–431. Springer, 2020.                             [64] Jiqing Zhang, Bo Dong, Haiwei Zhang, Jianchuan Ding, Fe-
+[51] Yansong Peng, Hebei Li, Yueyi Zhang, Xiaoyan Sun, and                   lix Heide, Baocai Yin, and Xin Yang. Spiking transformers
+     Feng Wu. Scene adaptive sparse transformer for event-based              for event-based single object tracking. In IEEE/CVF Con-
+     object detection. In IEEE/CVF Conference on Computer Vi-                ference on Computer Vision and Pattern Recognition, pages
+     sion and Pattern Recognition, pages 16794–16804, 2024.                  8801–8810, 2022.
+[52] Etienne Perot, Pierre De Tournemire, Davide Nitti, Jonathan        [65] Hanyu Zhou and Gim Hee Lee. LLaFEA: Frame-event
+     Masci, and Amos Sironi. Learning to detect objects with a               complementary fusion for fine-grained spatiotemporal un-
+     1 megapixel event camera. Advances in Neural Information                derstanding in LMMs. In IEEE/CVF International Confer-
+     Processing Systems, 33:16639–16652, 2020.                               ence on Computer Vision, pages 22294–22304, 2025.
+[53] Simon Schaefer, Daniel Gehrig, and Davide Scaramuzza.              [66] Zhuyun Zhou, Zongwei Wu, Rémi Boutteau, Fan Yang,
+     AEGNN: Asynchronous event-based graph neural networks.                  Cédric Demonceaux, and Dominique Ginhac. RGB-event
+     In IEEE/CVF Conference on Computer Vision and Pattern                   fusion for moving object detection in autonomous driving.
+     Recognition, pages 12371–12381, 2022.                                   In IEEE International Conference on Robotics and Automa-
+[54] Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy                tion, pages 7808–7815, 2023.
+     Davis, Quoc Le, Geoffrey Hinton, and Jeff Dean. Outra-             [67] Alex Zihao Zhu and Liangzhe Yuan. EV-FlowNet: Self-
+     geously large neural networks: The sparsely-gated mixture-              supervised optical flow estimation for event-based cameras.
+     of-experts layer. arXiv preprint arXiv:1701.06538, 2017.                In Robotics: Science and Systems, 2018.
+[55] Lea Steffen, Daniel Reichard, Jakob Weinland, Jacques              [68] Jinguo Zhu, Weiyun Wang, Zhe Chen, Zhaoyang Liu, Shen-
+     Kaiser, Arne Roennau, and Rüdiger Dillmann. Neuromor-                  glong Ye, Lixin Gu, Hao Tian, Yuchen Duan, Weijie Su, Jie
+     phic stereo vision: A survey of bio-inspired sensors and al-            Shao, et al. InternVL3: Exploring advanced training and
+     gorithms. Frontiers in Neuroscience, 13:28, 2019.                       test-time recipes for open-source multimodal models. arXiv
+[56] Daobo Sun and Haibo Ji. Event-based object detection using              preprint arXiv:2504.10479, 2025.
+     graph neural networks. In IEEE Conference on Data Driven
+     Control and Learning Systems, pages 1895–1900, 2023.
+[57] Lei Sun, Christos Sakaridis, Jingyun Liang, Qi Jiang,
+     Kailun Yang, Peng Sun, Yaozu Ye, Kaiwei Wang, and Luc
+     Van Gool. Event-based fusion for motion deblurring with
+     cross-modal attention. In European Conference on Computer
+     Vision, pages 412–428. Springer, 2022.
+[58] Zhaoning Sun, Nico Messikommer, Daniel Gehrig, and Da-
+     vide Scaramuzza. ESS: Learning event-based semantic seg-
+
+
+
+
+                                                                22322
+

@@ -1,0 +1,194 @@
+                                        This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                                     Except for this watermark, it is identical to the accepted version;
+                                               the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                           AE2VID: Event-based Video Reconstruction via Aperture Modulation
+
+                Chenxu Bai1,2∗                   Boyu Li1,2∗          Peiqi Duan1,2†             Xinyu Zhou3        Hanyue Lou1,2             Boxin Shi1,2,4†
+                               1
+                                   State Key Laboratory of Multimedia Information Processing, School of Computer Science, Peking University
+                               2
+                                   National Engineering Research Center of Visual Technology, School of Computer Science, Peking University
+                       3
+                           State Key Laboratory of General Artificial Intelligence, School of Intelligence Science and Technology, Peking University
+                                                                  4
+                                                                      PKU-AI2 Robotics Joint Lab of Embodied AI
+                  chenxu.bai@stu.pku.edu.cn                           {liboyu, duanqi0001, zhouxiny, hylz, shiboxin}@pku.edu.cn
+
+
+
+
+                                        Adjustable aperture                         (b) Existing methods
+                                                                                  (w/o aperture modulation)
+
+
+
+
+                                                                      Intensity frames from                    Ground Truth           Ours             FireNet
+                                                       Event           aperture modulation
+   Aperture diameter
+
+
+
+
+                                                      camera
+                             Aperture modulation
+
+
+
+
+                                                    Time
+                            (a) Event camera with                                                              V2V-E2VID            BDE2VID            ETNet
+                             adjustable aperture               (c) Ours (w/ aperture modulation)                              (d) Comparison results
+
+
+Figure 1. (a) We propose a framework that dynamically modulates the adjustable aperture of an event camera for video reconstruction. The
+aperture periodically opens and closes, injecting controlled illumination variations that encode scene information. (b) Existing methods
+operate without aperture modulation and thus rely solely on motion-triggered events, which are typically spatially sparse and provide
+little information about static regions. (c) Leveraging aperture modulation, our method reconstructs intermediate dense intensity frames,
+effectively complementing the sparse motion-triggered events to enhance fidelity. (d) The comparison results with FireNet [33], V2V-E2VID
+[26], BDE2VID [9], and ETNet [41]. Our method better preserves the static regions and overall scene structure than existing methods.
+
+                                               Abstract                                            hance the fidelity of predictions. The proposed framework
+                                                                                                   consists of two subnetworks for the dedicated processing of
+Event-based video reconstruction seeks to recover high-                                            both event types. We further collect a real dataset and vali-
+speed, high-dynamic-range videos from event streams. While                                         date the effectiveness of our method. Extensive experiments
+existing approaches rely exclusively on motion-triggered                                           show our superiority over state-of-the-art methods. Code
+events, these events are inherently sparse and primarily cap-                                      and data will be available at https://github.com/
+ture dynamic regions. Therefore, they often suffer from er-                                        a1henu/AE2VID/.
+ror accumulation and degraded quality in regions with few
+events. In this work, we introduce aperture-modulation-
+triggered events as a complementary mechanism to enrich                                            1. Introduction
+the captured scene information. Specifically, we period-
+ically modulate the aperture to actively generate dense                                            Event cameras [4] are bio-inspired sensors that capture high-
+event signals, thereby encoding intensity cues even in static                                      speed, high-dynamic-range scene information [30, 31]. Un-
+or low-motion regions. Building upon this idea, we de-                                             like spike cameras [16, 43], another type of neuromorphic
+sign an AE2VID framework that jointly leverages aperture-                                          sensor that records scenes through temporal integration,
+modulation-triggered and motion-triggered events to en-                                            event cameras directly measure intensity changes. As a
+                                                                                                   practical way to bridge event cameras with off-the-shelf
+  * Equal contribution.                                                                            frame-based algorithms, event-to-video reconstruction has
+  † Corresponding authors.                                                                         attracted increasing attention [9, 11, 46]. The reconstructed
+
+
+
+                                                                                              15115
+videos can benefit many downstream computer vision tasks,            produce a continuous high-quality video. Furthermore, we
+such as 3D reconstruction [12], object recognition [42], and         design a modulation strategy consisting of periodically clos-
+instance segmentation [24].                                          ing and reopening the aperture (Fig. 1(a)) to mitigate error
+    Early methods for event-based video reconstruction at-           accumulation. Finally, we employ our strategy on diverse
+tempted to use hand-crafted operations [27, 32]. With the de-        scenes and construct a new real-world dataset for compre-
+velopment of deep learning, recurrent learning-based meth-           hensive evaluation. Overall, our contributions are:
+ods [30, 31, 33, 45] have become the mainstream choice.              • We are the first to introduce an aperture modulation strat-
+Recently, some methods have incorporated diffusion-based               egy into event-based video reconstruction, which solves
+priors [44, 49] to enhance the perceptual quality. However,            slow initialization and error accumulation problems in
+as motion-triggered events are usually sparsely distributed            mainstream methods based on motion-triggered events.
+along the edges (Fig. 1 (b)), this task is still highly ill-posed.   • We design a framework named AE2VID consisting of two
+Despite the improvements in model capacity, problems such              dedicated subnetworks AENet and MENet, which fuses
+as prediction error accumulation and static regions could              the information from aperture-modulation-triggered and
+restrict their performance (the building in the background             motion-triggered events in an efficient way, and outputs
+and chain-link fence in the foreground of Fig. 1 (d)).                 video frames with high speed and high dynamic range.
+    In order to tackle the above problems, additional dense          • We collect a real-world captured Aperture-modulation-
+observation of the scene radiance is necessary. An intuitive           and Motion-triggered Events Dataset (AMED), where we
+approach is to incorporate an additional frame-based camera            adopt our modulation strategy and specify several aperture
+as a supplementary input to the network [20, 38]. However,             control parameters. This dataset is utilized for evaluating
+this may cause spatial-temporal misalignments [7] and incur            the performance and inspiring future research.
+additional costs. Alternatively, active lighting could be used       Extensive experiments on both semi-real and real data show
+to modulate the intensity received by cameras [13]. Although         the superior background preservation ability and overall
+they can provide dense information of the scene by trigger-          scene reconstruction quality of our approach.
+ing events on almost every pixel, it is infeasible in outdoor
+or uncontrolled environments. Besides, static background              2. Related work
+noisy events can be jointly modeled to achieve reconstruc-
+tion [10], but such an approach may encounter bottlenecks             2.1. Reconstruction with motion-triggered events
+in outdoor scenes due to the presence of non-discriminative          Early attempts for event-based video reconstruction em-
+noisy events. To robustly acquire dense observations of the          ployed extended Kalman filters through 2D Poisson inte-
+scene with fewer additional costs, we introduce aperture             gration [19]. Later, Bardow et al. [2] designed a variational
+shutters [1, 36] for light intensity modulation.                     energy minimization framework to simultaneously recon-
+    The aperture is a ubiquitous and easily controllable com-        struct video frames and optical flow. Scheerlinck et al. [32]
+ponent of most imaging systems. By adjusting the aperture,           proposed high-pass filters to process events and realized
+we can modulate the irradiance at each pixel (Fig. 1(a)),            continuous video reconstruction. Recently, learning-based
+thereby triggering events for dense predictions that comple-         methods have made great breakthroughs in this task. Re-
+ment the sparsity of motion-triggered events. These pre-             becq et al. [30, 31] proposed the first learning-based video
+dictions facilitate static background reconstruction and mit-        reconstruction method, namely E2VID, which employs Re-
+igate error accumulation, effectively addressing the afore-          current Neural Networks (RNNs) to improve the quality of
+mentioned challenges (Fig. 1 (c)). However, the aperture-            output frames. Scheerlinck et al. [33] replaced LSTMs with
+modulated video reconstruction still faces two challenges:           GRUs to get an efficient reconstruction network with much
+(1) Effectively integrating aperture-modulation-triggered and        fewer parameters. Later, Weng et al. [41] introduced self-
+motion-triggered events, which differ in spatial density, ne-        attention mechanisms and designed a Transformer for this
+cessitates the design of novel architectures and specialized         task. Cadena et al. [5] employed spatially-adaptive denor-
+training strategies. (2) Acquiring real data under our mod-          malization (SPADE) layers and proposed SPADE-E2VID to
+ulation strategy, which involves dynamically closing and             improve the quality of reconstructed frames. SSL-E2VID
+reopening the aperture, requires a dedicated capture system.         [28] proposed a self-learning approach for this task to alle-
+    In this paper, we propose an event-based video recon-            viate the dependence on labeled datasets. Zhu et al. [48]
+struction framework, which combines aperture-modulation-             developed a novel framework based on spiking neural net-
+triggered and motion-triggered events for more robust predic-        works (SNNs) to achieve comparable performance with less
+tions. We observe that events triggered by aperture modula-          energy consumption. More recently, Ercan et al. [8] intro-
+tion can provide dense scene priors to assist video reconstruc-      duced hypernetworks and dynamic convolutions to gener-
+tion. Additionally, we design a reconstruction framework             ate per-pixel adaptive filters that combine information from
+capable of adaptively fusing events from both sources to             events and previously reconstructed images. Gao et al. [9]
+
+
+
+                                                                 15116
+proposed to leverage the bidirectional temporal information                                                                                                                                    which is typically much smaller than the pixel irradiance
+in event sequences for better predictions. Lou et al. [26]                                                                                                                                     under normal illumination.
+further proposed an efficient V2V training strategy to boost                                                                                                                                      Assume that the light conditions remain unchanged,
+the performance of E2VID utilizing large training data. Zhu                                                                                                                                    I(r, t0 ) is the irradiance at a reference timestamp t0 , and
+et al. [49] introduced diffusion models to leverage the prior                                                                                                                                  there are Ne events triggered at pixel r between t0 and t.
+from events. Despite great progress made by these meth-                                                                                                                                        Then the irradiance at anytimestamp t can be derived as:
+ods, they lack the dense information of the scene due to the
+sparsity of motion-triggered events. In contrast, we combine                                                                                                                                                                        \label {eq:irt0} \mathbb {I}(\mathbf {r}, t)= \mathbb {I}(\mathbf {r}, t_0)\cdot \exp (\mathbf {S}(t_0,t)),                                                                             (2)
+aperture-modulation-triggered events to complement.
+                                                                                                                                                                                               where
+2.2. Reconstruction with intensity-triggered events
+There are several works exploring the modulation of light in-                                                                                                                                                            \mathbf {S}(t_0,t)= \begin {cases} C\cdot \sum _{n=1}^{N_e}p_n, & t>t_0, \\ \frac {1}{C\cdot \sum _{n=1}^{N_e}p_n}, & t<t_0. \end {cases}                                                          (3)
+tensity received by the sensor to trigger events. They can be
+divided into active lighting modulation and aperture modula-
+tion. Chen et al. [6] utilized the event streams triggered in the                                                                                                                                   Video reconstruction from pure motion-triggered events
+split second when the light is turned on for indoor lighting                                                                                                                                    is an ill-posed problem as none of the reference irradiance
+estimation and alleviated the problem of intensity-distance                                                                                                                                     I(r, t0 ) is known throughout the capture process. Because
+ambiguity. Han et al. [13] proposed the concept of tran-                                                                                                                                        the models can only infer relative irridiance changes, i.e.,
+sient event frequency (TEF) when the light is turned on, and                                                                                                                                    S(t0 , t) from the event stream, the static regions with no
+achieved more accurate and stable estimations of irradiance                                                                                                                                     events triggered are hard to reconstruct.
+values of the scene. Both of them need actively controlled                                                                                                                                     Aperture-modulation-triggered events. When we open
+lights, which are only practical in indoor circumstances. Bao                                                                                                                                  the aperture from zero, the contribution of the dark current
+et al. [1] proposed a temporal mapping photography for event                                                                                                                                   in Eq. (1) will become non-negligible [1, 15]. We assume
+cameras, where they employed Transmittance Adjustment                                                                                                                                          that the transmittance rate function of our aperture shutter
+Devices (such as aperture shutters) for brightness modula-                                                                                                                                     is TR(t) whose value range is [0, 1]. Then the irradiance at
+tion, and employed the timestamp of the first positive event                                                                                                                                   pixel r can be calculated as:
+to reconstruct a dense intensity map. Later, they fused the es-
+timated intensity map with low-light images and proposed a                                                                                                                                                                                        \mathbb {I}(\mathbf {r}, t)=\mathbb {I}_{\mathrm {max}}(\mathbf {r})\cdot \mathrm {TR}(t), \label {eq:irt}                                                                (4)
+low-light image enhancement pipeline [36]. However, these
+methods only focused on static scenes and did not ensemble                                                                                                                                     where Imax (r) is the irradiance when the transmittance is 1.
+motion-triggered events for video reconstruction.                                                                                                                                                  Based on Eq. (1), if we increase the transmittance from
+                                                                                                                                                                                               0, i.e., TR(0) = 0, the first positive event (FPE) triggered at
+3. Method                                                                                                                                                                                      pixel r will occur at time t⋆ (r), which satisfies:
+
+In this section, we first formulate motion-triggered and
+                                                                                                                                                                                                                         \log \frac {\mathbb {I}_{\mathrm {max}}(\mathbf {r})\mathrm {TR}(t^\star (\mathbf {r})) + I_{\mathrm {dark}}}{I_{\mathrm {dark}}} = C. \label {eq:evt_dark}                                        (5)
+aperture-modulation-triggered events in Sec. 3.1. Then we
+introduce our framework for video reconstruction with aper-
+ture modulation and its key components in Sec. 3.2. Our                                                                                                                                        Therefore, an inverse proportion relation between Imax (r)
+training details are illustrated in Sec. 3.3.                                                                                                                                                  and TR(t⋆ (r)) holds:
+
+3.1. Formulation                                                                                                                                                                                          \mathbb {I}_{\mathrm {max}}(\mathbf {r}) = \frac {(e^{C}-1)\cdot I_{\mathrm {dark}}}{\mathrm {TR}(t^\star (\mathbf {r}))} \propto \frac {1}{\mathrm {TR}(t^\star (\mathbf {r}))}. \label {eq:temporal_mapping}    (6)
+Motion-triggered events. An event camera outputs a
+spatio-temporal stream of polarity changes. An event signal                                                                                                                                        Equation (6) indicates that we can use the aperture-
+e = (t, r, p) is triggered whenever the logarithmic irradiance                                                                                                                                 modulation-triggered events to calculate the FPE timestamp
+changes exceed the preset threshold C:                                                                                                                                                         t⋆ (r), and then estimate the dense intensity map Imax (r)
+                 \left |\log \frac {\mathbb {I}(\mathbf {r}, t) + I_{\mathrm {dark}}}{\mathbb {I}(\mathbf {r}, t-\Delta t) + I_{\mathrm {dark}}}\right | \ge C, \label {eq:evt_trigger}        for each pixel r in the scene. These intermediate dense in-
+                                                                                                                                                                                               tensity maps can complement the motion-triggered events,
+                                                                                                                                                                                         (1)
+                                                                                                                                                                                               serving as the reference I(r, t0 ) in Eq. (2). Note that the
+                                                                                                                                                                                               above derivations are invalid for events triggered by aper-
+where I(r, t) and I(r, t − ∆t) represents the pixel irradiance                                                                                                                                 ture closure, as the initial pixel voltage is unknown [1, 36].
+at pixel r at time t and t − ∆t, respectively. The polarity                                                                                                                                    Therefore, the “aperture-modulation-triggered events” exclu-
+p ∈ {+1, −1} represents the direction of irradiance changes.                                                                                                                                   sively refer to events triggered by aperture opening and do
+Idark is the dark-current term with stochastic fluctuations,                                                                                                                                   not include those triggered by closing throughout this paper.
+
+
+
+                                                                                                                                                                                           15117
+

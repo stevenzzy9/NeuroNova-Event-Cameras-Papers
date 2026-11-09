@@ -1,0 +1,159 @@
+                         This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                      Except for this watermark, it is identical to the accepted version;
+                                the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                         Event6D: Event-based Novel Object 6D Pose Tracking
+
+                                Jae-Young Kang1 * Hoonehee Cho1 * Taeyeop Lee1 *
+                           Minjun Kang1 Bowen Wen2 Youngho Kim1 Kuk-Jin Yoon1
+                                                         1              2
+                                                             KAIST          NVIDIA
+
+
+
+                             Abstract
+
+Event cameras provide microsecond latency, making them
+suitable for 6D object pose tracking in fast, dynamic scenes
+where conventional RGB and depth pipelines suffer from
+motion blur and large pixel displacements. We introduce
+EventTrack6D, an event-depth tracking framework that gen-
+eralizes to novel objects without object-speciﬁc training by
+reconstructing both intensity and depth at arbitrary times-
+tamps between depth frames. Conditioned on the most re-
+cent depth measurement, our dual reconstruction recovers
+dense photometric and geometric cues from sparse event
+streams. Our EventTrack6D operates at over 120 FPS and
+maintains temporal consistency under rapid motion. To
+support training and evaluation, we introduce a compre-
+hensive benchmark suite: a large-scale synthetic dataset
+for training and two complementary evaluation sets, in-                      Figure 1. Conventional RGB-D based methods often fail under highly
+                                                                             dynamic scenes due to limited frame rate from common RGB-D cameras.
+cluding real and simulated event datasets. Trained exclu-                    Our EventTrack6D addresses this issue by reconstructing dual modalities,
+sively on synthetic data, EventTrack6D generalizes effec-                    image and depth, between consecutive depth frames to bridge the gap with
+tively to real-world scenarios without ﬁne-tuning, maintain-                 event data. This enables inference at ﬁner temporal intervals and yields
+ing accurate tracking across diverse objects and motion                      robust tracking over highly dynamic motion.
+patterns. Our method and datasets validate the effective-
+ness of event cameras for event-based 6D pose tracking of                    quiring temporal consistency and continuous tracking. This
+novel objects. Code and datasets are publicly available at                   motivates 6D object pose tracking [91, 128, 131], which
+https://chohoonhee.github.io/Event6D.                                        maintains consistent pose estimates across video sequences.
+                                                                                 Despite recent advances in novel object 6D pose track-
+                                                                             ing, existing methods [58, 81, 85, 128] and datasets [3, 8,
+                                                                             9, 39, 47, 120] rely on RGB or depth modalities at conven-
+1. Introduction                                                              tional frame rates (up to 30 FPS), limiting their applicabil-
+Estimating 6D object pose is a fundamental problem in                        ity to dynamic scenes with fast motions where motion blur
+computer vision. Early 6D object pose estimation meth-                       and large pixel displacements degrade performance. This
+ods focused on instance-level approaches [117, 132, 134],                    limitation motivates the need for robust 6D pose tracking
+where models are trained and evaluated on speciﬁc object                     methods in high-speed scenarios.
+instances. Research then progressed to category-level pose                       Event cameras [31] emerged as a promising sensor for
+estimation [59, 110, 119], enabling generalization across                    high-speed visual perception. Unlike conventional frame-
+object categories. Recent studies have advanced toward                       based cameras [40, 54] that capture full images at ﬁxed
+novel object generalization [66, 83, 84] in the context of                   intervals, event cameras asynchronously record per-pixel
+robotic applications [61], developing models that handle                     brightness changes with microsecond temporal resolution,
+unseen objects. However, accurate pose estimation from                       offering negligible motion blur, low latency, and high dy-
+a single frame is insufﬁcient for real-world applications re-                namic range. Several works [27, 44, 96] have investi-
+                                                                             gated event-based 6D pose tracking tasks. RGB-DE [27]
+  * Equal contribution                                                       pioneered this area by introducing a single-object track-
+
+
+                                                                     15091
+Table 1. Dataset Comparison. Overview of publicly available event-based 6D object pose datasets. All datasets include RGB, Event, and depth data. n/a
+indicates that the paper does not provide the corresponding information.
+
+                                                                          Event         Annotation                            6D Pose
+     Dataset                       Events     # Samples    # Objects                                      Motion
+                                                                        Resolution    Frequency (Hz)                        Annotation
+     YCB-Ev [96]                    Real        13,851         21       1280×720            30           Static      CosyPose [57]+ICG [107]
+     E-POSE [44]                    Real       333,357         13       346×260            100          Moderate     Registration [88]+ICP [7]
+     RGB-DE [27]                    Real        2,500          1        346×260             30          Dynamic          Manual+ICP [7]
+     EventBlender6D (Ours)        Synthetic    495,840        1033       640×480            60          Dynamic          BlenderProc [23]
+     EventHO3D (Ours)             Synthetic    103,462          5        640×480           n/a          Moderate       Multi-view Opt. [42]
+     Event6D (Ours)                 Real        54,556         14       1280×720           120          Dynamic        Motion Capture [30]
+
+
+ing dataset with an RGB-Depth-Event fusion method for                            objects without retraining.
+instance-level 6D object pose tracking. However, their 6D                      • We introduce a dual reconstruction approach that lever-
+pose annotations are limited to 30 Hz due to the RGB-D                           ages event streams to reconstruct both intensity and depth
+conventional frame rate. They show promising results by                          between consecutive depth frames, which can be seam-
+introducing RGB-Depth-Event fusion method for instance-                          lessly integrated with the downstream module in a render-
+level 6D object pose tracking. As summarized in Table 1,                         and-compare paradigm.
+recent datasets, such as YCB-Ev [96] and E-Pose [44], in-                      • We present large-scale synthetic and real-world event-
+troduce multi-object event-based 6D datasets but still re-                       based datasets (EventBlender6D, EventHO3D, and
+main constrained to controlled settings with moderate or                         Event6D) for both training and evaluating event camera-
+static object motion. Moreover, their annotation pipelines                       based 6D object pose tracking (see Table 1).
+are limited in handling dynamic objects, as they rely on
+existing RGB-D 6D pose methods (CosyPose [57] and                              2. Related Works
+ICG [107], or point cloud registration [88] with reﬁne-
+ments [7]), which struggle with highly dynamic motions.                        6D Object Pose Estimation and Reﬁnement. 6D object
+Existing 6D event datasets are still limited in both scale and                 pose estimation has been divided into instance-level [89,
+motion diversity, which are crucial for developing general-                    117, 132], category-level [59, 60, 119], and novel object
+izable tracking methods.                                                       pose estimation [62, 84, 128]. To improve initial pose pre-
+    To address these limitations, we propose EventTrack6D,                     dictions, pose reﬁnement methods [58, 64, 80, 81, 135] have
+an event-based 6D pose tracking framework that achieves                        been developed for each setting. However, most existing
+robust tracking in high-speed scenarios and generalizes to                     methods use RGB or depth as inputs and are limited by
+novel unseen object instances without retraining. As shown                     the sensing speed of common cameras. Under large and
+in Fig. 1, our key idea is to reconstruct both intensity and                   fast motion, these cameras produce severe motion blur in
+depth at arbitrary timestamps between depth frames by                          RGB frames and large inter-frame displacements, signiﬁ-
+leveraging event data conditioned on the most recent depth                     cantly degrading the performance.
+measurement. The reconstructed intensity and depth enable                         6D Object Pose Tracking. Classical 6DoF tracking,
+matching against CAD renderings, recovering photometric                        including keypoint based [86, 97, 98, 105, 114], edge
+and geometric cues from sparse event data. This dual re-                       based [18, 25, 43, 102, 106], and direct optimization meth-
+construction provides dense geometric and photometric in-                      ods [6, 20, 76, 101, 111], struggles with textureless ob-
+formation for render-and-compare objectives [58, 128], al-                     jects, clutter, and generalization. This has motivated learn-
+lowing pose estimation at temporal resolutions beyond the                      ing based approaches [21, 32, 79, 124, 126], which often
+native depth frame rate. EventTrack6D runs at over 120                         require large object speciﬁc datasets [2, 124]. Category-
+FPS with a lightweight architecture and maintains robust                       level [67, 118], model-based [49, 107, 131], and model-
+tracking in highly dynamic scenes.                                             free trackers [125, 127] still depend on instance-level su-
+    Alongside our method, we introduce a comprehensive                         pervision, while recent work explores unseen object track-
+dataset suite: EventBlender6D for large-scale synthetic                        ing [26] and iterative reﬁnement [58, 64, 80]. In this con-
+training (495k samples, 1k objects), Event6D (real-world,                      text [58, 85, 128], our EventTrack6D targets tracking of
+motion-captured) and EventHO3D (simulated event) for                           novel objects given CAD models and leverages event cam-
+evaluation. By training exclusively on synthetic data, we                      eras for robustness under rapid and large motions.
+demonstrate strong cross-domain generalization to real-                        Event-based Image Reconstruction. Event-based im-
+world scenarios without ﬁne-tuning.                                            age reconstruction is a well-established topic in previous
+    The core contributions can be summarized as follows:                       works [5, 19, 34, 55, 56, 82, 99, 122]. Recent work uses
+• We propose EventTrack6D, an event camera-based 6D                            deep models to produce high-quality reconstructions [94,
+   object pose tracking framework that generalizes to novel                    95, 100, 130, 133], though supervised approaches typically
+
+
+                                                                       15092
+Figure 2. Overview of our EventTrack6D. EventTrack6D consists of a dual-modal reconstruction module and a pose reﬁnement module. It can perform 6D
+pose tracking over high-frequency event stream, despite the limited frame rate of depth images which results in missing depth information between time
+intervals τ = 0 and τ = t. To achieve this, the dual-modal reconstruction module takes as input the most recent depth frame D0 , the event stream E0,t
+accumulated from that frame to the current time t where depth frame is missing, as well as the event stream Et−Δt,t from the most recent dual-modal
+reconstruction to the current time. From these inputs, it reconstructs the current intensity image It , and depth Dt . These reconstructed modalities are then
+used in a pose reﬁnement module to estimate the 6D pose transformation from time t−Δt to t.
+
+require precisely aligned image–event pairs. Alternative                           strained by small, object-speciﬁc datasets collected in con-
+paradigms have also been explored [29, 87, 90, 121], each                          trolled settings [27, 44, 96] and a predominant focus on ge-
+introducing its own constraints. Notably, reconstructed im-                        ometric formulations with few data-driven methods.
+ages have been used for downstream tasks by leveraging
+dense photometric cues that sparse events lack [122, 123].                         3. Approach
+Event-based Depth Reconstruction. Depth estimation us-                             Problem Formulation. Given a CAD model of a rigid ob-
+ing event cameras has progressed rapidly [13, 45, 48, 52,                          ject and known camera intrinsics, our goal is to estimate
+69, 140], yet many methods are too slow for real-time                              the current object pose Tt = [Rt | tt ] in camera frame at
+or struggle with absolute scale. Rather than regressing                            an arbitrary time step t, where t is a normalized time in
+depth directly from events, we exploit motion cues in the                          [0, 1): τ = 0 corresponds to the timestamp of the most re-
+event stream [36, 77, 103, 104, 116] and the high frame                            cent depth frame, and τ = 1 denotes the next depth frame in
+rate of event sensing [16, 33, 53]. Inspired by design                             the future. Rt ∈ SO(3) and tt ∈ R3 represent its rotation
+principles of event-based video frame interpolation meth-                          and translation.
+ods [10, 15, 78, 109, 112, 113, 137, 139], we propose an                               We assume access to an initial pose estimate T0 , asyn-
+event-driven depth extrapolation that predicts the current                         chronous event data, E0,t = {ei = (xi , pi , τi ) | 0 ≤ τi <
+depth from incoming events and the latest depth frame. Un-                         t}, and depth measurement D0 . Each event ei is deﬁned by
+like interpolation, our method does not use future frames.                         its pixel location xi = (xi , yi ) , timestamp τi , and polarity
+Event-based 6D Pose Estimation. Event cameras pro-                                 pi ∈ {−1, 1}, indicating the sign of the brightness change.
+vide high-temporal-resolution and robustness to illumina-                          Method Overview. To achieve robust tracking in dynamic
+tion [14, 50], enabling event-only ego-motion [1, 56, 92,                          scenarios, we increase the temporal frequency of pose up-
+115], stereo and visual–inertial fusion [11, 68, 70, 138], and                     dates. While prior methods [58, 125, 127, 128] typically
+globally optimized SLAM [12, 38, 75]. These strengths                              infer poses only at timestamps where a depth frame is
+have motivated 6DoF pose estimation via geometric line                             available and thereby constrained by the limited frame rate
+tracking [37, 71, 72], hybrid event–RGB pipelines [65],                            from a depth camera, EventTrack6D performs tracking up-
+marker-based LEDs [28, 74], and stereo for spacecraft [73].                        dates at ﬁner temporal intervals. As shown in Fig. 2, our
+Despite this progress, event-based 6D tracking remains con-                        framework enables inference at an arbitrary time t using
+
+
+                                                                           15093
+

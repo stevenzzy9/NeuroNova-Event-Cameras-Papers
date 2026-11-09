@@ -1,0 +1,311 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+ Reconstructing Spiking Neural Networks Using a Single Neuron with Autapses
+
+      Wuque Cai1      Hongze Sun1 Quan Tang1 Shifeng Mao1 Zhenxing Wang1 Jiayi He1
+                                Duo Chen2∗ Dezhong Yao1∗ Daqing Guo1∗
+                                  1
+                                    Brain-Apparatus Communication Institute,
+                University of Electronic Science and Technology of China, Chengdu, China
+         2
+           School of Artificial Intelligence, Chongqing University of Education, Chongqing, China
+                                 1
+                                     {dyao,dqguo}@uestc.edu.cn, 2 duochen3@gmail.com
+
+
+
+                             Abstract                              chitectures that preserve computational capability while re-
+                                                                   ducing structural redundancy. [46]
+Spiking neural networks (SNNs) are promising for neu-                  The intrinsic computational potential of single neurons
+romorphic computing, but high-performing models still              provides a promising direction for advancing information
+rely on dense multilayer architectures with substantial            processing. Biological neurons not only perform den-
+communication and state-storage costs. Inspired by au-             dritic integration [24, 35] but also exhibit complex mech-
+tapses, we propose time-delayed autapse SNN (TDA-SNN),             anisms such as intrinsic plasticity [13] and lateral inhi-
+a framework that reconstructs SNNs with a single leaky             bition [28], enabling rich nonlinear dynamics across spa-
+integrate-and-fire neuron and a prototype-learning-based           tiotemporal dimensions. In the SNN field, various strategies
+training strategy. By reorganizing internal temporal states,       have been proposed to enhance single-neuron expressive-
+TDA-SNN can realize reservoir, multilayer perceptron,              ness, including dendritic computation [25], intrinsic plastic-
+and convolution-like spiking architectures within a unified        ity [15, 38], lateral inhibition–inspired competition mecha-
+framework. Experiments on sequential, event-based, and             nisms [10, 50], neuronal heterogeneity [30, 52], and multi-
+image benchmarks show competitive performance in reser-            compartment modeling [9]. Although these approaches im-
+voir and MLP settings, while convolutional results reveal a        prove the nonlinear computational capability of individual
+clear space–time trade-off. Compared with standard SNNs,           neurons to some extent [23], their internal states still rely
+TDA-SNN greatly reduces neuron count and state memory              mainly on instantaneous inputs, which limits their ability to
+while increasing per-neuron information capacity, at the           retain long-term information or perform recursive computa-
+cost of additional temporal latency in extreme single-neuron       tions [5]. Among these, cerebellar Purkinje cells exemplify
+settings. These findings highlight the potential of tempo-         single-neuron complexity through elaborate dendrites and
+rally multiplexed single-neuron models as compact compu-           autaptic self-feedback, supporting temporal processing and
+tational units for brain-inspired computing.                       memory.
+                                                                       In exploring the computational potential of single-
+                                                                   neuron structures, existing engineering approaches based
+1. Introduction                                                    on single-neuron delay loops offer valuable insights. Stud-
+                                                                   ies on single-neuron deep learning [36, 37] and one-core
+Spiking neural networks (SNNs) are widely regarded as the
+                                                                   reservoir computing (RC) models [29] demonstrate that a
+third generation of neural networks [17, 26]. They serve as
+                                                                   single node possesses significant capacity for temporal in-
+an important foundation for neuromorphic computing [31],
+                                                                   formation processing. However, these methods typically
+featuring event-driven processing, high energy efficiency,
+                                                                   rely on non-biological hardware, and their continuous-value
+and rich temporal dynamics [12, 53]. However, most high-
+                                                                   computations fundamentally differ from spike-based, event-
+performing SNNs still adopt dense multilayer architectures
+                                                                   driven mechanisms, limiting their direct applicability to
+similar to artificial neural networks (ANNs) [19, 32, 41–43].
+                                                                   SNNs and biological interpretation.
+Such designs require extensive neuron communication and
+                                                                       In biological neural systems, autapses provide a natu-
+large state storage, limiting spatial efficiency and hindering
+                                                                   ral mechanism for temporal self-interaction. An autapse
+deployment in resource-constrained settings [48, 49, 51].
+                                                                   is a synaptic connection that a neuron forms with itself,
+This limitation motivates the search for compact SNN ar-
+                                                                   enabling it to sense its own past spiking activity, and to
+  * Corresponding authors.                                         exert either inhibitory or excitatory modulation on its cur-
+
+
+
+                                                             20283
+                                                                                                                                     10                              6
+
+
+                                                                  1      2      3    4     5     6   7        8      9   10                                   7
+                                                                                                                                            9
+                                                                                    Evolution timestep
+                                                                                                                                                    8
+                     Evolution time
+
+
+       (a) rent state [2, 40, 45].                               (b)
+                                                From a computational                     perspective,        (a)
+                                                                                                                               Autapse
+          autapses introduce intrinsic temporal memory within neu-
+          rons, naturally embedding the high-dimensional informa-                                                                          Unfold
+          tion into their dynamics and                    ……
+                                                           providing a biological basis for                                    𝜏𝜏
+                                                                                                                   Dendrite         Axis
+          single neurons to realize long-term dependencies and recur-                                                                               Evolution time
+          sive computation [33, 47].Spiking                                                                  (b)                                              3
+       Time                                               Such autaptic self-modulation in                               d=5
+                                                   prototype Connection Weight                                                                            2          4
+            data
+    seriesPurkinje         cells inspires our
+                            Reservoir                     model design for long-term de-                                                        Mapping
+          pendencies and recursive computation.                                                                                                      1                   5
+
+
+
+
+                                                                                                            u(t)
+(a)              Based on this observation, we propose a leaky integrate-
+                                                                                                                                                    10                   6
+          and-fire neuron with delayed autapses (TDA-LIF), which
+                                                                                                                   1 2 3 4 5 6 7 8 9 10
+          forms the basis of a corresponding 1spiking neural6 network                                                   Evolution time                    9
+                                                                                                                                                              8
+                                                                                                                                                                     7
+          model termed TDA-SNN. Under different                        2                   7
+                                                                                      structural con-
+                                                           Mappingreorganizes its internal
+   u(t)
+
+
+
+
+          figurations, the TDA-LIF neuron                              3                   8             Figure 1. Evolution and folding principles of autapses. (a) An
+          temporal-node evolution to construct                         4
+                                                                           reservoir-computing,
+                                                                                           9
+                                                                                                         autapse in biological neurons and its evolutionary unfolding. (b)
+          multilayer-perceptron, and convolution-like spiking archi-                                     Distribution of evolutionary time in the TDA-LIF model and its
+          1 2 3 4 5 6 7 8 9 10                                         5                  10
+          tectures within  Evolution      time
+                                   a unified            framework. Experiments on se-                    mapping to reservoir computation.
+    (b) quential, event-based, and image(c)datasets show that TDA-
+          SNN provides competitive performance in reservoir and
+          MLP settings, while its convolutional results reveal a clear                                   50, 52] However, the role of temporal delay in improving
+          space–time trade-off. Compared with structurally equiva-                                       single-neuron computation remains underexplored. [3, 5, 8]
+                                                ……
+          lent standard SNNs, TDA-SNN                           drastically reduces neuron               2.2. Time-Delay Neural Network
+          count and state memory and increases per-neuron informa-
+    Inputs                                    Spiking                                                    Transmission delay is a fundamental resource for tempo-
+          tion capacity, at the prototype
+                               Outputs
+                                             cost of additional  Connection   temporalWeight
+                                                                                           latency in
+          extreme  Network
+                         single-neuron settings. Our main contributions are                              ral processing in both biological and artificial neural sys-
+          summarized as follows:                                                                         tems. [4, 34] Time-delay neural networks explicitly model
+          • We theoretically show that a TDA-LIF neuron can                                              temporal dependencies through delayed connections [20,
+              constructively realize three representative SNN struc-                                     39], and folded-in-time deep networks further compress
+        (a)                                    (b)                                                       depth into delay loops within a single node, achieving
+              tures:        reservoir computing                     𝜕𝜕ℒ 𝜕𝜕ℒ
+                                                                (RC),           multilayer percep-
+               𝑡𝑡−7
+            𝑣𝑣𝑙𝑙−1                                                   𝑡𝑡+4
+                                                                  𝑠𝑠𝑙𝑙+1      𝑡𝑡+4                       strong performance in vision and EEG tasks. [29, 36, 37]
+              tronss𝑙𝑙−1(MLPs), and convolution-like
+                      𝑡𝑡−7                                                  𝑣𝑣𝑙𝑙+1
+                                                                           architectures.
+          • We propose 𝑣𝑣a𝑡𝑡−1dedicated            𝜕𝜕ℒ       optimization
+                                                                    𝜕𝜕ℒ 𝜕𝜕ℒ           framework for      Yet these approaches typically rely on continuous-valued
+                                   𝑙𝑙                                                                    signals and have limited biological plausibility. In contrast,
+                                                   𝑣𝑣𝑙𝑙𝑡𝑡            𝑡𝑡+5 𝑣𝑣 𝑡𝑡+5
+                                                                  𝑠𝑠𝑙𝑙+1
+              TDA-SNN to address the                       training       challenges
+                                                                              𝑙𝑙+1        introduced
+              by      𝑡𝑡−5
+                     s𝑙𝑙−1
+               𝑡𝑡−5 internal    delayed𝑡𝑡         𝜕𝜕ℒ
+                                              feedback,        enabling            stable learning of    biological autapses allow neurons to regulate current activ-
+            𝑣𝑣𝑙𝑙−1                  𝑣𝑣𝑙𝑙                             𝜕𝜕ℒ
+                                                 𝑣𝑣𝑙𝑙𝑡𝑡+1                                                ity using their own past spikes. [2, 40, 45] This perspective
+              temporally
+                      𝑡𝑡−4
+                     s𝑙𝑙−1      unfolded single-neuron                𝑡𝑡+7models.
+                                                                   𝑠𝑠𝑙𝑙+1
+               𝑡𝑡−4
+              Extensive
+          • 𝑣𝑣𝑙𝑙−1             experiments on multiple benchmarks            𝜕𝜕ℒ
+                                                                                              demon-     motivates us to view delay as an intrinsic autaptic property.
+                                                                              𝑡𝑡+7
+                                                                            𝑣𝑣𝑙𝑙+1
+              strate that TDA-SNN achieves competitive performance                                       It enables a single spiking neuron to emulate network-like
+              in RC and MLP settings, and reveal a clear space–time                                      temporal computation while preserving interpretability and
+              trade-off in convolutional settings, while substantially re-                               improving long-range temporal modeling.
+              ducing neuron count and state memory and significantly
+              enhancing per-neuron information capacity.                                                 3. Method
+                                                                                                         We introduce time-delayed autapses into the LIF neuron to
+           2. Related Works                                                                              enhance its temporal dynamics and internal memory. Based
+                                                                                                         on this modification, we construct a temporally unfolded
+           2.1. Neurons with High Computing Capacity                                                     single-neuron model and show how it can be mapped to
+           Early artificial neuron models, such as McCulloch-Pitts                                       reservoir-computing, MLP, and convolution-like spiking ar-
+           neurons [27], greatly simplify the richer dynamics of bio-                                    chitectures. Unless otherwise stated, t denotes the index of
+           logical neurons, whose dendrites, ion channels, and non-                                      an internal temporal node, while T denotes the external data
+           linear membrane properties support powerful local com-                                        time window used for sequential or event-based inputs.
+           putation. [7] In particular, dendrites can integrate inputs,
+           perform nonlinear operations, and even implement logical
+                                                                                                         3.1. LIF Neuron with Time-delayed Autapses
+           functions [18, 24, 35], motivating SNN studies that enhance                                   Introducing an autapse with delay d into the LIF neuron [16]
+           single-neuron capability through dendritic computation, in-                                   provides temporal self-feedback: a spike emitted by the
+           trinsic plasticity, lateral inhibition, neuronal heterogeneity,                               neuron is fed back to its dendrites after d internal nodes. As
+           and multi-compartment modeling. [9, 10, 15, 23, 25, 30, 38,                                   shown in Fig. 1, the axon connects to the neuron’s own den-
+
+
+
+                                                                                                    20284
+                                                                                                                                 ……
+
+                                                                            Time                                        Spiking
+                                                                         series data                                   prototype Connection Weight
+                                                                                                     Reservoir
+
+
+                                                                   (a)
+drites, allowing past spikes to influence future membrane-
+                                                                                                                                            1             6
+potential evolution.
+   Mathematically, the iterative formula for the TDA-LIF is                                                                                 2             7
+                                                                                                                                 Mapping
+
+
+
+
+                                                                         u(t)
+as follows:                                                                                                                                 3             8
+                                                                                                                                            4             9
+                                                t
+             v t = τ v t−1 (1 − st−1 ) + I t + Iautapse ,   (1)                  1 2 3 4 5 6 7 8 9 10                                       5             10
+                                                                                        Evolution time
+       t                        d t−d                                    (b)                                                          (c)
+                       P
+where Iautapse  =         d∈Dt wa s   is the delayed autaptic
+current generated by the neuron’s own past spikes, Dt =              Figure 2. Division of the evolutionary time in the TDA-LIF model
+                                                                     and its mapping to an MLP
+{d ∈ N | d < t} is the set of valid delays at node t, and wad
+denotes the weight of the autapse with delay d.
+                                                                                      (a)                             ……
+                                                                                                                      (b)
+3.2. Temporal Dynamics to Reservoir Computing
+                                                                         Inputs                                 Spiking
+Based on the TDA-LIF model, we unfold neuron dynamics                                                  Outputs prototype               Connection Weight
+                                                                                         Network
+into a sequence of temporal nodes, where autapses connect
+nodes across different internal timesteps. We refer to each
+internal timestep as a node to distinguish it from the external
+data time window. These connections are directional and                         (a)
+transmit signals forward along the unfolded trajectory. For          Figure 3. 𝑡𝑡−7                    (b) the TDA-LIF
+                                                                                 Convolutional layer with            𝜕𝜕ℒ model.        (a) Map-
+                                                                                                                             𝜕𝜕ℒ
+                                                                              𝑣𝑣𝑙𝑙−1                                   𝑡𝑡+4
+                                                                                                                    𝑠𝑠𝑙𝑙+1    𝑡𝑡+4
+simplicity, autapses with the same delay are treated as one          ping 10 nodessto𝑡𝑡−7a 3×3 convolution. (b) Equivalence 𝑣𝑣𝑙𝑙+1 of TDA-LIF
+                                                                                     𝑙𝑙−1
+delay type. As shown in Fig. 1, the neuron evolves over ten          to a single-channel convolutional
+                                                                                                 𝑡𝑡−1
+                                                                                                         layer.
+                                                                                                          𝜕𝜕ℒ        𝜕𝜕ℒ 𝜕𝜕ℒ
+                                                                                                          𝑣𝑣𝑙𝑙
+                                                                                                                        𝑣𝑣𝑙𝑙𝑡𝑡             𝑡𝑡+5 𝑣𝑣 𝑡𝑡+5
+                                                                                                                                        𝑠𝑠𝑙𝑙+1    𝑙𝑙+1
+nodes, with blue and yellow autapses representing delays of
+                                                                                              𝑡𝑡−5
+                                                                                             s𝑙𝑙−1                     𝜕𝜕ℒ
+five and two nodes, respectively.                                                     𝑡𝑡−5
+                                                                       This 𝑣𝑣construction
+                                                                              𝑙𝑙−1            𝑣𝑣𝑙𝑙
+                                                                                            produces  an MLP-like
+                                                                                                                 𝑡𝑡
+                                                                                                                  𝜕𝜕ℒ structure from
+                                                                                                                      𝑣𝑣𝑙𝑙𝑡𝑡+1
+                                                                                     𝑡𝑡−4
+   When autapses with different delays are assigned                                 s𝑙𝑙−1                           𝑡𝑡+7
+                                                                                                                 𝑠𝑠𝑙𝑙+1
+                                                                    a single TDA-LIF
+                                                                               𝑡𝑡−4
+                                                                                          neuron.  In Fig. 2, the  neuron 𝜕𝜕ℒ integrates
+different weights, delayed self-feedback modulates the                      𝑣𝑣𝑙𝑙−1                                         𝑡𝑡+7
+                                                                    three delayed autaptic groups, d = 2 (yellow),       𝑣𝑣𝑙𝑙+1 5 (blue),
+membrane-potential trajectory and enriches the internal             and 7 (green), yielding ten effective synaptic connections
+temporal state. Under a finite set of delays, the membrane          between the two temporal segments. During the evolution
+dynamics can be written as:                                         of the second segment, the dynamics can be written as:
+                                       X
+    v t = τ v t−1 (1 − st−1 ) + W xt +       wad (t)st−d , (2)
+                                                                                                              X
+                                                                       v t = τ v t−1 (1 − st−1 ) + W xt +            wad (t)st−d , (3)
+                                           d∈D                                                                                    d∈DFC
+
+         t
+where x is the external input injected into node t, D de-           where DFC = {d ∈ N | d ≤ t, t − d < ts } denotes the set
+notes the set of selected autaptic delays, wad (t) is the weight    of delays that connect the first segment to the second, and
+of the autapse with delay d at node t, and W ∈ RN ×Nin              ts is the segment boundary.
+represents the weight matrix for the external inputs, with N            Building on this foundation, the TDA-LIF model can be
+being the number of nodes and Nin the input dimension.              extended to deeper feedforward networks by introducing
+   When arranged as in the right panel of Fig. 1(b), the un-        more temporal segments. Inputs are assigned to the first
+folded temporal graph induces an RC-like connectivity pat-          segment, and spike responses from the final segment are
+tern. Signals propagate along the nodes following the dotted        used for recognition. In the corresponding inter-segment
+arrows, while delayed autaptic feedback continuously mod-           connection matrix, the diagonal and parallel-diagonal ele-
+ulates the hidden dynamics. The resulting interaction across        ments represent autaptic connections with identical delays.
+temporal nodes enriches the internal states, and aggregat-
+ing neuronal responses over the unfolded trajectory yields a        3.4. Convolutional Structure Equivalence
+high-dimensional representation for reservoir computing.            Starting from the MLP-like topology, we assign each spa-
+                                                                    tial output node a set of autapses with shared weights and
+3.3. MLP Equivalence by Autapse Pruning                             corresponding delays, thereby encoding the weight-sharing
+As shown in Fig. 2, the unfolded trajectory is divided into         mechanism of a convolution kernel into the neuron’s inter-
+two segments, highlighted by the red dashed line, and au-           nal temporal structure. These shared autaptic weights play
+tapses are pruned accordingly. Specifically, autapses con-          the role of kernel parameters, while distinct delay groups
+fined within the same segment are removed, while those              provide a temporal realization of local spatial aggregation.
+crossing the segment boundary are retained. Rearranging                 During signal propagation, output nodes operate in par-
+the temporal nodes into two groups then yields a feedfor-           allel and synchronously, each using the shared autaptic ker-
+ward network structure.                                             nel to process a different local region of the input. In this
+
+
+
+                                                                20285
+

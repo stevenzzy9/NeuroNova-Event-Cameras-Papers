@@ -1,0 +1,238 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+   SMV-EAR: Bring Spatiotemporal Multi-View Representation Learning into
+                Efficient Event-Based Action Recognition
+
+ Rui Fan1,2∗ Weidong Hao1,2∗ Juntao Guan1,3,4† Lai Rui1,2† Tong Wu1,2 Fanhong Zeng1,2 Lin Gu5
+          1
+            Key Laboratory of Analog Integrated Circuits and Systems (Ministry of Education)
+                     2
+                       Faculty of Integrated Circuit, Xidian University, Xi’an, China
+                3
+                  Hangzhou Institute of Technology, Xidian University, Hangzhou, China
+                          4
+                            4CICO Research Global Co., Ltd., Hangzhou, China
+                                    5
+                                      Tohoku University, Sendai, Japan
+                                                                                                                                           motion cues
+                                                                                      within T-W or T-H
+             rui.fan@stu.xidian.edu.cn, guanjuntao@xidian.edu.cn, rlai@mail.xidian.edu.cn
+
+
+
+                                                                                    between frames                     within map
+                            Abstract                                                                 Motion cues                     :projection
+                                                                                              ×                       √             𝑇𝑇
+                                                                                                                      𝑦𝑦                  𝑊𝑊
+Event cameras action recognition (EAR) offers compelling
+privacy-protecting and efficiency advantages, where tempo-                                …                𝐻𝐻
+                                                                                                                 𝐻𝐻                              𝑥𝑥
+ral motion dynamics is of great importance. Existing spa-
+                                                                               𝑦𝑦                    𝑊𝑊
+tiotemporal multi-view representation learning (SMVRL)                               𝑥𝑥               𝑊𝑊
+                                                                                                            𝑡𝑡         𝑇𝑇            𝑡𝑡
+methods for event-based object recognition (EOR) offer
+promising solutions by projecting H-W -T events along                           Frame-like representation        Multi-view representation
+spatial axis H and W , yet are limited by its translation-             Figure 1. Comparison of frame-like representation in prior SOTA
+variant spatial binning representation and naive early con-            EAR method (left) and our adopted multi-view representation
+catenation fusion architecture. This paper reexamines the              (right). Our SMV-EAR embeds motion cues within T -H and T -
+key SMVRL design stages for EAR and propose: (i) a prin-               W maps rather than between H-W frames.
+cipled spatiotemporal multi-view representation through
+translation-invariant dense conversion of sparse events,
+(ii) a dual-branch, dynamic fusion architecture that mod-              recognition (EAR) methods convert H-W -T 1 sparse events
+els sample-wise complementarity between motion features                into frame-like representations through temporal binning2
+from different views, and (iii) a bio-inspired temporal warp-          (Fig. 1 left) then adapt well-trained 2D models [51, 52, 63].
+ing augmentation that mimics speed variability of real-                Although familiar to human vision, however, this prac-
+world human actions. On three challenging EAR datasets                 tice embeds the fundamental temporal motion cues between
+of HARDVS, DailyDVS-200 and THU-EACT-50-CHL, we                        the evolving frames over T axis with limited frame count,
+show +7.0%, +10.7%, and +10.2% Top-1 accuracy gains                    which may fall short in fully capturing and modeling phys-
+over existing SMVRL EOR method with surprising 30.1%                   ically continuous human actions [23, 52].
+reduced parameters and 35.7% lower computations, es-                       To tackle this, we propose a Spatiotemporal Multi-View3
+tablishing our framework as a novel and powerful EAR                   representation learning (SMVRL) framework for EAR task
+paradigm. Code are avaliable in https://github.                        (SMV-EAR). As shown in Fig. 1 right, instead of aggregat-
+com/Fineshawray/SMV-EAR.                                               ing events into H-W (Height-Width) frames along T axis,
+                                                                       it projects events along H and W axes, which embeds tem-
+                                                                       poral motion cues within the projected T -W (Time-Width)
+1. Introduction                                                        or T -H (Time-Height) maps rather than between the H-W
+                                                                       frames. While unfamiliar to human beings, these 2D maps
+Event cameras perceive luminance changes asynchronously                record fine-grained and discriminative complementary mo-
+with high temporal resolution (∼1µs), appearance-free                      1 In this paper, we use H,W,T to denote the spatiotemporal resolution
+streaming and low power consumption [4, 8, 15, 31, 44,                 and H,W ,T to denote the spatiotemporal dimensions (or axes).
+51]. Existing state-of-the-art (SOTA) event-based action                   2 Discretize the time axis (T ) into consecutive bins [8].
+                                                                           3 ‘Spatiotemporal multi-view’ refers to multiple viewpoints of spa-
+   ∗ Equal contribution. † Corresponding author.                       tiotemporal data with H-W -T dimenstions, e.g. video and events [2, 23].
+
+
+
+
+                                                                6043
+                               w/o motion cues                       complementary motion cues
+
+
+
+
+                                                                                           discrimitive
+
+                                w/o motion cues                      complementary motion cues
+                                                                                                                                            SMV-EAR (ours）
+                                                                                                                                                                             # Parameters 20M   40M   60M
+
+                                                                                                                                                               Goal
+
+
+
+                                                                                                                                              MVF-Net          MVFNet
+
+                                                               discriminative                                                                           CoST          ESTF
+
+                                       H-W                               T-W                  T-H                                                                                               R2Plus1D
+
+                                                                                                                                                                                   ACTION-Net
+                  Figure 2. Projections of an action sample on different views.
+
+     H-W                                                                Bin border   ＋Concatenation           Resnet
+                                                               ∆𝑧𝑧
+                                                                                                                                 Figure 4. Results on HARDVS dataset. Our SMV-EAR surpasses
+                                                                                               ＋                Head
+                                                                                                          ＋     𝑫𝑫(�)            all methods and sets a new performance frontier for EAR task.
+                                       𝑇𝑇-𝑊𝑊           𝑇𝑇-𝐻𝐻            𝐻𝐻-𝑊𝑊
+
+                   𝐻𝐻/𝑊𝑊                          Spatial binning                           Early-concatenation
+                           Events
+                                                                                MVF-Net                                          pendently and dynamically re-weights them with cross-
+w/o motion cues
+                                                                                                                                 view attention derived from sample-wise semantics (Fig. 3
+                                                                                       /    Add/Mul       Attention
+                    𝑇𝑇-𝑊𝑊/𝑇𝑇-𝐻𝐻 view
+                                                               ∆𝑧𝑧                                                               right bottom); (iii) Consider the diverse speed variance of
+                                                                                                                                 real-world human actions [13], we additionally establish
+                                                                                                 ＋ 𝓣𝓣(�)          𝑫𝑫(�)
+
+                                               𝑇𝑇-𝑊𝑊            𝑇𝑇-𝐻𝐻
+                                                                                                                                 Diverse Temporal Warping (DTW) as a critical EAR aug-
+                                                        TISM                                     DDCF                            mentation that generates continuous, view-consistent action
+                                                                        SMV-EAR (ours)                                           variations to further improve performance (Fig. 8).
+                                                                                                                                     We show on three existing most challenged EAR bench-
+             Figure 3. Comparisons of representation and architecture between                                                    marks, including HARDVS [52], DailyDVS-200 [51] and
+             baseline SMVRL method [8] (top) and our SMV-EAR (bottom).                                                           THU-EACT-50-CHL [16], that our SMV-EAR achieves
+             SMV-EAR ensures translation-invariant and reasonable SMVRL.                                                         +7.0%, +10.7%, and +10.2% Top-1 accuracy gains respec-
+                                                                                                                                 tively, while dramatically cutting parameters by 30.1% and
+                                                                                                                                 computations by 35.7% compared to the base line SMVRL
+             tion cues (Fig. 2), thereby exhibiting significant potential                                                        method, MVF-Net [8] (Fig. 4). This establishes our SMV-
+             for achieving more accurate and efficient EAR.                                                                      EAR as a novel and powerful SMVRL EAR paradigm. Our
+                However, directly applying frame-like representations                                                            main contributions can be organized as:
+             for T -W and T -W views will inevitably degrade the EAR                                                             • While frame-like representation on H-W frame is friendly
+             performance. This stems from two key problems: (i) An                                                                  for human perception, we argue that projection on Time-
+             action type is expected to be independent from “where it                                                               W ,H views can better capture temporal motion for EAR
+             happens” (spatial location). However, naively adapting T -                                                             task. We also identify two key bottlenecks, spatial bin-
+             axis binning for the spatial projection H/W axes (spatial                                                              ning and early concatenation for this presentation.
+             binning) may fragment coherent action events (Fig. 3 left                                                           • We propose a SMVRL framework for EAR task, which
+             top), which will lead to unwanted translation-variant repre-                                                           at first uses a TISM representation to encode fine-
+             sentations thereby resulting in poor feature discriminability                                                          grained temporal motion cues within maps while enabling
+             (Fig. 6). (ii) Naive early concatenation of T -H and T -W                                                              translation-invariance. Then, a DDCF architecture is de-
+             maps [8] may overlook their inherent dimension misalign-                                                               signed to exploit sample-wise complementarity between
+             ment (H vs. W ) and semantic discrepancy (horizontal vs.                                                               heterogeneous temporal views. Finally, we introduce the
+             vertical motion, Fig. 2), thereby failing in fully exploiting                                                          DTW, a simple but fundamental augmentation to mimic
+             cross-view complementarity (Fig. 3 right top).                                                                         speed variability of real-world human actions.
+                In this paper, we address these challenges by examin-                                                            • On challenging EAR benchmarks, our method consis-
+             ing critical design stages of SMV-EAR: (i) By examin-                                                                  tently achieves significant accuracy gains over the prior
+             ing a plenty of basic conversion windows, measurements                                                                 SOTA methods with roughly 70% computations.
+             and aggregations [69], we propose a Translation-Invariant
+             Spatiotemporal Multi-view (TISM) representation that em-                                                            2. Related Work
+             beds temporal motion cues with global event count and
+             polarity information for principled translation-invariance                                                          2.1. Event-Based Action Recognition
+             guarantee and compactness (Fig. 3 left bottom); (ii) By ex-                                                         Existing SOTA EAR methods convert sparse events into
+             amining diverse extraction and fusion architectures, we pro-                                                        frame-like representations [18, 39, 68] to process them with
+             pose a Dual-branch Dynamic Cross-view Fusion (DDCF)                                                                 well-trained CNNs [22] or Video Transformers [28, 32].
+             architecture that extracts view-specific action logits inde-                                                        Despite superior in accuracy, aggregating events over dis-
+
+
+
+                                                                                                                          6044
+                                                                                                   …
+                                                                                                                        Resnet   Dynamic
+crete, limited time bins inevitably loses fine-grained tem-                                                             branch    fusion
+poral dynamics [42]. Alternative point-based methods treat
+                                                                                                  Warp                       DDCF
+events as spikes [6, 26, 40], point clouds [45], or graphs [10,                                                 ℱ𝑡𝑡𝑡
+
+
+
+
+                                                                                                         TISM
+                                                                                               DTW
+46, 62] to employ architectures like SNNs [47, 60], point                                                                                  Fused
+                                                                                                                ℱ𝑡𝑡𝑡𝑡                      logits
+
+
+
+
+                                                                                                                                      …
+networks [35, 36], or GCNs [14, 54]. While efficient,
+                                                                                    ℰ        Inference
+these works fall short in accuracy and general hardware
+support [12, 40]. There are also works aiming to address                 Figure 5. Overview of main contributions in SMV-EAR’s pipeline.
+EAR challenges under unique scenarios, such as language-
+guided [65], multi-(camera)view [17], wildlife [21], multi-                                  Pipeline of proposed SMVEAR
+modal [44, 53] and few-shot [41] settings, yet our focus is              in Fig. 5, input events E are converted by TISM into 2D fea-
+on general human action recognition (HAR). Although be-                  ture maps {Fth , Ftw } from T -H and T -W views. DDCF
+yond the scope, our SMV-EAR is orthogonal to these works                 processes these maps with independent neural branches and
+thus can be integrated into them for improved performance.               cross-view dynamic attention fusion to predict action types.
+                                                                         Finally, DTW augmentation further enhances test accuracy.
+2.2. SMVRL
+As discussed, SMVRL offers a promising paradigm for
+                                                                         3.2. Translation-invariance of TISM
+                                                                                                                       e −1
+EAR by modeling temporal dynamics from T -H and T -                      Formulation. Let E = {(xk , yk , tk , pk )}N k=0 be the in-
+W views. However, naively adapting SMVRL methods                         put events, where (xk , yk ), tk , and pk ∈ {−1, +1} [7] are
+from video analysis [23, 56, 59] or EOR task [8] proves                  the spatial coordinate, timestamp, and polarity, respectively.
+suboptimal. This is attributed to: (i) The spatial binning               For view v ∈ {th, tw, hw}, let z v denote the orthogonal
+requirement of theses methods causes an unwanted depen-                  axis (z th = x, z tw = y, z hw = t). Following [69], we can
+dence between spatial location (on projection axis) of ac-               decompose the encoding function into three stages:
+tion events and the projected view maps; (ii) Their early
+concatenation [8] or mid-level fusion [23, 59] prematurely                 Fv (E) = [F0 , · · · , FNc −1 ],         Fc = ac (mc (wc (E))), (1)
+mixes features from different views characterized by dis-
+                                                                                                                b −1
+tinct action semantics. Our SMV-EAR features translation-                where wc ∈ W = {[t0,k , t1,k ]}N     k=0      is the window
+                                                                                                             v     v
+invariant representation and dynamic late-fusion architec-               function, mc ∈ M = {z+                , z−  , z v , p, c+ , c− , c}
+ture, which respects the semantic discrepancy of different               for measurement function, and ac                 ∈       A       =
+views while exploiting their complementarity effectively.                {max, min, sum, mean, variance} the aggregation function.
+                                                                         Hence, assuming no out-of-bounds conditions (Fig. 3), the
+2.3. Data Augmentation for Event Data                                    translation-invariance means for any shift ∆z v :
+Existing event-based augmentations include random                                          Fv (E|zv ) = Fv (E|zv +∆zv ).                            (2)
+drops [19], spatial transformations [24], occlusions [1],
+meta learning [20], and mixing strategies [11, 43]. How-                 This leads to find a set of conversion functions parametrized
+                                                                                                     c −1
+ever, they often fail to generate complex, non-uniform                   by P = {(wc , ac , mc )}N c=0 that fulfill Eq. 2. We validate
+temporal dynamics characterizing real-world human ac-                    our analysis in Fig. 6, where translation-invariant wc , ac
+tions [13]. Our DTW distinguishes itself by comprehensive                and mc on temporal view map (e.g., T -H) are indeed all
+temporal warping functions. Moreover, video-based tempo-                 contributed to achieve more discriminative feature space.
+ral augmentations (e.g., temporal sampling [37], temporal                Implementation. Through rigorous mathematical deriva-
+jittering [5]) operate on dense frame intervals, while our               tions (see Supplementary), we can identify a set of feasible,
+DTW directly manipulates sparse event timestamps rather                  translation-invariant conversion functions:
+than frame indices to apply non-uniform warping and
+ensure consistent warping across different views. This is a                 PIV = {(w0 , sum, p), (w0 , sum, c), (w0 , sum, c+ ),
+geometric constraint unattainable in frame-based methods.                               (w0 , sum, c− ), (w0 , variance, z v ),
+                                                                                                         v                     v
+                                                                                        (w0 , variance, z+ ), (w0 , variance, z− )},                (3)
+3. Methodology
+                                                                         where w0 is a global, bin-less window. Through Eq. 3,
+3.1. Overall Framework                                                   the key findings include: (i) global window w0 is a must;
+Our work is built upon the principle that effective SMVRL                                          v
+                                                                         (ii) measurements {z v , z+    v
+                                                                                                     , z− } involving z dimension sat-
+EAR framework requires: (i) translation-invariant multi-                 isfy Eq. 2 only when with variance aggregation. However,
+view representation (by TISM), (ii) view-specific motion                 since variance is computationally expensive (2-order mo-
+extraction and dynamic cross-view fusion (by DDCF), and                  ments), we adopt 1-order mc = sum for efficiency (Tab. 4).
+(iii) diverse action variant generation (by DTW). As shown               Moreover, since c, p measurements have been proven more
+
+
+
+                                                                  6045
+

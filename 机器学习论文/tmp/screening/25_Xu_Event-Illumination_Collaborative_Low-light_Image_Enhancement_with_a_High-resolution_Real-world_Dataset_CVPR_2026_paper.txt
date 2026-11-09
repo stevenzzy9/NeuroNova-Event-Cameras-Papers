@@ -1,0 +1,379 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+       Event-Illumination Collaborative Low-light Image Enhancement with a
+                        High-resolution Real-world Dataset
+
+        Senyan Xu∗ , Zhijing Sun*, Kean Liu, Xin Lu, Ruixuan Jiang, Xueyang Fu, Zheng-Jun Zha†
+                             University of Science and Technology of China
+  {syxu,sunzhijing,rickyliu,luxion,ruixuanjiang}@mail.ustc.edu.cn, {xyfu,zhazj}@ustc.edu.cn
+
+
+
+                            Abstract
+
+
+
+
+                                                                   Input
+Event-based low-light image enhancement (LIE) methods
+mainly focus on incorporating high dynamic range (HDR)
+
+
+                                                                 Mamaba
+                                                                  LLIE∗
+information from events while overlooking the essential
+global illumination in images and the inherent noise sensi-
+tivity of event signals in real-world scenarios. To address
+                                                                   EvLight
+these issues, we propose EIC-LIE, an event-illumination
+collaborative LIE framework. Concretely, we first design an
+Event-Illumination Collaborative Interaction (EICI) mod-
+                                                                   Ours
+
+
+
+
+ule, which contains two key processes: forward gather-
+ing, which gathers HDR features across varying light-
+ing conditions, and backward injection, which provides
+complementary content for illumination and event rep-
+                                                                   GT
+
+
+
+
+resentations. Next, we introduce an Illumination-aware
+                                                                             RGB Image              Invariant 𝐶𝐶           Invariant 𝑊𝑊
+Event Filter (IAEF) that dynamically reduces event noise
+based on brightness statistics derived from images. Ad-               Figure 1. Visual comparison of LIE methods on the proposed real-
+ditionally, we build a beam-splitter-based hybrid imag-               world RLE dataset. To better illustrate the enhancement effects,
+ing system to collect high-quality event-image pairs with             color invariants [11] are adopted as visualization tools. Specifi-
+temporal synchronization from dynamic scenes, provid-                 cally, the invariant C can be interpreted as describing object color
+ing the first high-resolution, real-world event-based LIE             regardless of intensity, while W functions as an edge detector spe-
+                                                                      cific to changes in spectral distribution. See supp. for more details
+dataset. Extensive experiments show that our EIC-LIE out-
+                                                                      regarding the invariants.
+performs state-of-the-art methods on five real-world and
+synthetic datasets, significantly surpassing previous meth-           ditional image enhancement techniques [12, 39, 46, 57].
+ods with improvements of up to 1.24dB in PSNR and                     Specifically, recent low-light image enhancement (LIE)
+0.069 in SSIM. The code and dataset are released at                   methods [4, 49] have achieved promising results by lever-
+https://github.com/QUEAHREN/EIC-LIE.                                  aging Retinex theory [22]. These methods incorporate illu-
+                                                                      mination priors to guide the enhancement network, thereby
+                                                                      improving the overall quality of the images.
+1. Introduction                                                           Compared to traditional frame-based cameras, event
+                                                                      cameras [28, 58] offer unique advantages in low-light con-
+In low-light environments, captured images often suffer
+                                                                      ditions by capturing high dynamic range (HDR), high tem-
+from poor visibility, increased noise, and texture loss due to
+                                                                      poral resolution, and low-latency event streams. Never-
+the limitations of traditional sensors. These issues not only
+                                                                      theless, current event-based LIE approaches still encounter
+impair human visual perception but also negatively impact
+                                                                      multiple challenges: (1) Existing event-based LIE methods
+high-level vision tasks such as semantic segmentation [60],
+                                                                      [19, 24, 29] heavily rely on direct feature fusion strategies,
+object detection [35, 44], and tracking [50]. The rapid de-
+                                                                      using complex fusion modules to compensate for missing
+velopment of deep learning has significantly enhanced tra-
+                                                                      image details. However, these methods often overlook the
+  * Equal contribution.                                               essential global illumination information emphasized in
+  † Corresponding author.                                             Retinex-based LIE techniques. (2) Event-based LIE is
+
+
+
+                                                             22270
+                                      Resolution      Dynamic
+Dataset             Release GT
+                                   Event      Frame Scene Camera        a robust benchmark for event-based low-light enhancement.
+Zhang et al. [58]     ✗    ✗     180×240 180×240      ✓     ✓           Overall, our contributions are summarized as follows:
+LIE [19]              ✓    ✓     346×260 346×260      ✗     ✗           • We propose a new event-illumination collaborative low-
+Liang et al. [25]     ✗    ✗     346×260 1920×1280 —        —
+                                                                           light image enhancement (EIC-LIE) framework.
+SDE [24]              ✓    ✓     346×260 346×260      ✗     ✓
+RLE (Ours)            ✓    ✓     1024×768 1024×768    ✓     ✓
+                                                                        • We formulate collaborative bidirectional interaction pro-
+                                                                           cesses and design Event-Illumination Collaborative Inter-
+Table 1. Summary of existing real-world event-based low-light
+enhancement datasets (Sec. 2.3).                                           action (EICI) that merges high dynamic range (HDR) fea-
+                                                                           tures across various lighting conditions and complements
+constrained by the inherent noise sensitivity of event sig-                modal-specific content for illumination and event repre-
+nals in low-light conditions.                                              sentations.
+    As the number of available photons decreases, especially            • We develop the Illumination-Aware Event Filter (IAEF)
+with low event-triggering thresholds (c in Eq. 3)— random                  to dynamically filter event noise using bright statistics
+noise significantly increases [7]. Liang et al. [24] propose               from images.
+selectively fusing events from high Signal-to-Noise Ratio               • We construct a high-resolution real-world dataset (RLE)
+(SNR) regions, using an SNR map estimated from images.                     consisting of high-quality image-event pairs for evaluat-
+However, this fixed-guidance strategy lacks reliability, lead-             ing the proposed framework.
+ing to noticeable noise in the enhanced results, as demon-              Experimental results demonstrate that our EIC-LIE
+strated in Fig. 1. (3) The lack of high-resolution, high-               achieves state-of-the-art performance across various bench-
+quality, real-world datasets has significantly hindered the             marks, surpassing previous studies [24].            Specifi-
+progress of event-based LIE (see Tab. 1). While SDE                     cally, it shows improvements of up to 0.95dB/0.0469,
+dataset [24] leverages a robotic arm to capture ground truth            1.01dB/0.0695, and 1.24dB/0.0312 in terms of PSNR/SSIM
+(GT) images along the same paths, their method is restricted            on the RLE, SDE, and SDSD datasets, respectively.
+to static scenes with slow camera movements, unavoidable
+temporal misalignment (< 10ms), and severe color inaccu-                2. Related Work
+racies and low resolution due to the DAVIS346 sensor [3].
+                                                                        2.1. Image-based LIE
+    To address these challenges, we propose EIC-LIE,
+an Event-Illumination Collaborative Low-light Image En-                 Traditional non-learning low-light enhancement (LIE)
+hancement (LIE) framework. It consists of two key com-                  methods relied on hand-crafted priors [2, 9, 14, 32, 55],
+ponents, including Event-Illumination Collaborative In-                 which suffer from limited adaptability and efficiency [51].
+teraction (EICI) and Illumination-Aware Event Filter                    With significant advancements in deep learning [6, 15, 40,
+(IAEF) . The former enables collaborative bidirectional                 53, 54], learning-based LIE methods [30] have shown sub-
+interaction between event and illumination information,                 stantial improvements, which can be further categorized
+merging high dynamic range (HDR) details with global illu-              into Retinex-based [4, 8, 33, 47, 49, 51, 59] and non-
+mination priors. The later dynamically filters event noise by           Retinex-based [31, 45, 46, 52] approaches. Specifically, Cai
+utilizing bright statistics derived from RGB images. The vi-            et al. [4] propose a one-stage Retinex-based Illumination-
+sual analysis by introducing several physical invariants [11]           Guided Transformer to exploit the illumination represen-
+has been shown in Fig. 1, EvLight [24] exhibits severe noise            tations to direct the computation of self-attention. Weng
+interference in invariant C, while MambaLLIE [49] lacks                 et al. [49] incorporate illumination guidance into state space
+HDR detail replenishment and presents relatively smooth                 models (SSMs) to enhance the Retinex-based approach.
+edges in invariant W . Through the iterative interaction of             However, the crucial illumination information has not been
+the proposed two modules, our framework achieves accu-                  considered in event-based LIE.
+rate texture details and effective noise suppression, leading
+to enhanced image quality.                                              2.2. Event-based LIE
+    In addition, we design an optical imaging system with               Event cameras have shown considerable potential for image
+dual beam splitters and construct a high-resolution (1024 ×             enhancement [19, 24, 29, 38, 41, 48] and video enhance-
+768) RLE dataset, significantly surpassing the SDE dataset              ment [20, 25, 61], as they offer high dynamic range (HDR)
+(346×260) in resolution. This dataset includes high-quality             and rich edge information even in challenging low-light en-
+event-image pairs spanning a wide illumination range in                 vironments. Liu et al. [28], Zhang et al. [58] focus on recon-
+both indoor and outdoor environments, as well as com-                   structing images from low-light events but fail to recover
+plex dynamic scenes. It also features time-synchronized                 RGB images due to the inherent lack of color information
+low-light images and event streams alongside correspond-                in event streams. Recent event-based LIE methods intro-
+ing normal-light images. Our comprehensive dataset over-                duce RGB images and concentrate on designing complex
+comes the limitations in this field [19, 24, 25, 58], providing         fusion modules or strategies to achieve visually optimal re-
+
+
+
+                                                                   22271
+                                                                Event-Illumination                             Illumination-aware
+                                                   EICI
+                                                              Collaborative Interaction
+                                                                                                      IAEF
+                                                                                                                   Event Filter
+                                                                                                                                       S Spatial sampling           R Reshape             C Concatenation                              Downsample                           Upsample
+
+
+                                                                                                                                                         Skip Connection
+                                               Illumination            Illumination Estimator
+                                                   Prior
+
+
+
+
+                                                                                                                                                                                                                                                                             Enhanced
+         (a) Overall Architecture of EIC-LIE
+
+
+
+
+                                                                                                                                                                                                                                                                              Image
+                                                                                       DConv
+                                                                                Conv
+
+
+                                                                                               Conv
+                                                                         C
+
+
+
+
+                                                                                                                                                                                  Transformer
+
+
+
+
+                                                                                                                                                                                                    Transformer
+
+
+
+
+                                                                                                                                                                                                                                                      Transformer
+                                               Low-light
+
+
+
+
+                                                                                                                       IAEF
+
+
+
+
+                                                                                                                                            IAEF
+
+
+
+
+                                                                                                                                                                  IAEF
+                                                                                                                EICI
+
+
+
+
+                                                                                                                                     EICI
+
+
+
+
+                                                                                                                                                          EICI
+                                                Image
+
+
+
+
+                                                                       Initial Projection
+
+
+
+
+                                                                                                                  �
+
+
+
+
+                                                                                                                                       �
+
+
+
+
+                                                                                                                                                            �
+                                                                             Projection                           × 𝑵𝑵𝟏𝟏               × 𝑵𝑵𝟐𝟐               × 𝑵𝑵𝟑𝟑               × 𝑵𝑵𝟑𝟑            × 𝑵𝑵𝟐𝟐                                             × 𝑵𝑵𝟏𝟏
+                                               Event
+                                               Voxel
+
+
+
+
+                                                                                                                                            𝑯𝑯   𝑾𝑾               𝑯𝑯   𝑾𝑾              𝑯𝑯   𝑾𝑾              𝑯𝑯         𝑾𝑾
+                                                                                                                𝑪𝑪 × 𝑯𝑯 × 𝑾𝑾         2𝑪𝑪 × 𝟐𝟐 × 𝟐𝟐        4𝑪𝑪 ×
+                                                                                                                                                                  𝟒𝟒
+                                                                                                                                                                     × 𝟒𝟒      4𝑪𝑪 ×
+                                                                                                                                                                                       𝟒𝟒
+                                                                                                                                                                                          × 𝟒𝟒    2𝑪𝑪 × 𝟐𝟐 × 𝟐𝟐                               𝑪𝑪 × 𝑯𝑯 × 𝑾𝑾
+
+
+                              (b) Event-Illumination Collaborative Interaction (EICI)                                                                              (c) Illumination-aware Event Filter (IAEF)
+
+                                                                                                                                                                  Illumination                                         …                      𝐾𝐾ℎ (𝑥𝑥𝑛𝑛 , 𝑦𝑦𝑛𝑛 )
+                                 Illumination
+
+
+
+
+                                                                                                                                                                                                                                   𝐾𝐾(𝑥𝑥𝑛𝑛 , 𝑦𝑦𝑛𝑛 )
+                                                                                                                                                                                                    …
+                                                                                                                                                                     Feature
+                                    Feature
+
+
+
+
+                                                                                                                                    FFN
+                                                                 R                                                                               R
+
+
+
+
+                                                                                                                                    LN
+                                                                                                                                                                                                                𝐾𝐾ℎ (𝑥𝑥1 , 𝑦𝑦1 )
+
+
+
+
+                                                                                                                                                                                                   𝐾𝐾𝑣𝑣 (𝑥𝑥1 , 𝑦𝑦1 )
+                                                                                                                                                                                                                                            Kernel
+
+
+                                                                                                                                                                                                                       …
+
+
+
+
+                                                                                                                                                                                                    …
+                                                                 R                                                                               R
+                                 Feature
+                                  Image
+
+
+
+
+                                                                                                                                                                                                                                          𝑊𝑊(𝑥𝑥𝑛𝑛 ,𝑦𝑦𝑛𝑛 )
+
+
+                                                                                                                                                                                                         𝑊𝑊(𝑥𝑥1 ,𝑦𝑦1)                        Weight
+
+
+                                                                                                                                                                                                                       …
+                                                                                                                                                                    Event
+
+
+
+
+                                                                                                                                                                                                    …
+                                                                                                                                                                   Feature
+                                                                                                                                    FFN
+
+
+
+
+                                                                 R                                                                                R                                                                                                                     S
+                                                                                                                                    LN
+
+
+
+
+                                                                                                                                                                                                                                          (𝑃𝑃𝑥𝑥 , 𝑃𝑃𝑦𝑦 )(𝑥𝑥𝑛𝑛 ,𝑦𝑦𝑛𝑛 )
+                                 Feature
+                                  Event
+
+
+
+
+                                                                                                                                                                                                        (𝑃𝑃𝑥𝑥 , 𝑃𝑃𝑦𝑦 )(𝑥𝑥1 ,𝑦𝑦1)               Offset
+                                                                     Forward Gathering                       Backward Injection
+
+
+
+Figure 2. An overview of (a) our EIC-LIE. The core modules of EIC-LIE are (b) Event-Illumination Collaborative Interaction (EICI) and
+(c) Illumination-aware Event Filter (IAEF). Details of each module can be found in supp.
+
+sults. Specifically, Jiang et al. [19] design a simple residual                                                                                       truth (GT) images by precisely controlling an event cam-
+fusion module. Liu et al. [29] propose an Event and Image                                                                                             era along identical trajectories. To the best of our knowl-
+Fusion Transform module based on cross and spatial atten-                                                                                             edge, there is currently no dataset that simultaneously of-
+tion. Liang et al. [25] first model temporal coherence by                                                                                             fers high-resolution and high-quality event-image pairs with
+predicting motion cues from both events and frames to im-                                                                                             GT, which significantly hinders research on event-based
+plement fusion, then perform exposure correction and de-                                                                                              LIE.
+noise on fused features. Liang et al. [24] propose selec-
+tive fusion according to the SNR map estimated by images                                                                                              3. Methodology
+based on Transformer.
+                                                                                                                                                      3.1. Preliminaries
+2.3. Event-based LIE Datasets                                                                                                                         Retinex Theory. Retinex theory [22] posits that a low-light
+                                                                                                                                                      image I ∈ RH×W ×3 can be decomposed into reflectance
+Collecting paired low-light/normal-light RGB and event
+                                                                                                                                                      R ∈ RH×W ×3 and illumination maps L ∈ RH×W ×3 ,
+data presents considerable challenges, resulting in a scarcity
+                                                                                                                                                      which can be formulated as:
+of real-world datasets dedicated to this purpose. Tab. 1
+shows the recent event-based LIE datasets. Zhang et al.                                                                                                                                            I = R ⊙ L.                                                                           (1)
+[58] propose DVS-Dark to reconstruct intensity images
+from low-light events streams. Jiang et al. [19] construct                                                                                            Recent Retinex-based methods typically focus on either
+the LIE dataset, the first real-world dataset captured under                                                                                          jointly estimating both maps [47, 51, 59] or estimating a
+both indoor and outdoor conditions using the DAVIS346                                                                                                 lit-up map (with reflectance treated as the enhanced output)
+event camera, simulating lighting variations in static in-                                                                                            [4] to restore normal light images N ∈ RH×W ×3 . These
+door and outdoor scenes by adjusting the camera’s light in-                                                                                           two types of methods can be respectively formulated as:
+take and employing different exposure times, respectively.                                                                                                                          N = R̃ ⊙ L̃, N = I ⊙ L̄,                                                                            (2)
+Liang et al. [25] design a beam-splitter-based system to
+capture events and images, equipped with an industrial                                                                                                where ⊙ denotes the element-wise multiplication; L̄ de-
+camera (FLIR Chameleon 3 Color) and an event camera                                                                                                   notes the estimated lit-up map; R̃ and L̃ denote the es-
+(DAVIS346). Liang et al. [24] capture SDE dataset, em-                                                                                                timated reflectance and illumination maps. Unlike these,
+ploying a programmable robotic arm to capture ground                                                                                                  Weng et al. [49] proposes a Retinex-aware selective kernel
+
+
+
+                                                                                                                                         22272
+

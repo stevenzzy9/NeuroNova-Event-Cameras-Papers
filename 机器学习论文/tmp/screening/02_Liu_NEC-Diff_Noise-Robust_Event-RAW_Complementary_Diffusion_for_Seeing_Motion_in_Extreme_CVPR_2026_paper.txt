@@ -1,0 +1,286 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+     NEC-Diff: Noise-Robust Event–RAW Complementary Diffusion for Seeing
+                         Motion in Extreme Darkness
+
+     Haoyue Liu1†, Jinghan Xu1†, Luxin Feng1 , Hanyu Zhou2 , Haozhi Zhao1 , Yi Chang1 *, Luxin Yan1
+          1
+            National Key Lab of Multispectral Information Intelligent Processing Technology
+   School of Artificial Intelligence and Automation, Huazhong University of Science and Technology
+                         2
+                           School of Computing, National University of Singapore
+                 {liuhy, xujinghan, fengluxin, yichang}@hust.edu.cn, hy.zhou@nus.edu.sg
+
+
+
+                            Abstract                                                              Insufficient denoising                    Excessive denoising
+
+
+
+High-quality imaging of dynamic scenes in extremely low-                                                                              vs.
+light conditions is highly challenging. Photon scarcity in-
+duces severe noise and texture loss, causing significant image
+degradation. Event cameras, featuring a high dynamic range                   Low-light image               The enhancement results
+(120 dB) and high sensitivity to motion, serve as powerful                         (a) Challenges of LLIE under photon-starved conditions
+complements to conventional cameras by offering crucial                                           From events                      Appearance                 Diffusion process
+                                                                       RAW image
+
+
+
+                                                                                                                                 SNR map
+cues for preserving subtle textures. However, most existing
+                                                                                                                        RAW
+approaches emphasize texture recovery from events, while                                                               denoise
+
+
+
+
+                                                                                                       tra ry
+                                                                                                              s
+                                                                                                          int
+                                                                                                     ns da
+paying little attention to image noise or the intrinsic noise of
+                                                                                                   Co oun
+                                                                                                    B
+
+
+
+
+                                                                                                                                                  Condition
+events themselves, which ultimately hinders accurate pixel re-                                                      Intensity     Complementary
+                                                                                                        Illu Pr    Consistency       fusion
+construction under photon-starved conditions. In this work,                                                 mi ior
+                                                                                                              na
+                                                                                                                tio
+we propose NEC-Diff, a novel diffusion-based event–RAW                                                             n
+                                                                                                                                 SNR map
+                                                                       Events
+
+
+
+
+hybrid imaging framework that extracts reliable information                                                            Events
+                                                                                                                       denoise
+from heavily noisy signals to reconstruct fine scene struc-
+tures. The framework is driven by two key insights: (1) com-                                      From RAW
+                                                                                                                                    Boundary
+
+bining the linear light-response property of RAW images with                                  (b) The main idea of NEC-Diff
+the brightness-change nature of events to establish a physics-
+driven constraint for robust dual-modal denoising; and (2)          Figure 1. Illustration of problem and main idea. (a) LLIE methods
+dynamically estimating the SNR of both modalities based on          suffer from a trade-off between texture preservation and noise
+denoising results to guide adaptive feature fusion, thereby         suppression. (b) Events effectively complement textures but in-
+injecting reliable cues into the diffusion process for high-        troduce additional noise. NEC-Diff exploits the characteristics of
+                                                                    both events and RAW images to achieve robust denoising while
+fidelity visual reconstruction. Furthermore, we construct the
+                                                                    preserving textures, fusing features guided by SNR and injecting
+REAL (Raw and Event Acquired in Low-light) dataset which            them into the diffusion model to achieve high-fidelity results.
+provides 47,800 pixel-aligned low-light RAW images, events,
+and high-quality references under 0.001–0.8 lux illumination.
+Extensive experiments demonstrate the superiority of NEC-
+Diff under extreme darkness. The project is available at:          extending the exposure time can collect more photons to
+https://github.com/jinghan-xu/NEC-Diff.                            improve image quality, it inevitably leads to motion blur
+                                                                   in dynamic scenes. Increasing camera gain amplifies both
+                                                                   signal and noise, further degrading the signal-to-noise ratio
+1. Introduction                                                    (SNR). Consequently, achieving high-quality imaging of dy-
+                                                                   namic scenes under extremely low-light conditions remains
+In extremely dark environments, the limited number of pho-         highly challenging.
+tons reaching the sensor causes conventional cameras to suf-          Existing low-light image enhancement (LLIE) methods
+fer from severe noise and loss of texture details. Although        [1–7] have made notable progress in general low-light scenar-
+    †Equal contribution. *Corresponding author.                    ios, but they still face significant limitations under extreme
+
+
+
+                                                               22281
+darkness and exposure constraints. On one hand, textures            lenge of distinguishing signal from noise in weakly textured
+that have been lost cannot be faithfully recovered; on the          regions; denoised events, in turn, provide high-dynamic-
+other, achieving a balance between noise suppression and            range edge cues, aiding noise suppression in images without
+texture preservation is difficult, often resulting in residual      oversmoothing subtle textures. Furthermore, we design an
+noise or oversmoothed details, as shown in Fig 1 (a).               intensity consistency loss based on the physical relation-
+    To improve noise modeling, several studies utilize RAW          ship between clean RAW images and corresponding events
+images [8–14] as input. Compared with sRGB images, RAW              to better constrain the denoising process. Events exhibit
+data preserves more unprocessed information and avoids the          high dynamic range and strong responses to motion edges
+nonlinear transformations of the image signal processing            and local variations, whereas images provide stable global
+(ISP) pipeline, thereby facilitating more accurate noise mod-       brightness and texture information. To fully exploit their
+eling and improved enhancement quality. However, RAW                complementary advantages, we design the SRIE to robustly
+imaging still follows the global exposure paradigm and thus         extract reliable information from both modalities by dynami-
+cannot fundamentally solve the information loss caused by           cally selecting features from the modality with higher SNR.
+short exposure in dynamic scenes, limiting its performance.         The CAD further leverages cross-modal attention to fuse
+    Event cameras [15, 16], which asynchronously respond to         these reliable features and injects them as conditional in-
+illumination changes, feature a high dynamic range (120 dB)         puts into a diffusion model, enabling robust and high-quality
+and microsecond-level temporal resolution. They are highly          reconstruction in extremely low-light conditions.
+sensitive to motion edges and can effectively complement                Since existing datasets [17, 23–26, 30] provide only
+texture information missing in conventional frames under            sRGB data, and RealRE [27] offers event–RAW pairs but
+fast motion. Consequently, many works [17–21] fuse sRGB             lacks low-light cases, we build a coaxial imaging system and
+images and events to improve low-light imaging. Some                construct the Raw and Event Acquired in Low-light (REAL)
+methods further mitigate image noise via motion consis-             dataset. REAL contains pixel-aligned triplets of low-light
+tency [22] and SNR estimation [23, 24], or suppress both            RAW images, low-light events, and high-quality sRGB GTs,
+event and image noise through filtering [25, 26]. However,          with illumination levels ranging from 0.01 lux to 0.8 lux.
+such filtering or single-network solutions struggle to achieve      Overall, our main contributions are summarized as follows:
+precise denoising while preserving weak signals, thereby             • We provide a novel solution to the noise–texture trade-off
+limiting imaging quality under extreme darkness. EvRAW                 inherent in photon-starved imaging, leveraging the texture
+[27] introduces an event–RAW hybrid approach focusing                  cues from events and the illumination-consistency rela-
+on detail and color recovery, yet it pays limited attention            tionship between RAW images and events to effectively
+to sensor noise. The severe noise present in both event and            disentangle sensor noise and preserve fragile signals in
+frame modalities under low-light conditions raises a funda-            extremely dark environments.
+mental question: how can we effectively remove noise from               • By examining the complementary signal behaviors of
+dual-modal degraded signals to restore fine scene details?                events and RAW images—events deliver high-fidelity
+    To address these issues, we propose a diffusion-based                 edge responses and RAW images preserve holistic bright-
+event–RAW hybrid imaging framework, NEC-Diff. Our de-                     ness, we introduce NEC-Diff, which adaptively selects
+sign focuses on two key aspects: (1) modeling and suppress-               reliable cross-modal features based on their SNR and in-
+ing noise in severely degraded signals, and (2) efficiently               jects them into a diffusion model, achieving high-quality
+fusing dual-modal features for high-fidelity imaging. Unlike              imaging under extreme darkness.
+previous methods [17–26], we adopt RAW images as input,
+                                                                        • We construct the REAL dataset comprising pixel-aligned
+which provide richer scene information and more tractable
+                                                                          RAW, event, and sRGB triplets, serving as a valuable
+noise distributions. The NEC-Diff framework consists of
+                                                                          benchmark for advancing low-light imaging research. Ex-
+three modules: Event–RAW Collaborative Noise Suppres-
+                                                                          tensive experiments demonstrate that NEC-Diff achieves
+sion (ECNS), SNR-Guided Reliable Information Extraction
+                                                                          state-of-the-art performance across multiple datasets.
+(SRIE), and Cross-Modal Attentive Diffusion (CAD).
+    The main idea of NEC-Diff is illustrated in Fig. 1 (b).         2. Related Work
+First, to tackle the severe noise in both modalities, the key in-
+sight of the ECNS is to exploit the complementary strengths         Frame-based Low-light Imaging. Frame-based low-light
+of events and frames to mutually assist in denoising. Since         imaging techniques, such as low-light image enhancement
+RAW images are linearly correlated with illumination, while         (LLIE), have been extensively explored. According to the
+event data are dominated by photon shot noise under low-            input type, LLIE methods can be broadly categorized into
+light conditions [28, 29], the illumination prior provided by       two types: sRGB-based [1–7] and RAW-based [8–14] ap-
+RAW images can effectively guide event denoising. Mean-             proaches. Compared with RAW images, sRGB images un-
+while, the bottleneck in image denoising arises from the chal-      dergo a series of visual corrections in the ISP pipeline, mak-
+
+
+
+                                                                22282
+         Raw Image         Event-RAW Collaborative Noise Suppression                                             SNR-guided Reliable Information Extraction                                                         Cross-modal Attentive Diffusion
+                                                                                                                                                                                    ...
+                                                           RAW-Denoise                                                                                  Ei
+                                                                                                           Frame encoder
+                                                                                                                                                                             Frame features
+                    500×                                                                                                                     Frame SNR                                              Frame weights               Qf
+                                                                                                                 Distribution of Patch Mean SNR
+                                                        Texture preservation cue                                                                             Frame SNR map
+
+
+
+
+                                                                                                                                                        }
+                                                                                                           0.9
+
+                           1 1 1                1 1 1
+                                                                                                           0.6
+                                                                                                                                                                                                                                Kf
+
+
+
+
+                                                                                                     SNR
+                           1 2 1                1 1 1
+                           1 1 1                1 1 1
+                                                                                                           0.3
+                                                                                                                                                                                                                                Vf                      Ffused
+                                                                                                            0
+                                   Gaussian blur                                                                 0     100       200        300   400
+
+
+
+
+                                                                                                                                                                                          Softmax
+                                                                                                                              Patch index
+
+
+                             Processed RAW image              Event edges            L cons
+                                                                                                                                             Event SNR                                              Event weights
+                                                                                                                 Distribution of Patch Mean SNR              Event SNR map
+                                                                                                                                                                                                                                Ke
+
+                                                                                                                                                        }
+                                                                                                       0.9
+
+
+
+
+                                                                                                                                                                                                                                                       Condition
+           Events                                                                                      0.6
+                                                                                                                                                                                                                                Ve
+
+
+
+
+                                                                                                     SNR
+                                                                                                       0.3
+
+                             Illumination Prior         Boundary Constraints
+                                                                                                           0
+                                                                                                                 0     100      200
+                                                                                                                             Patch index
+                                                                                                                                            300   400                                                                           Qe
+                                                                                                                                                                               Event features
+                                                                                                            Event encoder
+                                   EV-Denoise                                                                                                           Ee                            ...
+                                                                                                                                                                                                                                               DDIM
+
+
+                              Ffused                                        =(       -1 |      ,                         )                                                                Ffused
+                                                                                                                                                                                                                                  Forward diffusion
+                                                                                                                                                                                                                                  Reverse denoising
+  DDIM
+
+
+
+
+                                                                  …                                                          …
+                                                                                                                                                                                                                                  Element-wise product
+                                                                                                                                                                                                                                  Channel concatenate
+                                                                                 (    |       -1 )                                                                                                                          L cons Intensity consistency loss
+                     x0                            x1                                                                                                        x T-1                                            xT
+
+Figure 2. The architecture of NEC-Diff includes an Event-RAW Collaborative Noise Suppression (ECNS), a SNR-Guided Reliable
+Information Extraction (SRIE), and a Cross-Modal Attentive Diffusion (CAD). The ECNS jointly exploits illumination priors from RAW
+images and texture cues from events for cross-modal denoising. The SRIE adaptively selects high-SNR features from both modalities. The
+CAD integrates reliable features via cross-modal attention into a diffusion model for high-quality reconstruction.
+
+
+ing them more consistent with human visual perception.                                                                                            conditions. Several methods [17, 19, 20] directly fuse fea-
+However, under extremely low-light conditions, the SNR of                                                                                         tures from events and frames; however, these approaches
+images drops sharply, and the ISP pipeline instead becomes                                                                                        often overlook the impact of sensor noise on low-light im-
+a burden—both the original signals and noise are distorted                                                                                        age quality, leading to unstable fusion results in ultra-dark
+by nonlinear transformations, making it more difficult to sep-                                                                                    scenes. EvLowLight [22] reduces the interference of image
+arate signal from noise during enhancement. Hence, RAW                                                                                            noise from a motion consistency perspective, while EvLight
+images serve as a more suitable input for extreme low-light                                                                                       [23] utilizes events to supplement regions with low signal-
+enhancement. Single-stage methods [10, 31, 32] directly                                                                                           to-noise ratio in images, yet neither addresses event noise.
+learn a mapping from noisy RAW data to clean sRGB im-                                                                                             ELEDNet [25] and RETINEV [26] further employ low-pass
+ages, while multi-stage methods [12, 13, 33, 34] decouple                                                                                         filtering and CNNs to process event noise. However, simple
+this mapping into multiple nonlinear transformation pro-                                                                                          low-pass filtering or standalone event-denoising networks
+cesses, further improving the final imaging quality.                                                                                              struggle to simultaneously preserve weak signals and achieve
+    Although existing RAW-based methods have achieved                                                                                             accurate noise suppression, thereby limiting their generaliza-
+promising results, the short exposure required for imaging                                                                                        tion and robustness in extremely low-light environments.
+dynamic scenes further reduces the number of photons cap-                                                                                             This work integrates the illumination priors of RAW im-
+tured by the sensor, making it difficult to recover reasonable                                                                                    ages with the texture cues of events for collaborative denois-
+results when the signal is severely lacking.                                                                                                      ing, where SNR-guided fusion and diffusion-based recon-
+Event-based Low-light Imaging. Benefiting from the high                                                                                           struction enable robust imaging under extreme darkness.
+dynamic range and temporal resolution of event cameras,
+directly reconstructing images from events has become an                                                                                          3. Event–RAW Complementary Diffusion
+efficient approach [35–38]. DVS-Dark [37] attempts to im-
+prove nighttime performance through domain adaptation,                                                                                            3.1. Framework Overview
+transferring knowledge learned from daytime data. NER-                                                                                            The core challenge of imaging in photon-starved environ-
+Net [39, 40] explicitly models the non-ideal event responses                                                                                      ments lies in robustly suppressing noise while preserving
+in darkness—such as trailing effects and noise—and adopts                                                                                         the weak textures of the scene. We propose the Event–RAW
+a low threshold setting to further enhance low-light recon-                                                                                       Complementary Diffusion framework (Fig. 2), integrating
+struction. Nevertheless, since events only record changes in                                                                                      noise suppression, complementary fusion, and diffusion-
+scene brightness, they cannot accurately recover intensity                                                                                        based enhancement. We first analyze noise properties under
+information in smooth regions where no events are triggered.                                                                                      photon-starved conditions, using RAW illumination priors to
+    Recently, event–frame hybrid methods demonstrates                                                                                             guide event denoising. Denoised high-dynamic event edges
+strong potential for high-precision imaging under low-light                                                                                       then facilitate texture–noise separation in frames, mitigating
+
+
+
+                                                                                                                        22283
+

@@ -1,0 +1,245 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+          Spike-driven Discrete Aggregation for Event-based Object Detection
+
+                   Huaning Li1,2 , Ziming Wang1 , Runhao Jiang1,2 , Yan Rui3 *, Huajin Tang1,2,4 *
+                       1
+                         College of Computer Science and Technology, Zhejiang University
+                    2
+                      The State Key Lab of Brain-Machine Intelligence, Zhejiang University
+                       3
+                         Zhejiang University of Technology, 4 Shenzhen Loop Area Institute
+              {lhnkevin1014, zi ming wang, RhJiang, htang}@zju.edu.cn, ryan@zjut.edu.cn
+
+
+
+                             Abstract                                                                                     Continuous Aggregation
+                                                                     A                         𝒚
+                                                                                                                         Sampled Interval
+
+    With their high dynamic range and temporal resolution,                                                                                               𝒕
+                                                                                                                    𝒆𝟔                           𝒆𝟏
+event cameras are well-suited for object detection, espe-                                                                   𝒆𝟓 𝒆𝟒        𝒆𝟑 𝒆𝟐
+                                                                                                                                                      uninformative
+cially under motion blur and extreme illumination. Recent            𝒕
+                                                                                                    ෡ (𝒙𝒊 , 𝒚𝒊 , 𝒑𝒊 )
+                                                                                                    𝑬                       Discrete Aggregation
+                                                                                                    𝒙
+                                                                                                                         Sampled Interval
+state-of-the-art works for event-based object detection pri-
+marily focus on the high-level design of backbones. How-                                                                                                 𝒕
+                                                                                                                    𝒆𝟔                   𝒆𝟑 𝒆𝟐   𝒆𝟏
+                                                                     B
+                                                                                                                            𝒆𝟓 𝒆𝟒
+ever, developing effective event representations is equally
+                                                                                    45
+crucial, as it bridges asynchronous event streams with the                               Ours (S)                                                            Ours (M)
+dense tensors required by detection networks. Most exist-                           40
+                                                                                                                            SpikeYOLO
+                                                                         mAP50:95
+
+
+
+
+ing aggregation strategies for event representation continu-                        35              EMS-ResNet34
+                                                                                           SFOD                                                       EAS-SNN
+ously accumulate all events within sampled intervals with-                          30
+
+out selective filtering, inevitably introducing uninformative                       25
+                                                                                                               KD-SNN
+events that degrade detection accuracy. To address this lim-                        20
+                                                                                             10              15                     20                 25               30
+itation, we introduce a novel perspective, termed Discrete                                                          Params (M)
+Aggregation, which adaptively and discretely selects infor-
+mative events for differentiable aggregation. We realize this      Figure 1. A. Illustration of continuous and discrete aggregation.
+through the Spiking Discrete Aggregation (SDA) module,             Circles denote individual events and red circles indicate uninfor-
+which is inspired by the threshold-based spike firing mech-        mative events. Continuous aggregation integrates all events within
+anism in Spiking Neural Networks (SNNs) and implemented            the sampled interval, whereas discrete aggregation selectively re-
+using gated recurrent spiking neurons. Additionally, we in-        tains informative ones. B. Comparison of performance and model
+troduce the Multi-Timescale Fusion (MTF) method which              size on Gen1 between our method and state-of-the-art fully spik-
+                                                                   ing detectors. M and S in the parentheses (·) indicate medium and
+leverages coarse-grained temporal features from continu-
+                                                                   small scales, respectively.
+ous event streams to further enhance the representation
+capability of SDA. Experimental results on neuromorphic
+datasets demonstrate that our method achieves state-of-the-        level temporal resolution (> 10k fps) [10]. These charac-
+art performance among all fully spiking architectures while        teristics are well-suited for object detection, scene attribute
+using fewer parameters, reaching 43.4% mAP50:95 on Gen1            estimation [4, 5, 42], scene reconstruction [6, 21, 22], and
+(+ 4.5% over prior art). Moreover, our method exhibits su-         video restoration and enhancement [7, 38, 40], especially in
+perior robustness under noisy conditions and shows strong          high-speed or extreme lighting scenarios.
+compatibility with non-spiking models.                                 Event streams contain rich spatiotemporal cues and mo-
+                                                                   tion information. To fully exploit these properties, re-
+                                                                   cent state-of-the-art works on object detection [11, 13, 27–
+1. Introduction                                                    29, 39] have mainly focused on the high-level design of
+Unlike frame-based sensors, bio-inspired event cameras             backbone, adopting only simple event representations such
+asynchronously capture pixel-wise brightness changes, of-          as Event Count [25]. However, effective event represen-
+fering high dynamic range (> 120 dB) and microsecond-              tation remains equally important, as the asynchronous and
+                                                                   sparse nature of event data makes it incompatible with con-
+  * Corresponding authors.                                         ventional deep learning models. Typically, event represen-
+
+
+
+                                                             15135
+tations are obtained by first sampling events into intervals        spiking detectors on the Gen1, 1Mpx and N-Caltech101
+and then aggregating events within each interval into dense         datasets, while achieving 3.79× higher energy efficiency
+tensors. We notice that existing event aggregation meth-            compared to ANNs. In addition, its effectiveness is fur-
+ods [3, 8, 18, 20, 24, 25, 36] integrate all events occurring       ther validated on various non-spiking architectures and
+within the sampled interval without any selective filtering,        under noisy conditions.
+as shown in Fig. 1A. For example, ASTMNet [18] employs
+TCN to process per-pixel event sequences in an integrated        2. Related Work
+manner; EAS-SNN [36] accumulates the membrane po-
+tentials computed for each event by spiking neurons, even
+                                                                 2.1. Event Representation
+when an event does not activate the neuron to fire a spike.      Existing event representations can be broadly categorized
+We refer to this continuous accumulation of events over          into handcrafted and learning-based. Handcrafted methods,
+time as continuous aggregation. This process inevitably em-      such as Event Count [25], Voxel Cube [8] and Time Sur-
+beds redundant or irrelevant events (e.g., sensor-induced ar-    face [33], apply predefined rules [1, 20, 26, 31] to con-
+tifacts and motion-related blur [12, 37]). To address this       tinuously convert event streams into dense formats, suf-
+limitation, we propose a novel perspective: discrete aggre-      fering from noise sensitivity and lack of adaptability. A
+gation, which adaptively and discretely retains informative      notable exception is HOTS [17], which operates in a dis-
+events, unlike continuous aggregation (see Fig. 1A). More-       crete manner by selectively extracting spatiotemporal fea-
+over, the aggregation mechanism can be optimized using           tures via a time-surface decay mechanism. However, its
+high-level semantics from downstream networks.                   non-differentiable nature prevents end-to-end optimization.
+    To implement this idea, we propose the Spiking Dis-          On the other hand, learning-based methods leverage neu-
+crete Aggregation (SDA) module, inspired by the spike-           ral networks to adaptively generate representations through
+firing mechanism of Spiking Neural Networks (SNNs). In           data-driven optimization. This category encompasses (1)
+SNNs, a spike is generated only when the membrane po-            sparse representations, such as GNN-based [19, 32] and
+tential reaches a certain threshold, which naturally aligns      SNN-based [36, 41], whose sparse computational proper-
+with discrete aggregation: irrelevant events fail to trigger     ties enable lower energy consumption but lead to poor per-
+spikes due to insufficient membrane potential accumulation,      formance; (2) dense representations [3, 18] which recently
+whereas informative events can activate spiking neurons.         use temporal architectures to effectively extract spatiotem-
+SDA employs pixel-wise gated recurrent spiking neurons           poral features, yet suffer from accumulation of uninforma-
+to aggregate events that cause their corresponding neurons       tive events due to continuous aggregation. In this work,
+to fire spikes, and it can be optimized by downstream fully      we propose a novel differentiable discrete aggregation ap-
+spiking detectors.                                               proach that addresses these limitations by leveraging the
+    Although SDA excels at fine-grained event selection,         spike-driven nature of SNNs.
+event-based object detection also requires multi-timescale       2.2. Event-based Object Detection with SNNs
+feature modeling, since the temporal density of events gen-
+erally correlates with object motion speed (e.g. faster ob-      SNNs have been increasingly adopted in event-based object
+jects generate denser events, whereas slower ones result in      detection. EMS-ResNet [34] designs a full-spike residual
+sparser event distributions). Therefore, we introduce the        block for detection. SpikeYOLO [23] explores a suitable
+Multi-Timescale Fusion (MTF) method, which incorporates          detection architecture and proposes an SNN with integer-
+coarse-grained temporal information from extended time           valued training and spike-driven inference. These works
+intervals to enhance the representation learned by SDA. As       focus on architectural design but do not explicitly ad-
+shown in Fig. 1B, our detector equipped with SDA-MTF             dress effective low-level processing of event data. EAS-
+achieves superior performance while using fewer parame-          SNN [36] adaptively samples events between spike firing
+ters compared to other fully spiking detectors.                  times for representation to mitigate the temporal mismatch
+    The main contributions are summarized as follows:            between the raw event stream and SNNs. CREST [24] in-
+                                                                 troduces a conjointly trained spike-driven framework with
+• We propose a novel spike-driven discrete aggregation
+                                                                 multi-scale spatiotemporal event representation for efficient
+   module for event-based object detection, implemented
+                                                                 event-based object detection. However, they still include
+   with gated recurrent spiking neurons. This module tightly
+                                                                 uninformative events during continuous aggregation.
+   couples the spike-firing mechanism of spiking neurons
+   with the adaptive aggregation of informative events.          3. Preliminary
+• We introduce the Multi-Timescale Fusion (MTF) method,
+   which captures coarse-grained temporal features to en-        Event Representation for Detection. A sequence of
+   hance the representation capability of SDA.                   events captured by event cameras is denoted as E =
+• Our proposed method outperforms state-of-the-art fully         {ei |ei = (xi , yi , ti , pi )}i∈N , where xi ∈ [1, W ] and
+
+
+
+                                                            15136
+                                                                                                                                     SDA
+                A                                                                                                             Gated Recurrent                                             B SDA with Multi-Timescale Fusion
+                                                                                                                              Spiking Neurons
+
+
+
+
+                                                                                                                                                                                                                               Spike train
+                                                                 Pos              Neg                                                                                                                                                                                                                    Add
+
+
+
+
+                                                                                                                                     Spike train
+
+
+
+
+                                                                                                                                                                       Spiking Detector
+                                                                                                                                                                                                                                                                                                         Sigmoid
+
+
+
+
+                                                                                                                                                                                                                               Spike train
+                                                                                                            (𝒙𝟏, 𝒚𝟏, 𝒑𝟏)
+                                                                                                                                                              𝒕
+                                                                                                               ...
+
+                                                                                                           (𝒙𝒏, 𝒚𝒏, 𝒑𝒏)
+                                                                                                                                                              𝒕
+                                                                                                                                                                                                                                                                                                Sampled Interval
+
+
+                C             Gated Recurrent Spiking Neuron
+                                                                                                                                                                                                                        ∆𝒕𝒎                                                                              SDA
+                                                                                                                                                                                                                                                                                                         SAS
+                                                                                                                                                                                                                ∆𝒕𝒂
+
+                              𝑞t−1 (𝑥, 𝑦, 𝑝)                           𝐼t−1 (𝑥, 𝑦, 𝑝)                                      𝑢t−1 (𝑥, 𝑦, 𝑝)
+
+
+                                                                                                                                                   𝑢ො t−1 (𝑥, 𝑦, 𝑝)
+                                                                                                         𝑠t−1 (𝑥, 𝑦, 𝑝)
+
+
+
+                                 𝑞t (𝑥, 𝑦, 𝑝)                            𝐼t (𝑥, 𝑦, 𝑝)                                        𝑢t (𝑥, 𝑦, 𝑝)                                                   (𝒙, 𝒚, 𝒑)
+
+                                                                                                 𝑭𝒕                  𝑹𝒕
+                                                                                                                                                                                                         𝒕𝟐                                  𝒕𝟏                                         𝒕𝟎
+                                                                                                                                                        𝒔𝒕 (𝒙, 𝒚, 𝒑)
+
+
+Figure 2. Overview of our approach. A. Graphical illustration of the pipeline. Event streams are first divided into positive and negative
+polarities and processed by early aggregation. The inputs are then fed into the Spiking Discrete Aggregation (SDA) module, which employs
+gated recurrent spiking neurons. SDA produces the representation that can be seamlessly integrated into a fully spiking detector. B. SDA
+with Multi-Timescale Fusion. The top part shows the architecture, where an additional timescale branch is incorporated based on the
+vanilla SDA. The bottom part presents a more detailed and intuitive view of the computation. C. Dynamics of Gated Recurrent Spiking
+Neuron. The red solid lines indicate the recurrent connections while the blue and black solid lines depict the input pathways and internal
+dynamics, respectively. R and F indicate the reset and forget gate.
+
+
+yi ∈ [1, H] are spatial coordinates, ti ∈ [0, +∞)
+is the timestamp, and pi ∈ {0, 1} indicates the po-
+larity of brightness change. In the Gen1 and 1Mpx                                                                                                                                \label {eq:eventcount} \mathcal {A}(\hat {E}_j) =h(x, y, p)= \sum _{e_i \in \hat {E}_j}\delta (x-x_i, y-y_i, p-p_i)  (3)
+datasets, an annotation at a given time t is repre-
+sented by B = {bi |bi = (xi , yi , wi , hi , li , t)}i∈N , where
+(xi , yi , wi , hi ) defines the bounding box and li denotes the                                                                                                       where j is the index of the time interval in the global win-
+object category.                                                                                                                                                       dow, Êj denotes the set of sampled events, and δ(·) is the
+                                                                                                                                                                       Dirac delta function.
+    Due to the hardware limitations in processing
+                                                                                                                                                                       Leaky Integrate-and-Fire Neuron. Leaky Integrate-and-
+microsecond-resolution data and the lack of necessity
+                                                                                                                                                                       Fire (LIF) neuron is popular to construct SNNs for its bio-
+to handle every event for object detection [29], most
+                                                                                                                                                                       logical plausibility and low computational cost. In practice,
+methods first sample the event stream using an operation
+                                                                                                                                                                       the iterative LIF equations are written as:
+S, then aggregate the sampled events into a dense tensor H
+via an aggregator A, and finally feed H into a detector D:                                                                                                                                                         \label {eq:update} \bm {u}^l_i[t] =\tau \bm {\hat {u}}^l_{i}[t-1] + \bm {I}^l_i[t]              (4)
+
+                              \label {eq:1} \mathcal {D}(E) \approx \mathcal {D}(H) = \mathcal {D}(\mathcal {A}(\mathcal {S}(E)))                        (1)
+                                                                                                                                                                                                                  \label {eq:spike} \bm {s}^l_i[t] = \Theta (\bm {u}^l_i[t] - V_{thresh})                          (5)
+
+   Taking fixed time-window sampling as an example, let
+the window size be ∆t. The resulting dense tensor Hj ag-                                                                                                                                             \label {eq:decay} \bm {\hat {u}}^l_{i}[t] = u_{reset}\bm {s}^l_i[t]+\bm {u}^l_i[t](1-\bm {s}^l_i[t])          (6)
+gregated by Event Count, a typical aggregation method, can                                                                                                             where t is the time step, τ denotes a constant decay factor,
+be formulated as:                                                                                                                                                      uli [t] and Iil [t] denote membrane potential and input current
+                                                                                                                                                                       of the i-th neuron in the l-th layer. Usually, I[t] is trans-
+    \label {eq:2} H_j = \mathcal {A}(\mathcal {S}_j(E)) = \mathcal {A}(\left \{e_i | {t_i \in [(j-1){\Delta t}, j{\Delta t})}\right \})  (2)                           formed by a parameterized mapping, such as convolution.
+
+
+
+                                                                                                                                                              15137
+

@@ -1,0 +1,705 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                    Event Stream Filtering via Probability Flux Estimation
+
+                 Jinze Chen, Wei Zhai*, Yang Cao, Bin Li, Zheng-Jun Zha
+          MoE Key Laboratory of Brain-inspired Intelligent Perception and Cognition,
+                      University of Science and Technology of China
+    chjz@mail.ustc.edu.cn, {wzhai056,forrest,binli,zhazj}@ustc.edu.cn
+
+
+                         Abstract                                               Event Camera                State Information Encoding:        +1   -1
+
+                                                                                                          Process Information Encoding: Event Interval
+                                                                                               Perceive
+    Event cameras asynchronously capture brightness                                                                              = Contrast
+changes with microsecond latency, offering exceptional
+temporal precision but suffering from severe noise and sig-                                    Output
+nal inconsistencies. Unlike conventional signals, events
+carry state information through polarities and process in-              Figure 1. Interpretation of the information encoded in an event
+formation through inter-event time intervals. However, ex-              stream. Each event provides (1) state information through the dis-
+isting event filters often ignore the latter, producing out-            crete irradiance jump at the event time, and (2) process informa-
+puts that are sparser than the raw input and limiting the               tion by constraining the latent irradiance trajectory between events
+reconstruction of continuous irradiance dynamics. We pro-               through the contrast-bound inequality.
+pose the Event Density Flow Filter (EDFilter), a frame-
+work that models event generation as threshold-crossing                 coded by the discrete jump in logarithmic irradiance at the
+probability fluxes arising from the stochastic diffusion of             event time Iti − Iti−1 = pi C and, (2) the process informa-
+irradiance trajectories. EDFilter performs nonparametric,               tion, described by the inequality supt∈[ti−1 ,ti ) |It −Iti−1 | <
+kernel-based estimation of probability flux and reconstructs            C, which constrains the latent irradiance trajectory between
+the continuous event density flow using an O(1) recursive               successive events. Here It denotes the logarithm scene irra-
+solver, enabling real-time processing. The Rotary Event                 diance, ti ∈ R and pi ∈ {−1, 1} the timestamp and polarity
+Dataset (RED), featuring microsecond-resolution ground-                 of the i-th event and C the contrast threshold. Classical sig-
+truth irradiance flow under controlled illumination is also             nal processing approaches model continuous state variables
+presented for event quality evaluation. Experiments demon-              effectively, but they are inherently unsuitable for discon-
+strate that EDFilter achieves high-fidelity, physically inter-          tinuous, asynchronous event polarities and cannot directly
+pretable event denoising and motion reconstruction.                     impose the above inequality constraint on the latent irradi-
+                                                                        ance path. Consequently, most existing event filters ignore
+                                                                        the process information and treat event polarities as if they
+1. Introduction                                                         were continuous signals, often producing outputs that are
+                                                                        even sparser than the raw input and ultimately limiting the
+Event cameras are bio-inspired vision sensors that asyn-                reconstruction of continuous irradiance dynamics.
+chronously report brightness changes with microsecond la-
+                                                                            To bridge this gap, we revisit event generation from a
+tency [11, 22, 29]. Unlike conventional frame-based sen-
+                                                                        stochastic process perspective. Intuitively, an event is trig-
+sors that sample at uniform time intervals, the irregu-
+                                                                        gered whenever the observed brightness trajectory moves
+lar, threshold-triggered event measurements avoid redun-
+                                                                        far enough to cross the ON/OFF threshold. This trajectory
+dant sampling and thus fit into visual motion perception
+                                                                        is affected by thermal noise and exhibits randomness over
+[9, 13, 14, 30]. But this new paradigm also magnifies the
+                                                                        time. The likelihood of this crossing is not determined by
+internal noise of the circuit, as pointed out in [4, 18].
+                                                                        the past events themselves but how the brightness is flow-
+    By analyzing the event generation model [22], we ob-
+                                                                        ing toward the threshold at any moment. This directional
+serve that an event stream conveys two complementary
+                                                                        tendency of irradiance trajectories to cross the boundary is
+types of information about the underlying brightness evolu-
+                                                                        precisely what the probability flux (or current) represents.
+tion, as illustrated in Fig. 1: (1) the state information, en-
+                                                                            Formally, although events appear as discontinuities, the
+  * Correspondence to: Wei Zhai <wzhai056@ustc.edu.cn>                  irradiance evolves continuously and can be modeled as a
+
+
+
+                                                                 8023
+                                   Event
+                                   Clean irradiance
+                                   Perceived irradiance
+                                   Contrast boundary
+
+
+
+
+(a) A stochastic specification of irradiance evolu- (b) A distributional specification obtained by count-   (c) The distributions of discrete event polarities
+tion, where clean irradiance and thermal noise de- ing trajectory densities over irradiance–time space.     conditional on event time, and continuous inter-
+termine the drift and diffusion of observed irradi- The incoming probability flux at the contrast bound-    event times, obtained respectively from the ratio
+ance trajectories, and an event is triggered at the ary corresponds to the instantaneous probability of     of polarity-specific boundary fluxes and their tem-
+contrast boundary.                                  generating an event.                                    poral integrals.
+
+                                            Figure 2. Stochastic analysis of event generation for a single pixel.
+
+threshold-crossing stochastic process. We find that both (1)                          show that EDFilter achieves superior denoising accuracy
+the continuous distribution of inter-event intervals P(ti −                           and temporal precision.
+ti−1 < t) = P(supτ ∈[ti−1 ,ti−1 +t) |Iτ − Iti−1 | ≥ C) and,
+(2) the discrete distribution of event polarities P(pi = ±1 |                     2. Related Work
+ti ) = P(Iti − Iti−1 = ±C ∧ supt∈[ti−1 ,ti ) |It − Iti | < C)
+are determined by the threshold-crossing probability fluxes,                          Discrimitative Filters. Most filters are discriminative.
+as shown in Fig. 2. Estimating this flux from discrete, noisy                     Density-based methods [3, 10, 17, 20, 24, 33] pass only
+events provides a generative formulation of event filtering                       events with sufficient spatiotemporal neighbors. Motion-
+by resampling a clean, filtered event stream.                                     based methods [25, 31] fit local planes to estimate velocity
+    Building on this principle, we propose a generative event                     and filter out events that are not motion-consistent. More
+filtering framework termed Event Density Flow Filter (ED-                         recently, learning-based methods use MLP [16], CNN [1],
+Filter) that estimates threshold-crossing probability fluxes                      or Transformer [19] on event patches to classify each event
+in real time. The proposed EDFilter models the spa-                               as signal or noise. The limitation of these methods is their
+tiotemporal density of events using a nonparametric kernel                        discriminative nature: they can only remove events, not cor-
+smoother optimized via recursive maximum likelihood esti-                         rect them or generate a new, clean stream.
+mation. This formulation leads to an O(1) recursive solver,                           Generative Filters. A few methods [5–7, 32] are gen-
+enabling online operation at sensor time scales.                                  erative, most notably those [6, 7] that convert events into
+    We further propose the Rotary Event Dataset (RED),                            stacked event frames and use a 3D-UNET to denoise and
+which provides microsecond-accurate ground-truth irradi-                          super-resolve these frames. While powerful, these methods
+ance references under controlled motion and lighting con-                         sacrifice the core advantage of event cameras—temporal
+ditions. Comprehensive experiments demonstrate that ED-                           precision—by binning events into synchronous frames.
+Filter achieves superior denoising accuracy and temporal fi-                          Our Approach. The work most closely related to ours
+delity compared with state-of-the-art methods, while main-                        is [23]. Although designed for event simulation, it models
+taining theoretical interpretability and real-time efficiency.                    event generation through stochastic diffusion of irradiance
+    In summary, the main contributions of this work are:                          for continuous-time event simulation. Our method takes the
+1. The interpretation of event sensing as a threshold-                            opposite direction: we infer the diffusion from the observed
+     crossing stochastic process is proposed, revealing that                      events. Crucially, we show that events can be interpreted
+     both inter-event intervals and event polarities are deter-                   as direct samples of boundary probability fluxes, allowing
+     mined by probability fluxes at the contrast boundaries.                      us to bypass solving the full diffusion equation and derive a
+2. A generative, probability-flux-based event filter EDFilter                     principled and efficient formulation for event modeling.
+     is proposed, which estimates boundary-crossing fluxes
+     from discrete events using nonparametric, O(1) recur-                        3. Approach
+     sive kernel smoothers, enabling real-time signal filtering.
+                                                                                  3.1. Theoretical Foundation
+3. The RED dataset with precise microsecond ground truth
+     irradiance references is proposed, which enables precise                     This section derives the probability flux as a physical quan-
+     evaluation of temporal fidelity and supports research on                     tity for characterizing event distributions, as illustrated in
+     physically accurate event sensing models.                                    Fig. 2. This is achieved by modeling the evolving irra-
+4. Extensive experiments on RED and existing datasets                             diance trajectory using a stochastic differential equation
+
+
+
+                                                                           8024
+(SDE) with absorbing boundaries. For clarity, we focus on                completing the proof of the results in Fig. 2(c).
+a single pixel and assume the process starts at 0, but the for-             However, the solution of Eqs. (2) and (3) does not gen-
+mulation naturally extends to multi-pixel settings with spa-             erally admit a closed-form expression [8]. To address this,
+tial coupling and interference effects. Detailed derivations             we reformulate them with the failure rate [12], here as the
+are provided in the supplementary material.                              event density flow (EDF):
+    For a given event pixel, let It denote the logarithmic ir-                                             p± (t)
+radiance intensity. Under realistic conditions—assumed to                            λ± (t) =       Rt                        ,        (9)
+be Markovian and continuous—it follows the SDE:                                                 1 − 0 [p+ (τ ) + p− (τ )]dτ
+                                                                         which describes the instantaneous expected event rate. The
+                dIt = µ(It , t)dt + σ(It , t)dWt ,          (1)          formulation of λ± (t) allows direct estimation from dis-
+where the drift µ(It , t) captures clean scene dynamics and              crete events, since they are unconstrained nonnegative real-
+the diffusion σ(It , t) models thermal noise, with Wt a stan-            valued functions. In this work, we employ nonparamet-
+dard Wiener process, as shown in Fig. 2(a). Each pixel                   ric temporal and spatial kernel-based smoothers to estimate
+contains ON and OFF comparators that continuously com-                   these functions, as the following section shows.
+pare It against contrast thresholds ±C. An event is trig-                3.2. The EDFilter Framework
+gered when It exits the interval [−C, C], with timestamp
+ts = inf{τ > 0 | Iτ ∈   / [−C, C]}. The exit boundary deter-             The proposed EDFilter framework, illustrated in Fig. 3,
+mines the polarity p ∈ {+1, −1}.                                         consists of three sequential components that respectively
+    Associated with this SDE is the Fokker-Planck equation               predict, update, and reconstruct the event density flow.
+[8], which states the probability density function ρ(I, t) of            3.2.1. Sequential Kernel Density Estimation
+It is the solution to the boundary value problem:                        The first step is to generate a continuous density prediction
+              1 2 2                                                      at any given time. This is achieved using a temporal kernel
+ ∂t ρ(I, t) =  ∂ [σ (I, t)ρ(I, t)] − ∂I [µ(I, t)ρ(I, t)], (2)            density estimator (KDE) for each pixel independently. A
+              2 I
+                                                                         rectangular kernel is adopted to model the contribution of
+ subject to ρ(−C, t) = ρ(C, t) = 0, ρ(I, 0) = ρ(I), (3)
+                                                                         sequential events, while both its height and bandwidth are
+where ρ(I) is the initial distribution. To simplify the ex-              treated as parameters to be estimated online. To account
+pression, we introduce the probability flux density as                   for noise, a constant false event rate is also introduced and
+                                                                         optimized jointly. These defines our temporal EDF model:
+                            1
+         J(I, t) = µ(I, t) − ∂I [σ 2 (I, t)ρ(I, t)],
+                                                                                                  
+                                                            (4)
+                            2                                                                     (ψ(t), β− ),
+                                                                                                                    if ψ(t) > 0
+                                                                             (λ+ (t), λ− (t)) = (β+ , −ψ(t)), if ψ(t) < 0         (10)
+representing the instantaneous flow of probability mass,                                          
+                                                                                                      (β+ , β− ),    if ψ(t) = 0
+                                                                                                  
+since it follows the continuity equation                                                                         (
+                                                                                    X                             α, if 0 ≤ t < h
+                  ∂t ρ(I, t) + ∇ · J(I, t) = 0,             (5)            ψ(t) =         pi ϕ(t − ti ), ϕ(t) =                   (11)
+                                                                                    ti <t
+                                                                                                                  0,  otherwise
+and the outgoing fluxes at the boundaries,
+                                                                         where α and h are the height and bandwidth of the rectan-
+                     p± (t) = ∓J(±C, t),                    (6)          gular kernel ϕ(t), ψ(t) is the predicted density, and β± ≥ 0
+                                                                         denote false event rates. Unlike existing event filters, ab-
+constitute the instantaneous ON/OFF event densities as                   normal events are not hard-thresholded but still contribute
+shown in Fig. 2(b). Hence, events can be interpreted as sam-             to the continuous scene modeling process.
+ples drawn from the leaking probability flux at the bound-                   To determine optimal EDF parameters, we adopt the
+ary. Since the number of leaked events should be comple-                 likelihood maximization strategy. If Ne events are observed
+mentary to the remaining trajectories, we have                           in the interval (s, t] with times and polarities {(ti , pi )}N e
+                                                                                                                                      i=1 ,
+                            Z C                                          the log-likelihood is can be derived from Eqs. (7) and (8) as
+           P(ts ≤ t) = 1 −       ρ(I, t)dI,                                             XNe                 Z t
+                             −C
+                        Z t                               (7)              ln L(s, t) =      ln λpi (ti ) −     [λ+ (t) + λ− (t)]dt, (12)
+                                                                                         i=1                s
+                        =        [p+ (τ ) + p− (τ )] dτ.
+                             0                                           which combines the contributions of state and process like-
+The conditional distribution of polarities is derived as:                lihoods, where λp (t) = λ± (t) for p = ±1. To derive
+                                                                         closed-form solutions, we also impose a prior distribution:
+                             p± (t)          p± (t)                                                    γ      γ
+      P(p = ±1 | t) =                 =                 ,   (8)                        f (α, β± , h) ∝ 2 exp − ,                 (13)
+                            P(ts = t)   p− (t) + p+ (t)                                               h          h
+
+
+
+                                                                  8025
+         EDF                                                                                                             Motion Basis
+                                                   Likelihood              Best Value
+                                                                                                                         0°
+
+                                             Compute                                                                     45°
+
+                 Kernel1              Time                                                                               90°                       Minimize
+                 Kernel2                                                   Parameter                                     135°                  q-norm Difference
+                 Kernel3
+
+
+                              Density Prediction (fixing x-y)                                                 Density Update (fixing t)
+
+                       Sequential      Observation       Asynchronous             Predicted                Motion Basis
+      Input
+                         KDE           Likelihood           MLE                 Density Sample              Extraction
+                                                                                                                                    Local Density
+                            Event Sampling (continuous x-y-t)                                                                       Reconstruction
+                                                         Zero-Order Hold
+                        Event          Continuous        Density Flow              Updated                  Motion-Aware
+     Output
+                      Resampling      Density Flow       Interpolation          Density Sample              Local Filtering
+
+
+                                                                                                                                         Asynchronous
+                                                                                                                                        Density Samples
+
+                                        Sampling                                Continuous Interpolation
+
+                                                                                                                                         Synchronous
+                                                                                                                                        Density Samples
+
+
+
+
+Figure 3. The proposed EDFilter. The density-prediction module sequentially applies KDE to the input events and selects the optimal
+kernel by maximizing the event-observation likelihood, producing a predicted density sample. The density-update module then spatially
+fuses these density samples using a motion-aware, sparsity-preserving local filter to obtain refined density estimates. Finally, the event-
+sampling module interpolates the continuous event-density flow via zero-order hold and resamples the filtered events for output. This
+output also triggers the density-prediction module in an application-dependent manner, mitigating the impact of abnormal integration.
+
+
+where γ is interpreted as the expected event interval. Maxi-                   Then the smoothed EDF around pixel (x, y) is expressed
+mizing the posterior likelihood yields the predicted EDF:                                                          4
+                                                                                                                   X
+ λ̄± (t) = λ± (t)|arg max(α,β ,h) [ln L(s,t)+ln f (α,β± ,h)] . (14)                                  Λ± (t) =            k±,i (t)Bi (t),                           (16)
+                                ±
+                                                                                                                   i=1
+3.2.2. Motion-Aware Local Kernel Smoothing                                                                      ∗
+                                                                               where the optimal coefficients {k±,i (t)}4i=1 are obtained by
+The temporally predicted EDF λ̄± (t) may exhibit struc-                        minimizing the q-norm reconstruction error:
+tural inconsistencies due to noise or threshold mismatch.                                ∗
+To enforce local consistency, we introduce a spatial EDF                               {k±,i (t)}4i=1 = arg min ∥Λ± (t) − Λ̄± (t)∥q ,                              (17)
+                                                                                                            {k±,i (t)}4i=1
+model that performs motion-aware smoothing by incorpo-                                                                
+rating neighborhood information. Unlike standard isotropic                     where Λ̄± (t) = λ̄± (t, x + i, y + j) −1≤i,j≤1 and 1 ≤
+filters, spatial EDF patterns are directional and sparse, typi-                                                   1
+                                                                               q ≤ 2. We adaptively set bi (t) = K(t) if either neighboring
+cally corresponding to moving edge intensities. Our model                      side of the predicted EDF in the i-th direction is nonzero,
+exploits this structure by imposing a directional motion                       otherwise bi (t) = 0, with K(t) being the number of effec-
+prior on a 3 × 3 pixel neighborhood and expressing the                         tive bases. The updated central density flow is given by:
+smoothed EDF as a linear combination of directional basis
+                                                                                                                      4
+patterns, whose coefficients are optimized via reconstruc-                                                            X
+tion error minimization.                                                                           λ∗± (t, x, y) =              k±,i (t)bi (t).                    (18)
+                                                                                                                       i=1
+    We select 4 directional motion bases as
+                                                                           3.2.3. Density Flow Reconstruction and Event Sampling
+               1    0     0              0     1    0
+  B1 (t) = 0 b1 (t) 0 B2 (t) = 0 b2 (t) 0                                  Being able to evaluate λ∗± (t, x, y), the next thing to do is to
+               0    0     1              0     1    0                          reconstruct the continuous EDF. We employ a hybrid sam-
+                                                   (15)                    pling scheme combining event-triggered asynchronous lo-
+               0    0     1              0     0    0                          cal sampling and periodic global sampling, preserving tran-
+  B3 (t) = 0 b3 (t) 0 B4 (t) = 1 b4 (t) 1 ,                                sient dynamics without abnormal integral drift.
+               1    0     0              0     0    0                             An event triggers an update ofthe local 3 × 3 EDF
+representing 0°, 45°, 90°, and 135° motion patterns, with                      neighborhood λ∗± (t, x + i, y + j) −1≤i,j≤1 , which de-
+0 ≤ bi (t) ≤ 1 denoting the contribution to the center pixel.                  pends on predicted EDF values from a 5 × 5 region
+
+
+
+                                                                       8026
+  Light Source                                            Encoded Motor
+    High/Low light                                        High/Low/Varying Speed
+                     Template Patterns
+                     Translational/Rotational/Mixed
+
+                                                                                                                      SYNC
+
+
+
+                                                                                                            SYNC
+                                                                                                                                     circle1        circle2        circle3         point          points
+ Event Camera                                             Microcontroller
+   EVK4/DAVIS346                                           10ns Clock Accuracy
+                                                                                   Camera       Microcontroller      Motor
+                                                                                   DATA SYNC      SYNC    ENC          ENC
+
+
+
+
+                                                                                   DATA                  PROBE     PROBE
+
+                                                                                     Computer         Analog Interface               patterns       kanizsa        spiral1        spiral2          text
+(a) RED collection details. A variety of synchronized intensity frames and                                                        (b) Printed binary patterns. In addition to the rotational motion types,
+events are generated by varying each component. Synchronization is achieved                                                       the spiral1 and spiral2 patterns additionally simulate linear motion types.
+by attaching analog interface to probe the synchronization and encoder signal.                                                    The point and points patterns are only used for evaluating point tracking.
+
+                                                                   Figure 4. System setup of the Rotary Event Dataset benchmark.
+
+                      
+ λ̄± (t, x + i, y + j) −2≤i,j≤2 . Additionally, a global up-                                                                      3.3. The Rotary Event Dataset Benchmark
+date for all pixels is performed every Ts seconds, regard-                                                                        Evaluating individual event quality is challenging because
+less of event activity. A zero-order interpolator is then                                                                         event counts and locations vary across sensors, and conven-
+used to obtain a continuous EDF representation, enabling                                                                          tional cameras cannot provide microsecond-level reference
+event resampling by treating the process as a piecewise-                                                                          intensity. To address this, we build a controlled high-speed
+homogeneous Poisson process.                                                                                                      rotary system that produces microsecond-accurate ground-
+3.2.4. An O(1) Recursive Solver                                                                                                   truth intensity frames illustrated in Fig. 4(a). The setup in-
+All components of EDFilter are designed for asynchronous                                                                          cludes a precision motor, a binary-patterned rotating disk,
+real-time operation with constant-time complexity O(1).                                                                           uniform illumination, an event camera, and a microcon-
+   Temporal EDF Prediction. From Eq. (11), if events are                                                                          troller for sub-microsecond synchronization. After spatial
+viewed as a sequence of polarity-modulated spike train                                                                            alignment using printed crosses and temporal alignment via
+                                                                                                                                  shared-clock trigger pulses, we obtain tightly synchronized
+                          X
+                  E(t) =     pi δ(t − ti ),            (19)                                                                       events and intensity frames.
+                                                      i                                                                              Ten binary patterns as shown in Fig. 4(b) are printed
+                                                                                                                                  on the disk to generate diverse motion types with uni-
+we have ψ(t) = E(t) ∗ ϕ(t) with ∗ being the convolution.                                                                          form contrast. Spiral patterns create radial motion, while
+As this is a linear time-invariant (LTI) system, it admits the                                                                    others produce rotational or mixed motions. Known pat-
+state-space representation                                                                                                        tern dimensions and the encoder’s orientation readings al-
+                                                                                                                                  low reconstruction of ground-truth intensity at any times-
+                        dψ(t)
+                              = α(E(t) − E(t − h)).                                                              (20)             tamp. The motor uses a giant-magnetoresistance encoder
+                         dt
+                                                                                                                                  with 120,000 steps per revolution (0.003°), calibrated using
+Fixing h, λ± (t) and its integral follow from Eq. (10). The                                                                       laser and photodiode measurements. Motor speed is PWM-
+parameters α and β± are optimized independently, while h                                                                          controlled from 0 to 150 rpm. Two representative event
+is chosen via a lookup table with discrete candidates maxi-                                                                       cameras are used: (a) EVK4 [11] with 1280×720 spatial
+mizing likelihood, ensuring an O(1) implementation.                                                                               resolution and 1 µs temporal resolution and, (b) DAVIS346
+    Spatial EDF Update. Given the proven uniqueness of                                                                            [29] with 346×260 spatial resolution and 1 µs temporal
+Eq. (18), solving Eq. (17) is a convex optimization problem                                                                       resolution. To account for illumination effects, sequences
+with fixed-time convergence [2]. For q = 2, the solution                                                                          are recorded under two lighting conditions and three rota-
+simplifies to a 3 × 3 convolution; for q = 1, a local lin-                                                                        tion speeds, producing 120 highly synchronized sequences
+ear program provides the exact sparse solution. Both cases                                                                        spanning about 20min. Point-based patterns are included
+achieve constant-time complexity.                                                                                                 for evaluating direct point tracking.
+    Event Sampling. Since EDF is modeled as piecewise-
+constant function, event intervals follow an exponential dis-                                                                     4. Experiments
+tribution and can be sampled sequentially. To handle dis-
+continuities, a modified thinning algorithm of [27] incorpo-                                                                      In this section, we demonstrate the effectiveness of EDFilter
+rating event polarity is employed, also achieving O(1) ef-                                                                        in preserving both scene irradiance and motion information
+ficiency. Additional implementation details are provided in                                                                       on various tasks and downstream applications.
+the supplementary material.                                                                                                           Methods. We compare EDFilter with Raw, EvFlow
+
+
+
+                                                                                                                           8027
+[31], Ynoise [10], MLPF [16], and EventZoom [6]. Here,                        via motion-aware local modeling and a q-norm reconstruc-
+Raw denotes the baseline that returns the unfiltered event                    tion criterion, yielding cleaner and more faithful events.
+stream. For EDFilter, we set the parameters to t − s =
+100ms, γ = 4ms, LUT keys ranging from 156.25µs to                             4.2. Direct Point Tracking
+40ms with a 2× increment, q = 2, and Ts = 10ms for                            The direct point tracking results on ATE (Tab. 3) show that
+event denoising; for direct point tracking, we set p = 1 and                  our method ranks among the top two across all sequences.
+Ts = ∞ (fully asynchronous sampling). Additional details                      The closest competitor is EvFlow, which exhibits the low-
+are provided in the supplementary material.                                   est variance and thus the highest tracking stability. How-
+   Datasets and Metrics. Besides the proposed RED                             ever, as evidenced by the filtering results in Fig. 5, EvFlow
+dataset, we also evaluate on the E-MLB dataset [4], which                     performs poorly in preserving accurate irradiance changes.
+contains extensive multi-level real-world noisy event se-                     The 3D visualizations in Fig. 6 further reveal that EvFlow
+quences and provides the non-reference Event Structural                       retains only the most salient events along motion trajecto-
+Ratio (ESR) as an event quality metric.                                       ries—beneficial for coarse motion tracking but detrimental
+   For event denoising, we use mean ESR for evaluation on                     to faithful radiance reconstruction. This highlights an in-
+the E-MLB dataset and proposed to use normalized mean-                        trinsic tension between accurate irradiance perception and
+squared-error (NMSE) on the RED dataset:                                      motion perception, reflecting the separation of state and
+             P           P                              2                     process information in conventional models.
+                p∈{−1,1}    t,x,y (gt,x,y,p − dt,x,y,p )
+   NMSE =                                                 , (21)                  By contrast, our method performs strongly on both
+                                           2
+                    P            P
+                      p∈{−1,1}      t,x,y gt,x,y,p                            fronts. This is achieved by modeling the complete event dis-
+                                                                              tribution through probability flux and optimizing it within a
+where gt,x,y,p is the ground-truth radiance change and
+                                                                              unified framework, thereby bridging the gap between state-
+dt,x,y,p is the corresponding event density with polarity p
+                                                                              information modeling and process-information modeling.
+at (t, x, y), where we use a temporal binning of 1ms for
+evaluation. For the direct point tracking task, we propose to                 4.3. Analysis
+use the average tracking error (ATE) for comparison:
+                                                                                  Ablation Studies. Our pipeline consists of three mod-
+          X ti − ti−1                                                         ules. To assess their impact, we vary one component while
+ ATE =                   ∥P (xi , yi )−(cx (ti ), cy (ti ))∥2 , (22)
+           i
+                   T                                                          keeping the others fixed. The averaged results for both fil-
+                                                                              tering and direct point tracking are shown in Fig. 7. Sub-
+where (ti , xi , yi ) is the coordinate of the i-th event and                 stituting the temporal model shows that the proposed EDF
+(cx (ti ), cy (ti )) is the coordinate of the closest point center            formulation yields the best performance on both tasks. This
+at time ti , with T being the time span of the evaluation pe-                 advantage is particularly clear in motion perception, where
+riod and P (·) being the projection operator from the image                   Poisson [15] and Gaussian [21] temporal models rely on
+plane to the patterns plane.                                                  fixed correlation windows, whereas EDF adapts to scene
+                                                                              dynamics through likelihood maximization. For spatial
+4.1. Event Denoising                                                          modeling, L1 better preserves motion accuracy, while L2
+NMSE results on the RED dataset (Tab. 1) show that our                        more faithfully maintains irradiance changes. Regarding
+method achieves the best overall performance. This in-                        the sampling strategy, asynchronous sampling gives the
+dicates that the proposed filter preserves radiance-change                    lowest ATE but higher NMSE than hybrid sampling (Async
+information more accurately than competing approaches.                        vs. Hybrid10ms). As discussed in Sec. 4.2, a more ag-
+Mean ESR results on the E-MLB dataset (Tab. 2) further                        gressive sampling is preferable when motion is the primary
+confirm that our method best retains structural event infor-                  objective. Synchronous sampling performs worst across all
+mation across diverse noise levels, consistent with the ro-                   metrics, underscoring its inefficiency for inherently asyn-
+bustness reflected in the std column.                                         chronous event signals. These observations also indicate
+   Qualitative results in Fig. 5 support these findings.                      that extremely fine sampling (Sync1ms vs. Sync10ms) of-
+EvFlow is overly aggressive and removes many real events.                     fers limited gains relative to its computational cost.
+MLPF and Ynoise retain structure better, with MLPF gener-                         Runtime. We evaluate the runtime characteristics of
+ally performing second-best due to its richer local input rep-                our method for online deployment. Since event streams
+resentation and MLP discriminator. EventZoom, though vi-                      are asynchronous, two complementary metrics are used: la-
+sually plausible, performs poorly in NMSE because its fixed                   tency, measuring the time to produce an output after a sin-
+discretization sacrifices temporal precision and its convolu-                 gle event arrives (online test), and throughput, measuring
+tional modules diffuse spatial energy, degrading radiance-                    the sustained event-processing rate over time (offline/online
+change accuracy. In contrast, our method adapts its tempo-                    test). We benchmark three representative methods—MLPF,
+ral kernel to scene dynamics and enforces spatial sparsity                    EventZoom, and our EDFilter—under identical conditions
+
+
+
+                                                                       8028
+        Table 1. NMSE results of RED. DVS/EVK columns: DAVIS346 and EVK4 sequences. Bold red/blue: 1st/2nd best values.
+
+                 circle1     circle2     circle3     kanizsa    patterns     spiral1     spiral2       text        std
+    Method
+               DVS EVK DVS EVK DVS EVK DVS EVK DVS EVK DVS EVK DVS EVK DVS EVK DVS EVK
+     Raw       0.106 0.390 0.087 0.166 0.060 0.118 0.061 0.054 0.085 0.087 0.137 0.139 0.094 0.139 0.058 0.052 0.045 0.140
+ EventZoom [6] 0.223 0.338 0.111 0.109 0.084 0.076 0.210 0.206 0.129 0.129 0.331 0.108 0.120 0.108 0.283 0.227 0.168 0.130
+  EvFlow [31] 0.285 0.504 0.265 0.378 0.242 0.361 0.094 0.212 0.144 0.214 0.529 0.312 0.346 0.312 0.065 0.142 0.198 0.163
+  MLPF [16] 0.104 0.226 0.091 0.073 0.066 0.054 0.062 0.049 0.089 0.072 0.250 0.094 0.134 0.094 0.057 0.049 0.090 0.057
+  Ynoise [10] 0.244 0.230 0.186 0.125 0.159 0.072 0.162 0.082 0.173 0.101 0.516 0.115 0.309 0.115 0.187 0.089 0.160 0.068
+     Ours      0.096 0.193 0.075 0.059 0.055 0.044 0.071 0.043 0.079 0.062 0.121 0.086 0.088 0.086 0.058 0.038 0.036 0.051
+       Bicycle (2D) Kanizsa (2D)
+       Spiral2 (3D) Urban (2D)
+
+
+
+
+                                   (a) Raw    (b) EventZoom [6] (c) EvFlow [31]           (d) MLPF [16]     (e) Ynoise [10]      (f) Ours
+Figure 5. Visualization of filtered events as 2D event frames (top 3 rows) and 3D point clouds (bottom row). Sequences come from the
+proposed RED dataset (rows 1,4), the E-MLB dataset [4] (row 2) and the ECD dataset [26] (row 3).
+
+
+Table 2. Mean ESR results on E-MLB. ND%: noise level. Bold                                Table 3. ATE results in millimeters (mm). DVS/EVK columns:
+red/blue: 1st/2nd best values.                                                            DAVIS346 and EVK4 sequences. Red/blue: 1st/2nd best values.
+
+                                                   E-MLB (Day/Night)                                          point       points        std
+    Method                                                                                      Method
+                                         ND1         ND4       ND16      ND64                             DVS EVK DVS EVK DVS EVK
+     Raw                               0.82/0.89   0.82/0.82 0.82/0.79 0.79/0.77                Raw       7.542 46.319 4.711 30.728 1.787 24.665
+ EventZoom [6]                         1.00/1.06   0.99/1.01 1.00/1.01 0.97/0.99            EventZoom [6] 4.168 4.711 3.680 3.084 2.096 2.672
+  EvFlow [31]                          0.85/0.97   0.88/0.98 0.87/0.89 0.83/0.80             EvFlow [31] 2.290 2.978 2.306 2.125 0.581 1.071
+  MLPF [16]                            0.85/0.93   0.89/0.93 0.85/0.91 0.84/0.91             MLPF [16] 7.005 28.811 4.499 17.444 1.540 11.635
+  Ynoise [10]                          0.87/1.01   0.86/0.94 0.86/0.88 0.82/0.79             Ynoise [10] 2.805 7.223 3.428 4.444 1.031 7.864
+     Ours                              1.02/1.07   1.02/1.03 1.02/1.00 1.00/0.99                Ours      2.358 2.954 2.518 2.046 0.810 1.297
+
+
+
+with 346×260 resolution on a single core of an R9-7945HX                                  frame-processing blocks. In terms of throughput, EDFilter
+CPU, as shown in Tab. 4. For synchronous EventZoom,                                       can already process 210k events/s surpassing EventZoom.
+throughput is computed on real events with an average rate
+of 1.23 events/µs. Our method achieves the lowest latency
+                                                                                          4.4. Applications
+at 4.99 µs, outperforming MLPF by roughly 51%, demon-                                        Event-Based SLAM. The reference SLAM algorithm
+strating that physically grounded signal processing can still                             is selected as ESVO [36], which uses stereo semi-global
+operate at microsecond scale. EventZoom has much higher                                   matching to recover camera trajectories. The performance
+latency due to the event-frame accumulation and heavy                                     is evaluated by comparing the computed trajectories and
+
+
+
+                                                                                   8029
+                                                                      Points (DVS)
+                                                                      Point (EVK)
+
+
+
+
+                                                                                             (a) Raw              (b) EventZoom [6] (c) EvFlow [31] (d) MLPF [16]                       (e) Ynoise [10]       (f) Ours
+                       Figure 6. Visualization of filtered events in 3D as point clouds. Sequences are captured with DAVIS346 (top row) and EVK4 (bottom row).
+                                2 ITE NMSE        3 图表标题
+
+                     2 ITE NMSE           3 图表标题
+                             Denoising NMSE 0       0.05       0.1       0.15       0.2
+                                                                 0                    EDF0.05             0.1             0.15          0.2                                   w/o EDFilter                     w/ EDFilter
+                                              Spatial Temporal
+
+
+
+
+                         DensityFlow                                            Poisson
+Spatial Temporal
+
+
+
+
+                                          Poisson                         Gaussian
+                                        Gaussian                                       L1
+                                                 L1                                    L2
+                                                 L2                                  Async
+                                              Sampling
+
+
+
+
+                                           Async                          Sync1ms
+Sampling
+
+
+
+
+                                        Sync1ms                       Sync10ms
+                                        Sync10ms                     Hybrid10ms
+                   Compound10ms
+                          2 ITETracking ATE
+                                     NMSE                                                0.0003    图表标题
+                                                                                                     5.000               10.000        15.000         20.000                        indoor indoor rpg rpg rpg        rpg
+                                                                                                                                                                           Method
+                                                             0.000          0           5.000     0.05   10.000    0.1   15.000 0.15   20.000   0.2                                  flying1 flying3 bin boxes desk monitor
+                                        Figure    7. Ablation studies of EDFilter by its temporal modeling,
+                                           DensityFlow
+                                                                                                                                                                        w/o EDFilter 18.4      10.1 3.0 6.1 3.5       2.3
+                     Spatial Temporal
+
+
+
+
+                                                 modeling, and sampling paradigm.
+                                        spatialPoisson                                                                                                                  w/ EDFilter 15.5        8.8  2.9 4.8 3.9      2.2
+                                                         Gaussian
+                                                                                                                                                                      Figure 8. SLAM results on the MVSEC [37] and RPG [35]
+                                        Table 4. L1Latency and throughput comparison of event-signal
+                                                   L2                                                                                                                 datasets. Top: top-view trajectory of indoor flying1. Bottom:
+                                        filters. Latency is measured in seconds (s), and throughput is mea-
+                                                Async                                                                                                                 RMS tracking error in centimeters (cm). Bold red: best value.
+                                               in events per second (events/s).
+                                        suredSync1ms
+                     Sampling
+
+
+
+
+                                                Sync10ms
+
+                                              Metric
+                                         Compound10ms                                           MLPF [16] EventZoom [6]         Ours                                     w/o EDFilter          w/ EDFilter          Ground Truth
+                                             Latency
+                                                 0.000                                          5.000
+                                                                                                  7.55e-6 10.000  15.000
+                                                                                                                 1.21e0  20.000
+                                                                                                                              4.99e-6
+                                            Throughput                                             4.73e6        1.34e5       2.10e5
+
+
+                                        ground-truth trajectories on the MVSEC [37] and RPG [35]
+                                        datasets. The absolute translational error (RMS) results and                                                                       Method         PSNR↑      MSE↓      SSIM↑     LPIPS↓
+                                        the top view of computed trajectories are provided in Fig. 8.                                                                    w/o EDFilter      16.04     0.035      0.53      0.30
+                                        After inserting the proposed EDFilter, the tracking perfor-                                                                      w/ EDFilter       18.37     0.019      0.68      0.24
+                                        mance is improved for most sequences, especially for those                                                                    Figure 9. Video reconstruction results on the E-MLB [4] dataset.
+                                        previously having poor results like indoor flying1 and in-                                                                    Top: reconstructed frame. Bottom: metrics. Bold red: best value.
+                                        door flying3. Such results are a direct demonstration of the
+                                        motion preservation ability of the proposed method.                                                                           5. Conclusion
+                                            Video Reconstruction. The reference video reconstruc-
+                                        tion algorithm is selected as E2VID [28], which learns                                                                        We proposed EDFilter, an event signal filtering framework
+                                        to generate corresponding video frames from input event                                                                       grounded in a probability-flux interpretation of event gen-
+                                        frames with a recurrent network. As with evaluating                                                                           eration. By estimating the threshold-crossing probability
+                                        other data preprocessing pipelines, we fine-tune the pre-                                                                     flux through efficient temporal KDE, motion-aware spatial
+                                        trained model on filtered events to obtain the final re-                                                                      smoothing, and asynchronous resampling, EDFilter pro-
+                                        construction results. The performance is assessed on the                                                                      vides physically consistent and real-time event reconstruc-
+                                        E-MLB [4] dataset, reporting the average peak-to-signal-                                                                      tion. The RED dataset with microsecond irradiance ground
+                                        ration (PSNR), mean-squared error (MSE), structural simi-                                                                     truth is also captured for evaluation. Experiments show that
+                                        larity (SSIM) index, and perceptual similarity (LPIPS) [34]                                                                   EDFilter achieves superior denoising accuracy and track-
+                                        and reconstructed frames in Fig. 9. The reconstruction re-                                                                    ing performance, highlighting probability-flux modeling as
+                                        sults have been improved for all the metrics, which is also                                                                   a promising direction for future research on generative mod-
+                                        evident visually. Such results clearly demonstrate the bene-                                                                  els, physics-informed neural representations, and proba-
+                                        fit of EDFilter in irradiance preservation.                                                                                   bilistic formulations in event-based vision.
+
+
+
+                                                                                                                                                               8030
+Acknowledgements                                                               stacked temporal contrast event-based vision sensor with
+                                                                               4.86 µm pixels, 1.066 geps readout, programmable event-
+This work is supported by the National Natural Science                         rate controller and compressive data-formatting pipeline. In
+Foundation of China (NSFC) under Grants 62225207,                              2020 IEEE International Solid-State Circuits Conference-
+62436008, 62306295, and 62576328. The AI-driven ex-                            (ISSCC), pages 112–114. IEEE, 2020. 1, 5, 7
+periments, simulations and model training were performed                  [12] Maxim Finkelstein. Failure rate modelling for reliability and
+on the robotic AI-Scientist platform of Chinese Academy of                     risk. Springer, 2008. 3
+Sciences.                                                                 [13] Guillermo Gallego, Henri Rebecq, and Davide Scaramuzza.
+                                                                               A unifying contrast maximization framework for event cam-
+References                                                                     eras, with applications to motion, depth, and optical flow
+                                                                               estimation. In Proceedings of the IEEE conference on
+ [1] R Baldwin, Mohammed Almatrafi, Vijayan Asari, and Keigo                   computer vision and pattern recognition, pages 3867–3876,
+     Hirakawa. Event probability mask (epm) and event denois-                  2018. 1
+     ing convolutional neural network (edncnn) for neuromor-              [14] Guillermo Gallego, Tobi Delbrück, Garrick Orchard, Chiara
+     phic cameras. In Proceedings of the IEEE/CVF Conference                   Bartolozzi, Brian Taba, Andrea Censi, Stefan Leutenegger,
+     on Computer Vision and Pattern Recognition, pages 1701–                   Andrew J Davison, Jörg Conradt, Kostas Daniilidis, et al.
+     1710, 2020. 2                                                             Event-based vision: A survey. IEEE transactions on pattern
+ [2] Stephen P Boyd and Lieven Vandenberghe. Convex opti-                      analysis and machine intelligence, 44(1):154–180, 2020. 1
+     mization. Cambridge university press, 2004. 5                        [15] Cheng Gu, Erik Learned-Miller, Daniel Sheldon, Guillermo
+ [3] Tobi Delbruck et al. Frame-free dynamic digital vision. In                Gallego, and Pia Bideau. The spatio-temporal poisson point
+     Proceedings of Intl. Symp. on Secure-Life Electronics, Ad-                process: A simple model for the alignment of event camera
+     vanced Electronics for Quality Life and Society, pages 21–                data. In Proceedings of the IEEE/CVF International Confer-
+     26. Citeseer, 2008. 2                                                     ence on Computer Vision, pages 13495–13504, 2021. 6
+ [4] Saizhe Ding, Jinze Chen, Yang Wang, Yu Kang, Weiguo                  [16] Shasha Guo and Tobi Delbruck. Low cost and latency event
+     Song, Jie Cheng, and Yang Cao. E-mlb: Multilevel bench-                   camera background activity denoising. IEEE Transactions
+     mark for event-based camera denoising. IEEE Transactions                  on Pattern Analysis and Machine Intelligence, 45(1):785–
+     on Multimedia, 2023. 1, 6, 7, 8, 9                                        795, 2022. 2, 6, 7, 8
+ [5] Peiqi Duan, Zihao W Wang, Boxin Shi, Oliver Cossairt,                [17] Shasha Guo, Chenyang Shi, Lei Wang, Jing Jin, and Yuliang
+     Tiejun Huang, and Aggelos K Katsaggelos. Guided event                     Lu. Ebf: An event-based bilateral filter for effective neu-
+     filtering: Synergy between intensity images and neuromor-                 romorphic vision sensor denoising. IEEE Transactions on
+     phic events for high performance imaging. IEEE Transac-                   Circuits and Systems for Video Technology, 2025. 2
+     tions on Pattern Analysis and Machine Intelligence, 44(11):          [18] Yuhuang Hu, Shih-Chii Liu, and Tobi Delbruck. v2e: From
+     8261–8275, 2021. 2                                                        video frames to realistic dvs events. In Proceedings of
+ [6] Peiqi Duan, Zihao W Wang, Xinyu Zhou, Yi Ma, and Boxin                    the IEEE/CVF Conference on Computer Vision and Pattern
+     Shi. Eventzoom: Learning to denoise and super resolve neu-                Recognition, pages 1312–1321, 2021. 1
+     romorphic events. In Proceedings of the IEEE/CVF Con-                [19] Bin Jiang, Bo Xiong, Bohan Qu, M Salman Asif, You Zhou,
+     ference on Computer Vision and Pattern Recognition, pages                 and Zhan Ma. Edformer: Transformer-based event denois-
+     12824–12833, 2021. 2, 6, 7, 8, 10                                         ing across varied noise levels. In European Conference on
+ [7] Peiqi Duan, Yi Ma, Xinyu Zhou, Xinyu Shi, Zihao W Wang,                   Computer Vision, pages 200–216. Springer, 2024. 2
+     Tiejun Huang, and Boxin Shi. Neurozoom: Denoising                    [20] Alireza Khodamoradi and Ryan Kastner. o(n) o (n)-space
+     and super resolving neuromorphic events and spikes. IEEE                  spatiotemporal filter for reducing noise in neuromorphic vi-
+     Transactions on Pattern Analysis and Machine Intelligence,                sion sensors. IEEE Transactions on Emerging Topics in
+     2023. 2                                                                   Computing, 9(1):15–23, 2018. 2
+ [8] JN Elgin. The fokker-planck equation: methods of solution            [21] Jianing Li, Yihua Fu, Siwei Dong, Zhaofei Yu, Tiejun
+     and applications. Optica Acta: International Journal of Op-               Huang, and Yonghong Tian. Asynchronous spatiotemporal
+     tics, 31(11):1206–1207, 1984. 3, 2                                        spike metric for event cameras. IEEE Transactions on Neu-
+ [9] Davide Falanga, Kevin Kleber, and Davide Scaramuzza. Dy-                  ral Networks and Learning Systems, 2021. 6
+     namic obstacle avoidance for quadrotors with event cameras.          [22] Patrick Lichtsteiner, Christoph Posch, and Tobi Delbruck. A
+     Science Robotics, 5(40):eaaz9712, 2020. 1                                 128 × 128 120 db 15µs latency asynchronous temporal con-
+[10] Yang Feng, Hengyi Lv, Hailong Liu, Yisa Zhang, Yuyao                      trast vision sensor. IEEE journal of solid-state circuits, 43
+     Xiao, and Chengshan Han. Event density based denoising                    (2):566–576, 2008. 1
+     method for dynamic vision sensor. Applied Sciences, 10(6):           [23] Songnan Lin, Ye Ma, Zhenhua Guo, and Bihan Wen. Dvs-
+     2024, 2020. 2, 6, 7, 8                                                    voltmeter: Stochastic process-based event simulator for dy-
+[11] Thomas Finateu, Atsumi Niwa, Daniel Matolin, Koya                         namic vision sensors. In European Conference on Computer
+     Tsuchimoto, Andrea Mascheroni, Etienne Reynaud, Poo-                      Vision, pages 578–593. Springer, 2022. 2
+     ria Mostafalu, Frederick Brady, Ludovic Chotard, Flo-                [24] Hongjie Liu, Christian Brandli, Chenghan Li, Shih-Chii Liu,
+     rian LeGoff, et al. 5.10 a 1280× 720 back-illuminated                     and Tobi Delbruck. Design of a spatiotemporal correlation
+
+
+
+
+                                                                   8031
+     filter for event-based sensors. In 2015 IEEE International             [36] Yi Zhou, Guillermo Gallego, and Shaojie Shen. Event-based
+     Symposium on Circuits and Systems (ISCAS), pages 722–                       stereo visual odometry. IEEE Transactions on Robotics, 37
+     725. IEEE, 2015. 2                                                          (5):1433–1450, 2021. 7
+[25] Elias Mueggler, Christian Forster, Nathan Baumli,                      [37] Alex Zihao Zhu, Dinesh Thakur, Tolga Özaslan, Bernd
+     Guillermo Gallego, and Davide Scaramuzza. Lifetime                          Pfrommer, Vijay Kumar, and Kostas Daniilidis. The multi-
+     estimation of events from dynamic vision sensors. In 2015                   vehicle stereo event camera dataset: An event camera dataset
+     IEEE international conference on Robotics and Automation                    for 3d perception. IEEE Robotics and Automation Letters, 3
+     (ICRA), pages 4874–4881. IEEE, 2015. 2                                      (3):2032–2039, 2018. 8
+[26] Elias Mueggler, Henri Rebecq, Guillermo Gallego, Tobi Del-
+     bruck, and Davide Scaramuzza. The event-camera dataset
+     and simulator: Event-based data for pose estimation, visual
+     odometry, and slam. The International journal of robotics
+     research, 36(2):142–149, 2017. 7
+[27] Yosihiko Ogata. On lewis’ simulation method for point pro-
+     cesses. IEEE transactions on information theory, 27(1):23–
+     31, 1981. 5
+[28] Henri Rebecq, René Ranftl, Vladlen Koltun, and Davide
+     Scaramuzza. High speed and high dynamic range video with
+     an event camera. IEEE transactions on pattern analysis and
+     machine intelligence, 43(6):1964–1980, 2019. 8
+[29] Gemma Taverni, Diederik Paul Moeys, Chenghan Li, Celso
+     Cavaco, Vasyl Motsnyi, David San Segundo Bello, and Tobi
+     Delbruck. Front and back illuminated dynamic and active
+     pixel vision sensors comparison. IEEE Transactions on Cir-
+     cuits and Systems II: Express Briefs, 65(5):677–681, 2018.
+     1, 5, 7
+[30] Antoni Rosinol Vidal, Henri Rebecq, Timo Horstschaefer,
+     and Davide Scaramuzza. Ultimate slam? combining events,
+     images, and imu for robust visual slam in hdr and high-speed
+     scenarios. IEEE Robotics and Automation Letters, 3(2):994–
+     1001, 2018. 1
+[31] Yanxiang Wang, Bowen Du, Yiran Shen, Kai Wu, Guan-
+     grong Zhao, Jianguo Sun, and Hongkai Wen. Ev-gait: Event-
+     based robust gait recognition using dynamic vision sensors.
+     In Proceedings of the IEEE/CVF Conference on Computer
+     Vision and Pattern Recognition, pages 6358–6367, 2019. 2,
+     6, 7, 8
+[32] Zihao W Wang, Peiqi Duan, Oliver Cossairt, Aggelos Kat-
+     saggelos, Tiejun Huang, and Boxin Shi. Joint filtering of in-
+     tensity images and neuromorphic events for high-resolution
+     noise-robust imaging. In Proceedings of the IEEE/CVF Con-
+     ference on Computer Vision and Pattern Recognition, pages
+     1609–1619, 2020. 2
+[33] Pei Zhang, Zhou Ge, Li Song, and Edmund Y Lam. Neuro-
+     morphic imaging with density-based spatiotemporal denois-
+     ing. IEEE Transactions on Computational Imaging, 2023.
+     2
+[34] Richard Zhang, Phillip Isola, Alexei A Efros, Eli Shecht-
+     man, and Oliver Wang. The unreasonable effectiveness of
+     deep features as a perceptual metric. In Proceedings of the
+     IEEE conference on computer vision and pattern recogni-
+     tion, pages 586–595, 2018. 8
+[35] Yi Zhou, Guillermo Gallego, Henri Rebecq, Laurent Kneip,
+     Hongdong Li, and Davide Scaramuzza. Semi-dense 3d re-
+     construction with a stereo event camera. In Proceedings of
+     the European conference on computer vision (ECCV), pages
+     235–251, 2018. 8
+
+
+
+
+                                                                     8032
+

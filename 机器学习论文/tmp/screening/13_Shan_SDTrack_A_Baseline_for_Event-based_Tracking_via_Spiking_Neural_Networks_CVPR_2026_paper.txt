@@ -1,0 +1,293 @@
+                  This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                               Except for this watermark, it is identical to the accepted version;
+                         the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+   SDTrack: A Baseline for Event-based Tracking via Spiking Neural Networks
+
+        Yimeng Shan1,2,3 , Zhenbang Ren1 , Haodi Wu1 , Wenjie Wei1 , Rui-Jie Zhu4 , Shuai Wang1 ,
+            Dehao Zhang1 , Yichen Xiao1 , Jieyuan Zhang1 , Kexin Shi1 , Jingzhinan Wang1 ,
+                          Jason K. Eshraghian4 , Haicheng Qu3 , Malu Zhang†1,2
+                 1
+                   University of Electronic Science and Technology of China, China
+                                  2
+                                    Shenzhen Loop Area Institute, China
+                                  3
+                                    Liaoning Technical University, China
+                               4
+                                 University of California, Santa Cruz, USA
+                                    yimengshan2001@gmail.com
+                       Code: https://github.com/YmShan/SDTrack
+
+
+                       Abstract
+
+Event cameras provide superior temporal resolution, dy-
+namic range, energy efficiency, and pixel bandwidth. Spik-
+ing Neural Networks (SNNs) naturally complement event
+data through discrete spike signals, making them ideal
+for event-based tracking. However, current approaches
+combining Artificial Neural Networks (ANNs) and SNNs
+suffer from suboptimal architectures that compromise en-
+                                                                                          Model Size
+ergy efficiency and limit tracking performance. To ad-
+dress these limitations, we propose the first Transformer-                    20M   50M   100M     150M   200M
+based Spike-Driven Tracking (SDTrack) pipeline. It in-
+corporates a novel event frame aggregation method called
+Global Trajectory Prompt (GTP) and a Transformer-based
+tracker. The GTP method effectively captures global trajec-
+tory information and aggregates it with event streams into      Figure 1. SDTrack versus other pipelines on VisEvent dataset:
+event frames to enhance spatiotemporal representation. The      AUC, inference parameter count, and energy consumption.
+Transformer-based tracker comprises a fully spike-driven
+SNN backbone and a simple tracking head. The SDTrack
+pipeline operates end-to-end without data augmentation or       tions such as low illumination [48], overexposure [18],
+post-processing. Extensive experiments demonstrate that         and high-speed motion [15]. In contrast, event cameras
+our SDTrack-Tiny pipeline achieves competitive accuracy         present attractive advantages, including higher temporal
+with only 19.61M parameters and 8.16mJ energy con-              resolution (in the order of µs) and higher dynamic range
+sumption, while our Base version achieves state-of-the-art      (140dB vs. 60dB). These features enable event-based algo-
+accuracy across three datasets. Our work establishes a          rithms to locate objects in degraded conditions. Researchers
+solid foundation for future neuromorphic vision research.       have employed them for object tracking tasks. However,
+                                                                these works typically rely on Artificial Neural Networks
+                                                                (ANNs) [32, 42], which completely ignores the sparse char-
+1. Introduction                                                 acteristics of event data and lead to high inference costs.
+                                                                    In contrast, Spiking Neural Networks (SNNs) naturally
+Visual object tracking is a fundamental task in computer        address this inefficiency. Compared with traditional ANNs,
+vision, with extensive applications in surveillance, au-        SNNs encode and propagate activation through sparse bi-
+tonomous driving, and robots. Conventional RGB-based            nary spikes, i.e., 0 or 1, which enables them to replace
+tracking methods have seen considerable advancements [5–        computationally intensive multiply-accumulate (MAC) op-
+7, 37, 41, 45], but often fail under challenging condi-         erations in ANNs with energy-efficient accumulation (AC)
+
+
+
+                                                          36245
+operations. This characteristic makes SNNs naturally align       • We propose a tracker incorporating two innovations: the
+with the sparse feature of event data and the low power con-       IPL method that enhances position learning without addi-
+sumption properties of event cameras [24, 31, 35]. Conse-          tional parameters, and an SNN-based Transformer back-
+quently, the integration of SNNs into event-based tracking         bone tailored for tracking tasks.
+emerges as a compelling and synergistic approach.                • Based on the GTP method and our proposed tracker, we
+    Several studies have applied SNNs to event-based track-        construct SDTrack, the first fully SNN-based event-based
+ing with promising results. However, most of these                 tracking pipeline that operates end-to-end without data
+works adopt a hybrid architecture that combines ANNs               augmentation or post-processing.
+and SNNs [42, 44], which cannot fully exploit the power-         • SDTrack achieves competitive performance on multiple
+efficient nature of SNNs. Moreover, they do not utilize            event-based tracking benchmarks with the lowest param-
+cross-correlation operations between template and search           eter count and energy consumption. These results demon-
+features for relational modeling, which has been demon-            strate the potential of SNNs for event-based tracking and
+strated to improve tracking performance [41]. To address           establish a solid baseline for future research.
+these limitations, we propose the first transformer-based
+Spike-Driven Tracking (SDTrack) Pipeline, which achieves         2. Related Work
+state-of-the-art (SOTA) performance in event-based track-
+                                                                 Event Aggregation Method in Tracking. To leverage
+ing without requiring data augmentation or post-processing.
+                                                                 advanced trackers designed for traditional cameras, re-
+    For the SDTrack Pipeline’s input, we observe that exist-     searchers typically divide asynchronous event flow into sub-
+ing event aggregation methods exhibit insufficient capacity      event streams of equal length and aggregate them into syn-
+to generate robust representations for real-time event flow.     chronous event frames. However, current event aggregation
+To address this, we propose a Global Trajectory Prompt           methods in the tracking domain are suboptimal. The Event
+(GTP) method that effectively captures trajectory informa-       Frame method only records the latest polarity at each spatial
+tion within the event flow. Specifically, GTP accumulates        location [32, 43], losing valuable information when multi-
+positive and negative polarities in the first two channels       ple changes occur at a pixel. While Time-Surface [21] and
+respectively, while recording trajectory information in the      Event Count [27] methods can implicitly represent multi-
+third channel. This three-channel frame representation of        directional motion, their temporal representation lacks ro-
+event data provides enhanced temporal information rep-           bust trajectory information for tracking. Zhu et al.[47] and
+resentation and effectively aligns with data formats com-        Wang et al.[34] aggregate latest occurrence times of po-
+monly used in computer vision tasks, facilitating better uti-    larity changes, but their four-channel representation per-
+lization of pre-trained weights for training the tracker.        forms poorly in complex tasks and limits transfer learning,
+    For the tracker in the SDTrack Pipeline, we primarily        as pre-trained weights are designed for three-channel in-
+conduct designs in two aspects, namely position informa-         puts [13, 14]. Therefore, we propose GTP, which captures
+tion acquisition and backbone architecture. First, we design     both short-term multi-directional movements and global
+a method named Intrinsic Position Learning (IPL) that en-        trajectory information, enhancing spatiotemporal represen-
+ables the network to autonomously learn position informa-        tation while maximizing transfer learning potential.
+tion without introducing additional parameters, which also           Event-based Tracking. Various studies demonstrate
+allows the tracker to learn stronger semantic information of     that trackers in RGB-based single object tracking (SOT)
+the target to be tracked. Then, for the backbone, we an-         perform inadequately on event-based tracking tasks [32,
+alyze the problems existing in several candidate backbones       33]. Research indicates this deficiency stems from the lack
+and design a more appropriate SNN-based Transformer net-         of texture information needed by RGB-based trackers in
+work as the backbone for the tracking task.                      the event data [43]. Given the sparse spike-driven nature
+    We conduct extensive experiments to access our meth-         of SNNs, several studies suggest an inherent compatibility
+ods. On one hand, we validate the efficacy and generality of     between SNNs and event data [4, 30]. Consequently, stud-
+our GTP method, providing new baselines for mainstream           ies have employed SNNs to construct event-based track-
+trackers across multiple event-based benchmarks. On the          ers [11, 20, 28] or tracking systems for edge devices [17,
+other hand, we demonstrate that SDTrack achieves an excel-       25]. Among these SNN-based trackers, STNet [43] and
+lent balance among accuracy, parameter count, and energy         SNNTrack [44] that utilize SNNs to extract temporal fea-
+consumption, as depicted in Fig. 1. The main contributions       tures have emerged as competitive trackers. However,
+of this paper are summarized as follows:                         both of them implement hybrid architectures combining
+• We propose a novel event aggregation method called             SNNs and ANNs, and neither leverages self-attention for
+   GTP, which effectively captures global trajectory infor-      template-search interaction. This results in the energy effi-
+   mation to yield enhanced spatiotemporal representations       ciency benefit and performance potential of SNNs still not
+   and contributes higher accuracy for various trackers.         being fully utilized. To address these limitations, we de-
+
+
+
+                                                            36246
+                                                                                                               SDTrack Pipeline
+                                                                          Search                                        Event-based Spike-driven Tracker
+                                                                       (3×256×256)
+                             Template
+
+
+
+
+                                                                                   padding
+                                                                                                                                                                                                                        SNN                                              SNN
+                                                                                                               SNN Conv
+                                                     GTP                                                                                                                                                             Transformer                                       Tracking
+                                                                                                                Module
+                          Search                                                                                                                                                                                       Module                                            Head
+                                                                         padding                                                (512×24×24)
+                                                                                Template
+                             Event Streams                                    (3×128×128)
+        Event Flow                                                        IPL: Joint                                          IPL: Split and Tokenize
+
+                      Global Trajectory Prompt(GTP)                                                                                  SNN Conv Module                                                                                                           SNN Transformer Module
+                                                t                          t-1                                 Stage 1: L=1                          Stage 2: L=1                                                          Stage 3: L=2                       Stage 4: L=9                      Stage 5: L=3
+                         Positive count                Compare
+
+
+
+
+                                                                                                Downsampling
+
+
+
+
+                                                                                                                                Downsampling
+
+
+
+
+                                                                                                                                                                                                   Downsampling
+
+
+
+
+                                                                                                                                                                                                                                           Downsampling
+
+
+
+
+                                                                                                                                                                                                                                                                                Downsampling
+                               Eq.(4)
+                                               C=1                         C=1
+                         Negative count                Compare                                                                                                                                                                                                  SNN                                SNN
+                                                                                                                SNN Conv                                  SNN Conv                                                         SNN Conv
+                               Eq.(5)                  ② + New                                                                                                                                                                                               Transformer                        Transformer
+                                               C=2      Polarity          C=2                                     Block                                     Block                                                            Block
+                                                                                                                                                                                                                                                                Block                              Block
+                                                           ③                 ①
+                            Eq.(6) = ①+②+③              Copy             Attenuation
+   Event Stream                                C=3                                                                    𝐻 𝑊                                            𝐻 𝑊                                                          𝐻 𝑊                                𝐻 𝑊                                𝐻 𝑊
+                                                         Global Trajectory                                      𝐶×     ×                                2𝐶 ×          ×                                                    4𝐶 ×    ×                          8𝐶 ×     ×                        12𝐶 ×     ×
+   N.B. To improve readability, the black    Output                                                                   2 2                                            4 4                                                          8 8                                16 16                              16 16
+   background is converted to white.                         Cache
+
+                           SNN Tracking Head                                                                           SNN Conv Block                                                                                                                     SNN Transformer Block
+                                                           Center
+
+
+
+
+                                                                                                                                                                     DWConv
+
+
+
+
+                                                                                                                                                                                                                  PWConv
+                                                                                                                              PWConv
+          Conv          BN        ×4        Decision     Probability                       SNN                                                                                                                                            SNN                          Linear              Linear   Linear
+
+
+
+
+                                                                                                                                               BN
+
+
+
+
+                                                                                                                                                                              BN
+
+
+
+
+                                                                                                                                                                                                                            BN
+                                                                                       Separable Conv                                                                                                                                Self-Attention
+                                                                        Bounding                                                                                                                                                                                        BN                     BN       BN
+          Conv          BN       ×4         Decision     Target Size
+                                                                          Box                       +                                                                                                                                            +
+                                                                                                                                                                                                                                                                           Q        K         V
+
+
+
+
+                                                                                                                                                    Conv / Linear
+
+
+
+
+                                                                                                                                                                                   Conv / Linear
+          Conv          BN       ×4         Decision       Offset                               SNN                                                                                                                                                                   Self-Attention Interaction
+                                                                                                                                                                                                                                          SNN MLP
+                                                                                             Conv Group
+
+
+
+
+                                                                                                                                                                    BN
+
+
+
+
+                                                                                                                                                                                                            BN
+                                                                                                                                                                                                                                                                                           Linear
+          I-LIF                         Pointwise                      Depthwise                    +                                                                                                                                            +                                             BN
+     = Neuron          PWConv =
+                                         Conv
+                                                       DWConv =
+                                                                         Conv
+
+
+
+Figure 2. Overview of the SDTrack Pipeline. Upon receiving template and search event streams, GTP aggregates them into event frames,
+which are then concatenated into a unified matrix by IPL. Following SNN Conv Block processing, the matrix undergoes restoration and
+tokenization. The template features, after cross-correlation with search features, are fed into the SNN Tracking Head for target position
+and scale prediction. The detailed design of each module is illustrated in the middle and bottom panels.
+
+
+sign the first transformer-based spike-driven tracker, aimed                                                                     For any neuron, when it receives input X[t] at time t,
+at leveraging the inherent energy efficiency advantage of                                                                     the membrane potential rises to U[t]. Eq. 2 then determines
+SNNs while fully unleashing their performance potential.                                                                      the spike value at time t, where S[t] = 0 indicates no spike
+                                                                                                                              emission, and Uthr represents the threshold. H[t] denotes
+3. SDTrack Pipeline                                                                                                           the membrane potential after completing Eq. 2. τ serves
+                                                                                                                              as the decay factor for the neuron’s membrane potential,
+The SDTrack Pipeline comprises a GTP method for robust
+                                                                                                                              simulating the stimulus decay when the neuron receives no
+spatiotemporal event representation and a spike-driven
+                                                                                                                              stimulation for extended periods. Urest represents the reset
+tracker, as shown in Fig. 2. This section details the key ar-
+                                                                                                                              membrane potential after neuronal discharge.
+chitectural components of the system: the Spiking Neuron,
+GTP method implementation, and tracker elements includ-                                                                           Mainstream spiking neuron models can be represented
+ing IPL method, backbone, and tracking head.                                                                                  by Eq.1-3. For instance, when function f (·) is the Heav-
+                                                                                                                              iside step function, if τ equals 1, the model represents
+3.1. Preliminary                                                                                                              an IF neuron [2], while when τ exceeds 1, it represents
+The brain’s neural system serves as the source of neural                                                                      an LIF neuron [26]. When Urest = Uthr = 0 and
+                                                                                                                                        1
+network innovation. Its diverse neural dynamics inspire                                                                       f (x) = D   · Clip(round(x), 0, D), the model becomes an
+researchers to design various types of spiking neurons for                                                                    I-LIF model [40], where x = U[t] and D represents virtual
+SNNs. However, our method is general and does not rely                                                                        time steps. clip(x, min, max) constrains x to [min, max],
+on any specific neuron type. Therefore, we present a uni-                                                                     and round(·) performs rounding. During inference, this
+fied dynamical equation for spiking neurons, described as                                                                     model can be converted to 0/1 spike signals using the spike-
+                                                                                                                              ahead principle, where D is incorporated into the actual it-
+                     1                                                                                                        erative timestep T , forming a total of T × D.
+  U[t] = H[t − 1] +    (X[t] − (H[t − 1] − Urest )), (1)
+                     τ
+                                                                                                                                  Therefore, these neurons achieve spike-driven inference,
+   S[t] = f (U[t] − Uthr ),                          (2)
+                                                                                                                              replacing MAC operations with AC operations, thereby sig-
+  H[t] = U[t](1 − S[t]).                                                                                        (3)           nificantly reducing computational costs.
+
+
+
+                                                                                                                      36247
+

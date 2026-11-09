@@ -1,0 +1,272 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+               High-Quality and Efficient Turbulence Mitigation with Events
+
+   Xiaoran Zhang1†, Jian Ding1†, Yuxing Duan1 , Haoyue Liu1 *, Gang Chen2 , Yi Chang1 , Luxin Yan1
+       1
+         State Key Laboratory of Multispectral Information Intelligent Processing Technology
+  School of Artificial Intelligence and Automation, Huazhong University of Science and Technology
+               2
+                 School of Computer Science and Engineering, Sun Yat-sen University
+          {xiaoranzhang, dingjian, liuhy, yichang}@hust.edu.cn, cheng83@mail.sysu.edu.cn
+
+
+
+                           Abstract                                 (a)                                        (b)
+                                                                          Frames-based TM                            Event-guided TM
+                                                                                 100%               100%                 < 25%                 < 15%
+Turbulence mitigation (TM) is highly ill-posed due to the                  Large Data          High Latency           Few Data              Low Latency
+stochastic nature of atmospheric turbulence. Most meth-
+                                                                            Accumulative 30~60 Frames                5~8 Frames                Events
+ods rely on multiple frames recorded by conventional cam-                                                                               y                 t
+eras to capture stable patterns in natural scenarios. How-           ···                                 ···
+ever, they inevitably suffer from a trade-off between accu-                                                t                       t             x
+racy and efficiency: more frames enhance restoration at                                                                                Guide
+                                                                                 MFTM Methods                                     EHETM
+the cost of higher system latency and larger data overhead.
+Event cameras, equipped with microsecond temporal reso-                   30~60 Frames                               5~8 Frames
+lution and efficient sensing of dynamic changes, offer an op-
+portunity to break the bottleneck. In this work, we present                               Distortion                                   Stable
+EHETM, a high-quality and efficient TM method inspired by                                 Blurry                                       Sharp
+
+the superiority of events to model motions in continuous se-              ···      ···              Artifact                                     Natural
+quences. We discover two key phenomena: (1) turbulence-
+induced events exhibit distinct polarity alternation corre-               Moving Object Edge                         Moving Object Edge
+                                                                          Distortion Remains                            Stabilization
+lated with sharp image gradients, providing structural cues
+for restoring scenes; and (2) dynamic objects form spa-           Figure 1. Workflow comparison between our EHETM and multi-
+tiotemporally coherent “event tubes” in contrast to irreg-        frame TM methods (MFTM, exemplified by DATUM [8]). (a)
+ular patterns within turbulent events, providing motion pri-      DATUM [8] suffers from high system latency and large overhead
+ors for disentangling objects from turbulence. Based on           due to multi-frame accumulation, while distortions at dynamic ob-
+these insights, we design two complementary modules that          ject edges remains. (b) Our EHETM uses events for guidance, pro-
+                                                                  ducing higher-quality and efficient restoration with few frames.
+respectively leverage polarity-weighted gradients for scene
+refinement and event-tube constraints for motion decou-
+pling, achieving high-quality restoration with few frames.        fluctuations of air refractive index [1–5]. Such turbulence,
+Furthermore, we construct two real-world event-frame tur-         introducing complex distortions characterized by geometric
+bulence datasets covering atmospheric and thermal cases.          tilts and spatial-varying blurs, degrades image quality and
+Experiments show that EHETM outperforms SOTA meth-                hinders the performance of downstream vision tasks [6, 7].
+ods, especially under scenes with dynamic objects, while re-          To address this challenge, early classical methods based
+ducing data overhead and system latency by approximately          on pixel registration, lucky fusion, and deblurring, etc., have
+77.3% and 89.5%, respectively. Our code is available at           provided insights into turbulence mitigation (TM) [4, 9–15].
+https://github.com/Xavier667/EHETM .                              However, they are computationally expensive and strug-
+                                                                  gling with dynamic scenes. Recently, deep learning-based
+                                                                  methods have shown great potential, which can be catego-
+1. Introduction                                                   rized into single-frame [16–28] and multi-frame methods
+Atmospheric and thermal turbulence are major sources of           [1, 8, 12, 29–44]. Single-frame methods offer simplicity but
+degradation in long-range imaging, arising from random            are limited by the ill-posedness of turbulence degradation,
+                                                                  undermining restoration quality. Multi-frame methods uti-
+   †Equal contribution. *Corresponding author.                    lize sufficient temporal cues from a large number of frames
+
+
+
+                                                            29514
+(typically 30–60) recorded by conventional cameras. How-                                                                                                       800 FPS                        Fine grained
+
+
+
+
+                                                                                                                  Corner position
+
+
+
+
+                                                                                                                                                                            Corner position
+                                                                                                                                                                                              motion cues
+
+
+ever, as illustrated in Fig. 1 (a), they suffer a trade-off: more                             corner
+
+frames enhance restoration at the expense of higher system                            P2
+                                                                                                                                    Frame index (one second accumulation)
+                                                                                                                                                                                                                40 ms
+
+
+                                                                                                                                                                                                             Frame index
+
+latency1 (about 1–2 s) and larger data overhead (about 30–                                             P3                                                       25 FPS                        Coarse grained
+
+
+
+
+                                                                                                                  Corner position
+
+
+
+
+                                                                                                                                                                            Corner position
+                                                                                                                                                                                               motion cues
+                                                                                      P1
+60×), impeding their real-time applicability.
+   Beyond the efficiency–accuracy trade-off, conventional                                                                           Frame index (one second accumulation)
+                                                                                                                                                                                                                40 ms
+
+
+
+                                                                                                                                                                                                             Frame index
+
+cameras suffer from low-frequency sampling, failing to of-                        (a) Average offset of corners                        (b) Visualization of corner motion
+fer adequate and stable motion information for accurate mo-                   Figure 2. Merits of high-speed observations. (a) It requires less
+tion decoupling between object motion and turbulence. It                      accumulation time to reach the same error (P1 vs. P3) and achieves
+raises a question: with a high-speed imaging system capa-                     lower error within the same time (P1 vs. P2). (b) It captures finer-
+ble of capturing transient turbulence dynamics, can we ex-                    gained motion cues compared to low-temporal-resolution ones.
+tract finer-grained temporal cues within a shorter duration
+to break the bottleneck in frames-only methods and achieve
+                                                                              Close-range Thermal Turbulence Hybrid (CTTH) dataset
+high-quality and efficient restoration?
+                                                                              and Long-range Atmospheric Turbulence Hybrid (LATH)
+   Event cameras [45–47] asynchronously sense per-pixel
+                                                                              dataset. CTTH contains dynamic objects with GTs, while
+brightness changes, capturing motion cues with microsec-
+                                                                              LATH covers diverse scenes at varying shooting distances.
+ond temporal resolution. Such properties make them a pow-
+                                                                              In summary, we make the following primary contributions:
+erful complement to frames-based TM methods by offer-
+ing temporally dense yet spatially efficient (edge-triggered)                 • We break the bottleneck induced by accuracy–efficiency
+information. To intuitively illustrate advantages of high-                      trade-off in frames-based approaches by exploiting fine-
+temporal-resolution data, Fig. 2 compares temporal averag-                      grained motion cues from events within a short duration.
+ing from a high-speed (800 FPS) and a conventional (25                          With only 5 to 8 input frames and events, our method
+FPS) camera under thermal turbulence. By capturing fine-                        significantly reduces data overhead and system latency,
+grained motion cues, high-temporal-resolution observations                      while achieving high-quality restoration.
+rapidly and accurately reveal the zero-mean characteristics                   • We reveal distinct spatiotemporal characteristics of tur-
+of turbulence, producing higher quality within a shorter                        bulent events via experimental and theoretical analysis—
+time than low-temporal-resolution ones. However, high-                          scenes exhibit polarity alternation while dynamic objects
+speed frame cameras incur prohibitively high recourse con-                      form event tubes. We accordingly propose EHETM that
+sumption, making long-duration operation impractical.                           leverage polarity-weighted gradients for scene refinement
+   In this work, we propose an Event-guided High-quality                        and event-tube priors for motion decoupling, attaining
+and Efficient TM (EHETM) method. As shown in Fig. 1                             high-quality and efficient TM with few frames.
+(b), EHETM addresses two key limitations of frames-only
+                                                                              • We bridge the data gap in TM by constructing the first
+methods: it accelerates TM by supplying high-temporal-
+                                                                                long-range atmospheric turbulence event-frame dataset
+resolution information from events, and it enhances TM
+                                                                                shooting at various distances, and the first thermal turbu-
+quality by exploiting temporally dense events to accurately
+                                                                                lence event-frame dataset with dynamic objects and GTs.
+decouple object motion from turbulence. We discover two
+                                                                                Extensive experiments show that our method outperforms
+phenomena: (1) Turbulence-induced pixel displacement ex-
+                                                                                SOTA methods in both restoration quality and efficiency.
+hibits polarity alternation of events along sharp image gra-
+dients, offering structural cues for restoring scenes. (2) Ob-
+jects in natural scenes exhibits continuous motion, which                     2. Related Works
+form spatiotemporally coherent “event tubes” in contrast to
+                                                                              Learning-based Turbulence Mitigation. Recent AI ad-
+the irregular patterns of turbulent events, providing stable
+                                                                              vances have pushed learning-based methods to the forefront
+priors for decoupling object motion from turbulence. Moti-
+                                                                              of TM, covering both single- and multi-frame paradigms.
+vated by these observations, we design two complementary
+                                                                              Single-frame methods, including CNNs [23, 25, 26], GANs
+modules in EHETM: the former encodes polarity alterna-
+                                                                              [17, 19, 22], physics-informed Transformers [16, 18],
+tion frequency into gradients to reduce edge distortions of
+                                                                              diffusion-based methods [21], and approaches exploiting
+scenes, while the latter stabilizes dynamic objects by mod-
+                                                                              narrowband priors [48] or the seg-then-res pipeline [28],
+eling event tubes. They jointly learn stable patterns from
+                                                                              etc., offer simplicity but lack temporal information, limiting
+turbulence for high-quality and efficient TM.
+                                                                              restoration performance. Multi-frame methods exploit tem-
+   Besides, for comprehensive demonstration, we construct
+                                                                              poral cues, including video-based GANs [1, 34] and Trans-
+two real-world event-frame paired turbulence datasets:
+                                                                              formers [37], network-incorporated traditional paradigms
+   1 System latency: the output for a given frame may depend on future        [8], the state-space model [41], and neural representations
+inputs, which imposes an inherent delay independent of computation.           [40, 43, 44], etc., showing strong potential for TM. How-
+
+
+
+                                                                         29515
+(a) Close-range Thermal Turbulence Hybrid Data Acquisition                                        (b) Long-range Atmospheric Turbulence Hybrid Data Acquisition
+             Static Scenes                       ALPIX-Pizol          Dynamic Object Scences                                                                                                                       2400
+
+
+
+
+                                                                                                                                                           No. of Images
+                                                                                                  Windproof Tent                                                                                                            Distances Distribution
+                                                                                                                                                                                                  1400
+                                                                                                                                                                                    1100
+                                                                                                                                                                                                                                   900
+                                                                                                                                                                                                                                                    600
+
+                                                                                                                                                                                   ~2 Km        2~4 Km            4~6 Km          6~8 Km           8~ Km
+                                                                                                                                                                                                         Shooting Distance
+                  Monitor
+                (4K, 180Hz)                           25 mm                                                                                                                      Operating                                               Bridge
+                                                                                                                                                                                Tower Crane                                               4%
+                                                                 GVM-Slider 80                                                                                                      5%
+                                                                                                                                                                                                                            Factory                 House
+                                                 Heat Sources                     3m                                                                                                                    Traffic
+                                                                                                                                                                                                                              5%                     27%
+
+                                                                                                                                                                                                         67%                                              Street
+                                                                                                                                                                                     Dynamic Object                       Tower           Static
+                                                                                                                                                                                        Scences                            6%            Scences          22%
+                                                                                                                                                                           Pedestrian
+                                                                                                                                                                             10%
+                                                                                                                                                                                                                          Traffic Sign         Cold Car
+                                                                                                                                                                                              Cyclist                         9%      Billboard 14%
+                                                                                                                                                                                               18%
+                                                                                                                                              Nikon AF-S                                                                                  13%
+                                                                                                   ALPIX-Pizol   Adapter Ring Teleconverter   500mm f/4G
+            Scene Sample                                     Dynamic Object Sample                                                                                                                Scences Distribution
+                                                                                                                 2 Km                             4 Km                                        6 Km                                         8 Km
+
+                                                     Moving Object
+
+                              30 ms Cumulative                                                                   30 ms Cumulative
+
+     GT      Turb Frame       Turb Event                GT           Turb Frame   Turb Event           Moving Cars                  Operating Tower Crane                           Heavy Traffic                                 Buildings
+
+Figure 3. Our real-world event-frame turbulence datasets and acquisition setups. (a) CTTH dataset is captured under adjustable thermal
+turbulence, containing about 30k image-event pairs with dynamic objects and GTs. (b) LATH dataset is acquired using a 1000 mm lens
+covering multiple scenes at various shooting distances.
+
+
+ever, this benefit comes at a cost: every extra frame brings                                        3. Real-World Hybrid Turbulence Datasets
+additional system latency and data overhead. Moreover, at
+low frame rates, severe aliasing between object motion and                                          Capturing real-world event–frame paired turbulence data is
+turbulence are difficult to be accurately decoupled, degrad-                                        very valuable, as high-speed events can precisely charac-
+ing restoration quality. In contrast, our method overcomes                                          terize the spatiotemporal dynamics of turbulence, providing
+these limitations by leveraging high-speed events to guide                                          finer-gained motion cues than conventional frames.
+few frames for efficient and high-quality restoration.                                              CTTH Dataset. The CTTH setup is shown in Fig. 3 (a).
+Event-based Video Restoration. Event cameras can ef-                                                Inspired by [1], we use a 4K 180Hz monitor and an ALPIX-
+ficiently capture transient motion often missed by conven-                                          pizol hybrid camera with a 25mm lens. The camera’s split-
+tional cameras [49–53]. In video super-resolution and mo-                                           focal-plane design ensures hardware-level synchronization
+tion deblurring, events provide precise motion cues, im-                                            of events and images, eliminating spatiotemporal misalign-
+proving edge recovery [54–60]. These results highlight that                                         ment. Our base data source comprises over 300 groups of
+high-temporal-resolution events reveal motion patterns in-                                          clean images (512 × 512) from TMT dataset [37], span-
+visible to conventional cameras, offering new opportunities                                         ning indoor, outdoor, textual, and facial categories, which
+for TM. Recent works have explored event-based TM: Liu                                              are super-resolved to 2048 × 2048 via Real-ESRGAN [65].
+et al. [61] model tilt and blur effects in turbulent events,                                        During acquisition, the synchronized monitor-camera setup
+while Li et al. [62] are committed to identify “event-lucky                                         captured 100 frames per scene at 25 fps, producing approx-
+regions”. Although insightful, these studies do not exploit                                         imately 30000 turbulent and turbulence-free image-event
+events on objects, leaving motion-turbulence entanglement                                           pairs (512 × 512). Turbulence is generated via multiple gas
+largely unaddressed. We address this gap by leveraging                                              sources, with the camera placed 3 meters from the monitor.
+fine-grained temporal information to model object motion.                                           For dynamic object scenes, the setup incorporates multiple
+Turbulence Datasets. Current datasets primarily encom-                                              posters, a programmable slider (GVM-Slider), mechanical
+pass three categories: physics-based simulation algorithms                                          fixtures, and the ALPIX-pizol camera. Various toy vehi-
+[1, 8, 30, 37], close-range thermal turbulence [1, 4, 18, 61–                                       cles in controlled experiments across different poster back-
+63], and long-range atmospheric turbulence [1, 9, 15, 30,                                           grounds. Precise regulation of slider motion parameters
+36, 64]. Most existing datasets consist of low-frame-rate                                           ensures spatial consistency, with 200 frames captured per
+image sequences, with only [61, 62] providing event-frame                                           scene at 25 fps, producing approximately 3000 turbulent
+paired data for thermal turbulence. To our best knowledge,                                          and turbulence-free image-event pairs (512 × 512).
+there is currently no event-frame paired turbulence dataset                                         LATH Dataset. As shown in Fig. 3 (b), LATH dataset is
+that includes dynamic objects with GTs, limiting the valida-                                        captured using the ALPIX-pizol hybrid camera configured
+tion of event-based methods under dynamic object scenes.                                            with a 1000 mm telephoto setup (500 mm lens + 2× tele-
+Moreover, the lack of real-world hybrid atmospheric turbu-                                          converter) at 25 fps across multiple distances and scenes.
+lence datasets hinders the evaluation of event-based meth-                                          To ensure stability, all recordings are conducted inside a
+ods across diverse turbulence conditions. Thus, we con-                                             windproof tent with a professional tripod to eliminate vi-
+struct CTTH and LATH datasets to bridge the data gap.                                               brations. Each sequence lasts about 8 seconds, from which
+
+
+
+                                                                                               29516
+

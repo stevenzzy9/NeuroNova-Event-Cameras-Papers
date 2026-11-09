@@ -1,0 +1,188 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+  Stable Spike: Dual Consistency Optimization via Bitwise AND Operations for
+                           Spiking Neural Networks
+
+               Yongqi Ding, Kunshan Yang, Linze Li, Yiyang Zhang, Mengmeng Jing, Lin Zuo*
+                             School of Information and Software Engineering
+                         University of Electronic Science and Technology of China
+
+
+                           Abstract                                    cantly less power compared to ANNs [41–43]. Similarly,
+                                                                       neuromorphic data represents information as sparse binary
+Although the temporal spike dynamics of spiking neural net-            events, and recognizing neuromorphic objects using SNNs
+works (SNNs) enable low-power temporal pattern capture                 can be inherently low-power and low-latency [3, 36, 43].
+capabilities, they also incur inherent inconsistencies that                However, although temporal spike dynamics give SNNs
+severely compromise representation. In this paper, we per-             low-power spatio-temporal representations, they also intro-
+form dual consistency optimization via Stable Spike to mit-            duce the risk of inconsistency. Differences in neuronal
+igate this problem, thereby improving the recognition per-             states and input currents across timesteps lead to excessive
+formance of SNNs. With the hardware-friendly “AND” bit                 variability in spike maps and predictions, negatively affect-
+operation, we efficiently decouple the stable spike skeleton           ing overall performance [4]. To address this problem, [4] in-
+from the multi-timestep spike maps, thereby capturing criti-           directly promotes spike consistency through membrane po-
+cal semantics while reducing inconsistencies from variable             tential smoothing and maintains the overall stability by per-
+noise spikes. Enforcing the unstable spike maps to converge            forming logit distillation with adjacent timesteps. Although
+to the stable spike skeleton significantly improves the inher-         effective, this indirect strategy requires the modification of
+ent consistency across timesteps. Furthermore, we inject               neuronal dynamics and struggles to be readily adopted as
+amplitude-aware spike noise into the stable spike skeleton             a versatile SNN enhancement solution, especially for de-
+to diversify the representations while preserving consistent           ployment on neuromorphic chips where neuron models are
+semantics. The SNN is encouraged to produce perturbation-              often predetermined [14, 22, 43]. Therefore, efficiently and
+consistent predictions, thereby contributing to generaliza-            versatilely promoting the predictive consistency and perfor-
+tion. Extensive experiments across multiple architectures              mance of SNNs remains an open challenge.
+and datasets validate the effectiveness and versatility of our             In this paper, we propose the Stable Spike, which ef-
+method. In particular, our method significantly advances               ficiently improves the consistency and performance of the
+neuromorphic object recognition under ultra-low latency,               SNN without any modification to the spiking neurons or
+improving accuracy by up to 8.33%. This will help unlock               architecture. Our method stems from a key insight: de-
+the full power consumption and speed potential of SNNs.                spite differences, a well-optimized SNN can capture object-
+                                                                       critical features at different timesteps. This is illustrated by
+                                                                       the spike map visualization in Fig. 1, where spike maps of
+1. Introduction                                                        different timesteps capture object-relevant features, while
+                                                                       excessive redundant noise spikes unrelated to the object
+The rapid development of deep learning, especially the
+                                                                       lead to variability. Therefore, we can decouple and ex-
+emergence of large models, makes the power consumption
+                                                                       tract the critical information, i.e. the stable spike skele-
+of AI models a non-negligible challenge. The human brain,
+                                                                       ton, from the variational spike maps. To do this, we per-
+on the other hand, enjoys a significant power consump-
+                                                                       form a hardware-friendly “AND” bit operation [25, 40] on
+tion advantage over artificial neural networks (ANNs) [28],
+                                                                       the spike maps of adjacent timesteps to efficiently retrieve
+making neuromorphic computing a promising low-power,
+                                                                       consistent and stable 1-value spikes while ignoring messy
+high-performance computing paradigm [23]. Spiking neu-
+                                                                       spikes. As shown in Fig. 1, the stable spike maps reduce
+ral networks (SNNs) transmit sparse binary spikes over
+                                                                       variability and outline a clear feature skeleton. We encour-
+multiple timesteps, requiring only addition operations when
+                                                                       age the original spike maps to converge to the stable spike
+deployed on neuromorphic chips, and consuming signifi-
+                                                                       during training, which directly reduces the discrepancy be-
+  * Corresponding author (linzuo@uestc.edu.cn).                        tween the multi-timestep spike maps and mitigates the in-
+
+
+
+                                                                 892
+     Event frames
+                                t=0                        t=1                        t=2                       t=3
+
+
+
+
+                                                                                                                                Vanilla
+
+
+
+
+                                           &                          &                            &
+
+
+
+
+                                                                                                                         Stable spike
+
+
+
+
+Figure 1. Comparison of vanilla SNN spike maps and stable spike maps. Vanilla spike maps varied widely across timesteps, negatively
+affecting the overall representation; stable spike maps, decoupled by minimal & operation, consistently represented the feature skeleon. The
+event frames are from the CIFAR10-DVS dataset and the visualization shows the spike maps of the first layer in VGG-9 after averaging over
+all channels. Additional visualizations in Supplementary Material show that the stable spike consistently extracts the feature skeleton.
+terference of redundant, varying noise spikes.                            • We propose to decouple the stable spike feature skeleton
+    While consistency across timesteps stabilizes the overall               across timesteps from the SNN by the efficient “AND”
+prediction, moderate diversity promotes generalization and                  operation, and provide consistency guidance to the unsta-
+convergence [9, 19]. However, unlike ANNs that can di-                      ble spike maps.
+rectly benefit from random Gaussian noise [19], SNNs ne-                  • We propose to inject amplitude-aware spike noise into
+cessitate that (1) the noise to be discrete or else a mismatch              the stable spike firing rate to increase feature diversity
+in training-inference precision will occur, and (2) the noise               and improve generalization by enhancing the perturbation
+amplitude to be appropriate or else it will interfere with                  prediction consistency of the SNN.
+normal training. To this end, we propose amplitude-aware                  • Extensive experiments across multiple architectures and
+spike noise, which possesses the discrete properties of bi-                 datasets demonstrate the effectiveness and versatility of
+nary spikes and generates noise depending on the amplitude                  our method, especially at enabling neuromorphic object
+of the spike firing rate. This enables the noise to adequately              recognition with ultra-low latency.
+contribute to the generalization of high-amplitude elements
+while preventing low-amplitude elements from being overly                 2. Related Work
+perturbed. We inject amplitude-aware spike noise into the                 Spiking Neural Network. SNNs mimic the information
+stable spike firing rate skeleton to preserve critical object             transfer mechanism of the biological nervous system, where
+semantics and push the perturbed predictions to approxi-                  binary spike signals are transmitted between spiking neu-
+mate the original predictions. This enhances the perturba-                rons over multiple timesteps [28, 36, 42]. Additionally,
+tion consistency of SNNs to unknown variations, thereby                   spiking neuron dynamics can capture implicit temporal
+improving generalizability.                                               dependencies, enabling SNNs to exhibit superior spatio-
+    Facilitated by dual consistency, our method efficiently               temporal properties [26]. This allows SNNs to be effi-
+boosts the performance of the SNN without changing the                    ciently deployed on neuromorphic chips, providing perfor-
+neurons or the model architecture. This allows our method                 mance comparable to that of ANNs while consuming sub-
+to be plug-and-play for different spiking neurons and archi-              stantially less power [41, 43]. Previous studies have focused
+tectures, and to synergize with other methods to enhance                  on improving the neuron dynamics [7, 15], model architec-
+performance (as shown in Table 9) with excellent versatil-                tures [34, 42, 48], and training algorithms [2] to unleash the
+ity. In particular, our method significantly enhances perfor-             potential of SNNs. However, the inconsistency of SNNs
+mance on neuromorphic datasets, boosting the accuracy of                  across timesteps remains an unsolved issue that limits their
+DVS-Gesture by up to 8.33% under ultra-low latency at two                 performance, especially at low latency. Although [4] mod-
+timesteps. Our contributions are summarized below:                        ifies the neural dynamics and guides the output between
+
+
+
+                                                                    893
+neighboring timesteps to alleviate this problem, further so-            3.1. Inconsistency Arising from Spike Dynamics
+lutions that are more efficient and effective are still needed.         The spiking neuron is the core element in SNNs that mimics
+To this end, this paper performs dual consistency optimiza-
+                                                                        the biological charge-firing mechanism to generate binary
+tion via the efficient stable spike, without any modification
+                                                                        spike signals. In this paper, we use the most commonly
+of neurons or architectures, and compatible with other im-
+                                                                        used leaky integrate-and-fire (LIF) neuron model [4, 37],
+provements.                                                             which balances biological plausibility with ease of imple-
+    Neuromorphic Object Recognition. Unlike traditional                 mentation. The LIF neuron model iteratively undergoes
+static images, neuromorphic sensors such as event cameras               three phases of charging, firing, and resetting within T ≥ 1
+represent data as sparse binary events with high temporal               discrete timesteps. Upon receiving an input current I from
+resolution and are able to capture motion information about             presynaptic neurons, the LIF neuron incorporates it into
+the object [3, 20, 30]. The dimensionality of neuromorphic              the membrane potential H, i.e., charging. The LIF neuron
+data can be denoted as [t, x, y, p], where t is the temporal            then determines whether the membrane potential exceeds a
+index, [x, y] are the spatial coordinates of the data, and p is         specific firing threshold ϑ to generate a spike S or remain
+the polarity (positive polarity indicates that pixel brightness         silent. During the resetting phase, the LIF neuron updates
+has increased above a certain threshold, and negative polar-            the membrane potential based on the fired spike, subtract-
+ity is the opposite). This spatio-temporal property makes               ing the membrane potential by the same amplitude as the
+neuromorphic objects naturally suited for recognition by                threshold in a soft reset manner, and leaving it unchanged
+SNNs, and the power and speed benefits of combining the                 if no spike is fired. The iterative dynamics of LIF neurons
+two have been widely demonstrated [20, 43]. There has                   within a single timestep can be expressed as:
+been extensive work on optimizing SNNs for neuromorphic
+object recognition, but they still suffer from significant la-                           H_{i,t}^{l}=(1-\frac {1}{\tau }) H_{i,t-1}^{l}+I_{i,t}^{l}, \label {eq1}                                                                                    (1)
+tencies [2, 8, 21, 46] (typically more than 10 timesteps).
+In particular, [4] points out that the temporal instability of                              S_{i,t}^{l} = \left \{ \begin {array}{cl} 1,\quad H_{i,t}^{l} \ge \vartheta \\ 0,\quad H_{i,t}^{l} < \vartheta \\ \end {array}, \right . \label {eq2}    (2)
+SNNs is particularly pronounced in neuromorphic data and
+is a bottleneck limiting their low-latency performance. For                                                  H_{i,t}^{l} = H_{i,t}^{l}-S_{i,t}^{l}\vartheta , \label {eq3}                                                                           (3)
+these reasons, this paper focuses on enhancing neuromor-                where l, i, and t denote the layer, neuron, and timestep in-
+phic object recognition with SNNs at ultra-low latencies.               dexes in the SNN, respectively. In particular, the membrane
+But notice that, as demonstrated in the experimental sec-               potential of LIF neurons leaks when the dynamics iterate to
+tion, our method is also effective for static data.                     the next timestep, which is controlled by τ in Eq. (1) with a
+    Consistency in SNNs. Inspired by ANNs, previous                     default value of 2.0.
+methods have improved the spatial feature consistency of                    The output of a spiking neuron at each timestep de-
+SNNs through knowledge distillation [12, 38, 39] and con-               pends on both the input I and its membrane potential
+trastive learning [27, 47]. However, focusing solely on spa-            value H, since the membrane potential is maintained across
+tial aspects fails to leverage the spatio-temporal properties           timesteps. The synergistic interaction of these two fac-
+of SNNs fully, especially hindering their integration with              tors results in differences in the output of the SNN across
+neuromorphic data. To improve temporal consistency, es-                 timesteps. As shown in Fig. 1, excessive differences be-
+pecially in neuromorphic recognition performance, further               tween spike maps across timesteps lead to overall incon-
+studies distill the temporal dimension [5, 6, 51] or promote            sistency, and plenty of highly variable spurious spikes im-
+consistency in representations between neuromorphic and                 peding semantic feature extraction. In particular, since the
+static objects [13]. However, while consistency has been                membrane potential of the spiking neuron is usually initial-
+facilitated, the lack of a stable anchor of consistency has             ized to 0, the output of the early timestep is more confus-
+limited the effectiveness of these methods. In this paper, we           ing compared to the late one [4, 37]. The inconsistency
+decouple the stable spikes that outline the feature skeleton            across timesteps limits the overall performance of the SNN,
+as an anchor through the efficient “AND” operation, thus                especially when only early timesteps are available for low-
+guiding the variable spike maps towards consistency.                    latency inference.
+                                                                        3.2. Stable Spike for Spike Map Consistency
+3. Method                                                               To promote multi-timestep consistency of SNNs, we sep-
+                                                                        arate the variable spike feature maps into consistent sta-
+We first describe the spiking neuron dynamics and the in-               ble spike skeletons and unstable spurious redundant spikes.
+consistency problem in SNNs, and then detail how dual con-              Therefore, we are able to train the spike feature maps to
+sistency optimization can be efficiently achieved by stable             converge to a stable and consistent skeleton while ignoring
+spike to improve the performance of SNNs.                               the interference of redundant and variable spurious spikes.
+
+
+
+                                                                  894
+

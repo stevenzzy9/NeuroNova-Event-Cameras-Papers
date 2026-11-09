@@ -1,0 +1,187 @@
+                        This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                     Except for this watermark, it is identical to the accepted version;
+                               the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                      Towards Persistence: Learning Topological Constraints
+                            for Event-based Small Object Detection
+
+           Shiman He∗ , Nuo Chen∗ , Xinyi Ying, Yihang Luo, Yangsi Shi, Zaiping Lin, Miao Li†
+                              National University of Defense Technology
+                                       {heshiman24, chennuo97, lm8866}@nudt.edu.cn
+
+
+
+                            Abstract
+
+Small object detection (SOD) plays a vital role in applica-
+tions such as anti-UAV tasks, yet conventional image-based
+methods struggle in high-speed scenarios due to the limited
+frame rate. Event cameras offer a promising alternative by
+capturing spatiotemporal event streams with microsecond-
+level temporal resolution. To address the inherent sparsity
+of small objects in event data, existing methods typically
+formulate the detection task as semantic segmentation on
+spatiotemporal point clouds to leverage long-term contex-
+tual information. However, these methods often fail to en-
+force effective spatiotemporal consistency constraints, re-
+sulting in fragmented object trajectories. To mitigate these
+problems, we propose a topology-constrained sparse con-
+volutional network (SpTopoNet), which models the topolog-
+ical structure of moving object trajectories in event point
+clouds. Our network comprises two key components: a
+Topological Learning Module (TLM) that discriminates lo-                     Figure 1. Topological difference between continuous trajectories
+cal structures to separate genuine targets from noise, and                   and discrete backgrounds in real event data. We employ persistent
+a Spatial Consistency Module (SCM) that captures long-                       homology analysis. Specifically, we construct gradually expand-
+range spatiotemporal dependencies to enhance trajectory                      ing spheres centered at each event. Initially (r = 0), each event
+continuity. Additionally, we introduce an event topology-                    is an independent connected component (H0 feature). As the ra-
+aware loss function that leverages topological correlations                  dius increases and two spheres intersect, the corresponding events
+                                                                             connect and an H0 feature dies; simultaneously, connecting edges
+to guide the network to maintain structural integrity of tar-
+                                                                             may form closed loops and H1 features are born. Eventually, when
+get event patterns. Experiments on the benchmark dataset                     the radius is sufficiently large, all loops are filled and H1 features
+demonstrate the superiority of our method in both detection                  die. We record these birth-death processes in a persistence dia-
+performance and trajectory completeness.                                     gram, where the x and y axes represent the birth and death radii of
+                                                                             features.
+
+1. Introduction
+                                                                             in cluttered backgrounds a significant challenge.
+Small object detection (SOD) is a critical research direc-
+tion in computer vision that addresses the recognition and                      Traditional frame-based cameras, constrained by lim-
+localization of small-scale objects in complex scenes [15,                   ited frame rates (typically 30 Hz to 60 Hz) and dynamic
+16, 18–21, 24, 51–53], with applications in domains such                     range (≈60 dB), suffer from motion blur and temporal
+as anti-UAV systems. However, small moving targets typi-                     information loss when capturing high-speed small targets.
+cally lack distinctive appearance features and exhibit com-                  This significantly degrades detection performance in crit-
+plex non-linear motion trajectories, making robust detection                 ical applications. Event cameras [3, 5, 34, 40], function-
+                                                                             ing as bio-inspired sensors, provide an alternative approach
+   ∗ The first two authors contributed equally. † Corresponding author.      by asynchronously capturing pixel-level brightness changes
+
+
+
+                                                                          22291
+                                                                         jectory, appearing as a continuous curve in the event point
+                                                                         clouds, exhibits sparse persistent H0 features and negligible
+                                                                         H1 features. In contrast, discrete and unstructured back-
+                                                                         ground noise corresponds to dense H0 features and spuri-
+                                                                         ous persistent H1 features. Explicitly modeling the topo-
+                                                                         logical features can distinguish genuine target trajectories
+                                                                         from background noise.
+                                                                             Based on this, we propose SpTopoNet, which maintains
+                                                                         trajectory continuity by incorporating topology-aware con-
+                                                                         straints in both its network architecture and the loss func-
+                                                                         tion, as shown in Fig. 2. On one hand, our network captures
+                                                                         local spatiotemporal patterns within trajectory segments us-
+                                                                         ing the Topological Learning Module (TLM) and models
+Figure 2. Comparison between our method and previous methods.            long-range dependencies in the event point clouds via the
+Our method incorporates topological modeling in both network             Spatial Consistency Module (SCM). On the other hand, the
+architecture and loss function, resulting in detection trajectories
+                                                                         EvTopoLoss function regularizes the learning process by
+with greater continuity and completeness compared to previous
+methods.
+                                                                         penalizing structural discontinuities to enforce global topo-
+                                                                         logical consistency of the trajectories. We conduct a com-
+                                                                         prehensive comparison with state-of-the-art methods on the
+as sparse event streams. This unique mechanism grants                    EVSOD benchmark dataset, demonstrating the superiority
+them high temporal resolution (up to 106 Hz), high dynamic               of our method. The main contributions are summarized as
+range (up to 120 dB), and low data redundancy [8], making                follows:
+them well-suited for dynamic scene perception.                           • We propose a topology-constrained framework for event-
+    Despite these advantages, event-based SOD presents the                  based SOD that models local trajectory topology through
+following challenges: (1) Small targets: The small size                     explicit spatiotemporal structure learning, achieving
+of targets results in insufficient appearance cues, hinder-                 state-of-the-art detection performance.
+ing effective feature learning. (2) Complex motion: Ob-                  • We introduce EvTopoLoss, a novel optimization objective
+jects often follow diverse and non-linear trajectories, mak-                that maintains global trajectory topology by constraining
+ing them difficult to track and detect accurately. (3) Asyn-                structural relationships in event point clouds.
+chronous event streams: The asynchronous nature of event                 • Extensive evaluation on the EV-UAV benchmark [4]
+streams further complicates the modeling of these com-                      demonstrates that our method achieves 11.44% and
+plex trajectories. Among existing methods, frame-based                      5.83% improvements in IoU and detection rate, respec-
+approaches [28, 54] accumulate events into synchronous                      tively, over state-of-the-art methods.
+frames at the cost of destroying the native continuity and
+sparsity of event data, which results in the loss of temporal            2. Related Work
+precision, motion blur, and redundant processing of static
+                                                                         2.1. Object Detection with Event Cameras
+backgrounds. Voxel-based approaches [2, 37, 55] discretize
+events into spatiotemporal grids, inevitably compromising                Existing event-based object detection methods are primar-
+temporal accuracy and losing fine-grained structural infor-              ily categorized into dense and sparse approaches based on
+mation through quantization. Point cloud-based represen-                 event representation. The first category transforms event
+tations [1, 4, 12, 44] preserve complete asynchronous infor-             streams into dense representations to leverage conven-
+mation in precise (x, y, t, p) coordinates, maintaining na-              tional convolutional networks. Early methods accumu-
+tive temporal resolution. However, they focus on local spa-              lated events into frame-based representations [28, 54], di-
+tiotemporal feature aggregation, capturing short-range pat-              rectly applying image-based detection methods to these
+terns while neglecting global trajectory structure. This leads           event frames. To better preserve temporal information, sub-
+to discontinuous detections that fail to maintain long-term              sequent methods introduced voxel grid representations [2,
+coherence across target motion sequences.                                37, 55], which discretize events into multi-channel tensors
+    The motivation of our work is that the motion trajecto-              by quantizing the temporal dimension. These early dense
+ries of small targets exhibit specific topological structures            methods typically considered events only within short time
+in event point clouds that are distinguishable from noise.               windows, resulting in limited temporal context and con-
+Events generated by the same target maintain consistent                  strained performance. To capture longer-term temporal de-
+spatiotemporal proximity, forming connected manifolds in                 pendencies, subsequent works [17, 33] incorporated recur-
+(x, y, t) coordinates. As shown in Fig. 1, the target tra-               rent neural networks (RNN), which improved detection by
+
+
+
+                                                                      22292
+modeling temporal dynamics across consecutive frames.              cal loss [48] leverages information from the image’s orig-
+Recent Transformer-based methods [9,10,32,50] further en-          inal spatial domain to assist persistent feature matching, ad-
+hanced long-range modeling through self-attention mech-            dressing the ambiguous matching problem that arises when
+anisms. Despite these advancements, dense representa-              relying solely on topological space information.
+tion approaches inevitably sacrifice the native microsecond-           Among the explorations in point clouds, PHGCN [49]
+level temporal precision and introduce motion blur dur-            proposes a Persistence Diagram Loss that integrates per-
+ing the densification process. Moreover, converting sparse         sistent homology into graph convolution networks for fine-
+events into dense tensors introduces redundant background          grained 3D object segmentation, demonstrating the feasi-
+data and consumes additional computational resources.              bility of using persistent homology-based loss functions in
+    The second category processes event streams using              point clouds. DSCNet [36] introduces the use of Haus-
+sparse representations to preserve the high temporal res-          dorff distance to identify and constrain anomalous topolog-
+olution and achieve computational efficiency. Graph-based          ical features, demonstrating effectiveness on both 2D and
+methods [22, 27, 39] model events as dynamic spatiotem-            3D tubular structure segmentation tasks. However, applying
+poral graphs and aggregate local features through message          these topological losses to unstructured point clouds, partic-
+passing within sparse neighborhood connections. Spik-              ularly event point clouds, generally presents the following
+ing Neural Networks (SNN) [7, 29, 30, 41] process asyn-            challenges: firstly, traditional topological matching primar-
+chronous event spikes directly through neuromorphic archi-         ily relies on the birth-death times of features, ignoring their
+tectures, transmitting only discrete spike signals between         geometric location information in space, which can lead to
+neurons for reduced power consumption. However, these              severe matching ambiguities in event point clouds with in-
+methods often rely on specialized hardware or suffer from          herent spatial coordinates; secondly, the high computational
+suboptimal performance in complex scenarios. More re-              complexity of persistent homology itself is a bottleneck for
+cently, point cloud-based methods [1, 4, 12, 44] have ex-          practical application.
+plored modeling events as 3D spatiotemporal point clouds,              To address these, we introduce a topological loss with
+utilizing sparse convolutions to avoid densification over-         geometry-aware gradient computation based on spatial dis-
+head. While these methods successfully preserve the sparse         tances to resolve matching ambiguities. An active region
+nature of events, they primarily focus on local neighbor-          mechanism is employed to compute gradients only near
+hood aggregation and lack explicit modeling of global tra-         threshold boundaries, enabling efficient batch processing of
+jectory continuity. Consequently, detection results suffer         large-scale scenes.
+from trajectory discontinuity, with frequent missed detec-
+tions at turning points and under occlusions.                      3. Method
+    To address this issue, we propose SpTopoNet, which
+                                                                   Following the established definition of event segmenta-
+leverages topological constraints within a sparse frame-
+                                                                   tion [4], the task is to segment events directly in the point
+work to directly segment trajectories from event point
+                                                                   cloud space, event by event. Events can be categorized into
+clouds. Our method avoids the computational cost asso-
+                                                                   three types: target events (ET ), background events (EB ),
+ciated with dense representations and strengthens topologi-
+                                                                   and noise (EN ):
+cal constraints within sparse representations, leading to im-
+proved topological consistency and detection performance.                             E = ET ∪ EB ∪ EN .                      (1)
+2.2. Topological Segmentation Loss                                 ET represents events from moving objects with spatiotem-
+Current topological segmentation loss functions typically          porally continuous trajectories, EB denotes events from
+use topological features based on persistent homology to           static backgrounds or camera motion, and EN comprises
+constrain image segmentation results. The pioneering               random noise scattered across space and time. To extract
+topology-preserving loss [13] introduced persistent homol-         ET from the raw event stream, we propose SpTopoNet with
+ogy into deep learning, enforcing topological consistency          a topological constraint loss to explicitly model the over-
+between predicted segmentations and ground truth through           all topological structure of event trajectories, guiding the
+persistence diagram matching. Building upon this foun-             network to preserve target events with continuous curved
+dation, TopoSeg [11] filters and matches the longest per-          trajectory patterns.
+sistent barcodes to handle densely touching and overlap-
+                                                                   3.1. SpTopoNet
+ping instances. To address matching ambiguities inher-
+ent in persistence diagram matching, Betti matching [42]           Fig.3 (a) illustrates the overall architecture of SpTopoNet,
+employs induced matching to construct a common ambi-               which follows an encoder-decoder paradigm designed to
+ent space, enabling both topologically and feature-wise ac-        capture multi-scale topological structures in event point
+curate matching. More recently, spatial-aware topologi-            clouds. Since direct computation of persistent homology
+
+
+
+                                                                22293
+

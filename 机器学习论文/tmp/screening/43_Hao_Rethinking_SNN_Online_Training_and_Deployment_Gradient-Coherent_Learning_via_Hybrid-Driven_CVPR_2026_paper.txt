@@ -1,0 +1,229 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+Rethinking SNN Online Training and Deployment: Gradient-Coherent Learning
+                       via Hybrid-Driven LIF Model
+
+        Zecheng Hao1,2,3        Yifan Huang1,3 Zijie Xu1,3,4 Wenxuan Liu1,2 * Yuanhong Tang1
+                                       Zhaofei Yu1,3,4 Tiejun Huang1,2,4
+                                1
+                                  School of Computer Science, Peking University
+              2
+                State Key Laboratory for Multimedia Information Processing, Peking University
+            3
+              Beijing Key Laboratory of Brain-inspired Spiking Large Models, Peking University
+                            4
+                              Institute for Artificial Intelligence, Peking University
+     {haozecheng,yfhuang,liuwx66,ydtang,yuzf12,tjhuang}@pku.edu.cn,zjxu25@stu.pku.edu.cn
+
+
+
+                            Abstract                                                         c.    GPU
+                                                                                         Ac              Mem
+                                                                                    Inf.                     .                   STBP Training
+Spiking Neural Networks (SNNs) are considered to have                                                                            Online Training
+                                                                                                                                 Ours
+enormous potential in the future development of Artifi-                                                                          Ours (advanced)
+                                                                     Param. Mem.
+cial Intelligence due to their brain-inspired and energy-
+
+
+
+
+                                                                                                                 Train. Load
+efficient properties. Compared to vanilla Spatial-Temporal
+Back-propagation (STBP) training methods, online train-                                                                          Fine
+ing can effectively avoid the risk of GPU memory explo-
+sion. However, current online learning frameworks can-                                                                         Medium
+not tackle the gradient discrepancy problem between the                                                                          Poor
+                                                                                   Inf.
+forward and backward process, merely aiming to opti-                                      Pow           Ps
+mize the GPU memory, resulting in no performance ad-                                          er     NO
+vantages compared to the STBP-based models in the in-
+ference stage. To address the aforementioned challenges,           Figure 1. In comparison of STBP and vanilla online learning
+we propose Hybrid-Driven Leaky Integrate-and-Fire (HD-             paradigms, our schemes achieve comprehensive optimization to-
+                                                                   wards multiple performance metrics of SNN training (Train. Load,
+LIF) model family for efficient online learning, which re-
+                                                                   GPU Mem.) and inference (Inf. Acc., Param. Mem., Inf. Power,
+spectively adopt different spiking calculation mechanism           NOPs) stages.
+in the upper-region and lower-region of the firing thresh-
+old. We theoretically point out that our learning framework
+can effectively separate temporal gradients and address the        have gained widespread attention from researchers in Ar-
+misalignment problem of surrogate gradients, as well as            tificial Intelligence community. SNNs utilize spiking neu-
+achieving full-stage optimization towards learning preci-          rons as the basic computing unit to transmit discrete spike
+sion, memory complexity and power consumption. Experi-             firing sequences to the post-synaptic layer. Due to the
+mental results have demonstrated that our scheme is enable         fact that spiking neurons only emit spikes when the mem-
+to achieve state-of-the-art performance for multiple evalu-        brane potential exceeds the firing threshold, compared to
+ation metrics, breaking through the traditional paradigm of        the activation values in traditional Artificial Neural Net-
+SNN online training and deployment. Code is available at           works (ANNs), spike sequences have sparse and event-
+https://github.com/hzc1208/HD_LIF.                                 driven properties, which can demonstrate superior computa-
+                                                                   tional efficiency and robustness on neuromorphic hardware
+                                                                   [2, 5, 31, 33].
+1. Introduction                                                        Spatial-Temporal Back-propagation (STBP) is one of
+Spiking Neural Networks (SNNs), as the third-generation            the most significant training algorithm in the supervised
+neural network towards brain-inspired intelligence [29],           learning domain of SNNs currently [42]. By introducing
+                                                                   the concepts of temporal dimension and surrogate gradient,
+  * Corresponding author.                                          STBP simultaneously tackles the Markov property and non-
+
+
+
+                                                             20202
+differentiable problem of SNNs existed in the forward prop-          conducive to achieving high-performance online training.
+agation and firing process. However, although STBP train-          • The model family covers multiple variant models adapted
+ing has significantly improved the learning performance and          to different scenarios. Among them, Parallel HD-LIF can
+generalization ability of SNNs [34, 36, 41], as its back-            significantly reduce Neural Operations (NOPs) in the in-
+propagation chain has the property of temporal dependency,           ference stage; Mem-BN HD-LIF, which is the version
+the GPU memory will inevitably boost linearly with the               based on membrane potential batch-normalization, can
+number of time-steps. This phenomenon greatly increases              effectively regulate the degree of gradient separability and
+the training burden and hinders the further application of           be re-parameterized into vanilla HD-LIF model, as well
+SNNs to complex scenarios [23, 47] and advanced spiking              as combining with efficient attention mechanism.
+models [14, 19].                                                   • For various datasets with different data-scale and data-
+    To address this problem, researchers have transferred            type, our learning framework achieves state-of-the-art
+the idea of online learning to the STBP training frame-              (SoTA) performance in multiple dimensions. For ex-
+work [30, 44], which means that by detaching the tempo-              ample, we reach top-1 accuracy of 78.61% on CIFAR-
+ral dependent gradient terms, SNNs can immediately per-              100 dataset under the condition of saving 10× parameter
+form back-propagation at any time-step. This scheme en-              memory, 11× inference power and 30% NOPs.
+sures that the corresponding GPU memory is independent
+of the training time-steps and remains constant, effectively       2. Related Works
+alleviating the problem of computation memory explosion.
+                                                                   Recurrent learning algorithms for SNNs. Considering
+However, as shown in Fig.1, the current proposed methods
+                                                                   the similarity in computational mechanisms between SNNs
+based on online learning still have the following defects:
+                                                                   and Recurrent Neural Networks (RNNs), Wu et al. [42] and
+(i) the degradation of inference accuracy caused by the dis-
+                                                                   Neftci et al. [32] transferred the Back-propagation Through
+crepancy between forward and backward propagation, (ii)
+                                                                   Time (BPTT) method from RNNs to the supervised learn-
+inference deployment without advantages.
+                                                                   ing field of SNNs and utilized surrogate functions to tackle
+    The reason for the first defect is that the surrogate func-    the non-differentiable problem existed in the spike firing
+tion of spiking neurons is generally related to the value of       process, which is called the STBP training algorithm. On
+membrane potential and the spike sequence is usually un-           this basis, Li et al. [27], Guo et al. [11] and Wang et al.
+evenly distributed in the temporal dimension, making the           [41] respectively attempted to start from the perspective
+temporal dependent gradients different from each other and         of regulating the distribution about the backward gradient
+unable to merge with the back-propagation chain along the          and membrane potential, introducing progressive surrogate
+spatial dimension. In this case, when online learning frame-       functions and penalty terms. Tang et al. [38] proposed Re-
+works detach temporal dependent gradients, it will lead to         laxation LIF to mitigate gradient mismatch in deep SNN
+inconsistency between forward and backward propagation,            training. Deng et al. [4] proposed a target learning function
+while the gradient misalignment inherent in the surrogate          which comprehensively considers the SNN output distribu-
+function will further intensify this phenomenon, resulting in      tion within each time-step, which is particularly suitable for
+learning performance degradation. The second defect refers         neuromorphic sequential data. To further improve the learn-
+to the fact that current online learning methods merely fo-        ing stability and performance of SNNs, various BatchNorm
+cus on optimizing training GPU memory. However, the ob-            (BN) modules [6, 12, 21, 52] and attention mechanisms
+tained SNN does not have additional advantages on various          [34, 46, 47, 53] have been proposed successively, which
+performance metrics compared to the corresponding model            capture the representation information contained in spike
+trained by STBP in the inference stage, which seriously            sequences from multiple dimensions, including spatial-
+damages the practical application value of online learning.        wise, temporal-wise and channel-wise. Recently, advanced
+    Based on the above discussion, we propose the con-             spiking models have become a focus of academic atten-
+cept of Hybrid-Driven Leaky Integrate-and-Fire (HD-LIF)            tion. Researchers have proposed a variety of neuron mod-
+model family for efficient online learning. On the one hand,       els with stronger dynamic properties and memorizing ca-
+HD-LIF model can effectively separate backward gradients           pabilities around membrane-related parameters [7, 48], fir-
+from the temporal direction and integrate them into the spa-       ing mechanism [13, 35] and dendrite structure [14, 39],
+tial dimension; on the other hand, it can be efficiently com-      promoting deeper exploration towards brain-inspired intel-
+bined with various techniques for optimizing SNN infer-            ligence. LIAF-Net [43] adopt a similar model structure to
+ence overhead, achieving plug-and-play online training and         this work and combine it with a series of RNN-related mod-
+deployment. Our contributions are summarized as follow:            ules, but they aim to achieve lightweight information pro-
+• Compared to vanilla spiking models, we point out that            cessing rather than efficient online training and deployment.
+   HD-LIF model has more superior gradient separability            In addition, a spatial-temporal back-propagation algorithm
+   and alignment from the theoretical perspective, which is        based on spike firing time [1, 22, 51, 54] has also attracted
+
+
+
+                                                              20203
+                                                            HD-LIF                      LIF
+                                                            Precise-Positioning Reset           Soft Reset
+                                                                                                                         Grad.                  Grad.
+              )                                                                                                        Alignment             Misalignment
+                                                                Leak & Charge           Leak & Charge
+            STBP Training (
+
+                                                                         Time-step                      Time-step
+
+
+
+
+                                Separable Grad.                                Re-parameterization
+              )
+            Online Training (
+
+
+
+
+                                                                                +                                +        －
+
+
+
+
+                     Forward Prop.         Backward Prop.
+
+
+
+
+Figure 2. An overview of HD-LIF model. Compared to vanilla LIF, HD-LIF (middle-bottom) can enhance the gradient separability
+(right-bottom) and alignment (right-top) through the hybrid-driven spiking calculation mechanism (middle-top), thereby overcoming the
+discrepancy existed between the forward and backward process of conventional online training (left).
+
+
+widespread attention. However, this series of methods are                                                    can ensure computational consistency between online and
+currently limited by high computational complexity and un-                                                   STBP learning under the condition of occupying constant
+stable training process, which cannot be effectively applied                                                 GPU memory, but it requires bi-directional computation to-
+to complex network backbones and learning scenarios.                                                         wards all intermediate variables, which inevitably increases
+                                                                                                             computational overhead. Alternatively, FPTT with liquid
+    Online learning algorithm for SNNs. Although STBP
+                                                                                                             time-constant neurons [49] enables accurate online training
+learning algorithm promotes SNNs to join the club of high-
+                                                                                                             of long sequences with constant memory.
+performance models, it also brings severe computational
+burden to SNNs during the training phase, especially the                                                     3. Preliminaries
+GPU memory that will increase linearly with the number
+of time-steps. Xiao et al. [44] transferred the idea of on-                                                  Leaky Integrate-and-Fire (LIF) model. The current
+line learning to the domain of SNN direct training, which                                                    mainstream spiking model used in SNN community is
+splits the back-propagation chain by ignoring the backward                                                   LIF model [9], which involves three core calculation pro-
+gradients with temporal dependencies, making the train-                                                      cesses, i.e. charging, firing and resetting. As shown in
+ing GPU memory independent of time-steps. On this ba-                                                        Eq.(1), at each time-step, LIF model will receive the in-
+sis, Meng et al. [30] proposed a selective back-propagation                                                  put current Il,LIF
+                                                                                                                          t     and refer to the previous residual potential
+                                                                                                              l,LIF
+scheme based on online learning, which significantly im-                                                     v(t−1) , then accumulate the corresponding membrane po-
+proves training efficiency. Yang et al. [45] combined online                                                 tential ml,LIF . When ml,LIF    has exceeded the firing thresh-
+                                                                                                                        t              t
+learning with ANN-SNN knowledge distillation, further ac-                                                          l          l,LIF
+                                                                                                             old θ , a spike st     will be transmitted to the post-synaptic
+celerating the training convergence speed of SNNs. Zhu et
+                                                                                                             layer and ml,LIF
+                                                                                                                          t    will be reset. Here Wl denotes the synaptic
+al. [55] proposed a brand-new BN module suitable for on-                                                                    l
+                                                                                                             weight and λ represents the membrane leakage parameter.
+line learning, which enhances the stability of gradient cal-
+culation by considering the global mean and standard de-                                                       ml,LIF
+                                                                                                                 t
+                                                                                                                               l,LIF
+                                                                                                                       = λl ⊙ v(t−1) + Il,LIF
+                                                                                                                                          t     , vtl,LIF = ml,LIF
+                                                                                                                                                               t    − sl,LIF
+                                                                                                                                                                        t    ,
+viation in the temporal dimension. To enrich the neurody-                                                                                           (
+namic property of online learning, Jiang et al. [20] intro-                                                                  (l−1),LIF                 θl , ml,LIF ≥ θl
+                                                                                                                Il,LIF
+                                                                                                                 t     = Wl st         , sl,LIF
+                                                                                                                                          t      =           t
+                                                                                                                                                                        . (1)
+duced the difference of membrane potential between adja-                                                                                               0, otherwise
+cent time-steps as a feature term into the backward gradient
+calculation. Inspired by the architecture of reversed net-                                                   STBP Training. To effectively train LIF model, the back-
+work, Zhang et al. [50] and Hu et al. [17] respectively pro-                                                 propagation procedure of SNNs usually chooses to expand
+posed reversible memory-efficient training algorithms from                                                   along both spatial and temporal dimensions. We use L to
+spatial and temporal perspectives. This type of algorithm                                                    denote the target loss function. As shown in Eq.(3), ∂m∂L
+                                                                                                                                                                     l,LIF
+                                                                                                                                                                          t
+
+
+
+
+                                                                                                 20204
+

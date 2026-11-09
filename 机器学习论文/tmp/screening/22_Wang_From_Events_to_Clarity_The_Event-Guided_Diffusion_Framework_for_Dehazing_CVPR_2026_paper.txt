@@ -1,0 +1,208 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+ From Events to Clarity: The Event-Guided Diffusion Framework for Dehazing
+
+               Ling Wang* , Yunfan Lu* , Wenzong Ma, Huizai Yao, Pengteng Li, Hui Xiong†
+                   The Hong Kong University of Science and Technology (GuangZhou)
+     {lwang851, ylu066, wma423, hyao032, pli807}@connect.hkust-gz.edu.cn, xionghui@ust.hk
+                                          *                          †
+                                              Equal contribution.        Corresponding author.
+
+
+
+                         Abstract                                             Air Quality Index (AQI) =341
+                                                                                                             𝐼#
+
+                                                                                                                             𝐼$
+                                                                                                                  EvDehaze
+Clear imaging under hazy conditions is a critical task.                                                      𝐸       𝑓!"
+
+Prior-based and neural methods have improved results.
+However, they operate on RGB frames, which suffer from                       (a) Frames 𝐼! , Events 𝐸        (b) Our Method       (c) Enhanced Frames 𝐼"
+limited dynamic range. Therefore, dehazing remains ill-
+posed and can erase structure and illumination details.                     Figure 1. Overview of the motivation and the proposed EvDe-
+To address this, we use event cameras for dehazing for                      haze method. Haze compresses the dynamic range of conven-
+the first time. Event cameras offer much higher HDR                         tional RGB frames Ii (see Sec. 3) captured in heavy pollution
+                                                                            (AQI = 341), as illustrated in (a)-right. In contrast, events E cap-
+(120dB vs. 60dB) and microsecond latency, therefore they
+                                                                            tured by event cameras offer a much higher dynamic range (up
+suit hazy scenes. In practice, transferring HDR cues from                   to 120dB), as illustrated in (a)-left, and thus provide critical cues
+events to frames is hard because real paired data are scarce.               under haze. Our method, EvDehaze, uses this events to guide de-
+To tackle this, we propose an event-guided diffusion model                  hazing (Sec. 4), producing clearer outputs Io as shown in (c).
+that utilizes the strong generative priors of diffusion mod-
+els to reconstruct clear images from hazy inputs by effec-                     Earlier dehazing methods focus on atmospheric scatter-
+tively transferring HDR information from events. Specifi-                   ing models [40, 46] and statistical priors [15, 31]. For
+cally, we design an event-guided module that maps sparse                    instance, [40] proposes the atmospheric scattering model,
+HDR event features, e.g., edges, corners, into the diffusion                while [46] analyzes contrast degradation. Although these
+latent space. This clear conditioning provides precise struc-               methods provide physical interpretability, they often fail to
+tural guidance during generation, improves visual realism,                  generalize well in complex real-world scenes due to their
+and reduces semantic drift. For real-world evaluation, we                   strong assumptions and handcrafted rules. With the ad-
+collect a drone dataset in heavy haze (AQI = 341) with                      vent of deep learning methods [1, 6, 20, 29, 48, 68] intro-
+synchronized RGB and event sensors. Experiments on two                      duce various forms of supervision and advanced network
+benchmarks and our dataset achieve state-of-the-art results.                designs, achieving consistent improvements across syn-
+                                                                            thetic datasets. Recently, diffusion-based generative models
+                                                                            [16, 27, 65] have shown strong potential. However, these
+                                                                            models still rely entirely on the RGB images captured by
+1. Introduction
+                                                                            APS sensors, which inherently suffer from limited dynamic
+Haze degrades image quality by scattering and absorbing                     range. As a result, existing methods remain limited under
+light, which leads to a significant reduction in the dynamic                dense haze conditions due to irreversible information loss,
+range of captured images. This effect is especially pro-                    often producing visible artifacts and unrealistic textures.
+nounced for active pixel sensors [35, 78], which already op-                   Event cameras, thanks to their asynchronous triggering
+erate under limited dynamic range, resulting in severe loss                 mechanism, capture brightness changes at the microsecond
+of visual detail in hazy conditions. As a result, the visibil-              scale with an exceptionally high dynamic range [37, 44].
+ity of key textures and edges is greatly diminished, which                  This makes them naturally capable of detecting fine light-
+in turn affects both the visual quality and the effectiveness               ing variations in scenes, providing critical advantages over
+of downstream computer vision tasks. Therefore, recover-                    conventional cameras in many imaging tasks [36]. Event
+ing clear visual content under haze becomes particularly im-                sensors have been successfully applied in tasks such as low-
+portant for safety-critical applications such as photography,               light enhancement [24], HDR imaging [14], video super-
+drone-based monitoring, and autonomous driving.                             resolution [32], deblurring [47], and deraining [75]. These
+
+
+
+                                                                    34028
+successes motivate us to explore whether the high dynamic          ers on PSNR or SSIM. EvDehaze is a generative, event-
+range of events can be transferred to restore the visibility of    guided diffusion method that targets perceptual realism:
+images degraded by haze, as shown in Fig. 1. However, this         clearer edges, natural contrast, and fewer artifacts in real
+goal remains challenging — especially for dehazing, where          haze. These objectives differ from pixel-wise fidelity and
+real-world paired supervision is unavailable. Most prior ap-       are not directly comparable to supervised restoration.
+proaches [24, 26] with events-guidance rely on large-scale
+paired datasets to learn accurate mappings. In hazy envi-          2. Related Works
+ronments, however, collecting aligned hazy and clean image
+                                                                   Frame-based Dehazing: Traditional image-based dehaz-
+pairs is nearly impossible due to uncontrollable factors such
+                                                                   ing methods rely on the atmospheric scattering model
+as fog thickness and lighting changes. This leads to a core
+                                                                   (ASM) [12], and commonly use assumptions such as the
+research question: How can we effectively inject the high
+                                                                   dark channel prior [15] to recover clear images. How-
+dynamic range of events into a dehazing model without
+                                                                   ever, these methods have limitations in handling complex
+paired real-world dataset for supervision?
+                                                                   real-world scenes. In recent years, deep learning has sig-
+    To address this question, we reformulate event-based de-       nificantly advanced dehazing research, such as DehazeNet
+hazing as a conditional image generation task, guided by           [6], PMHLD [8], and the transmission propagation net-
+sparse event data within a diffusion framework. Diffusion          work [28] have achieved notable improvements. Addition-
+models, known for their strong generative priors and robust        ally, some approaches have completely abandoned the ASM
+generalization to real-world data, have achieved impressive        framework and directly employed end-to-end supervised
+performance in various image synthesis tasks [4, 30, 53,           learning for dehazing [54, 71]. Nevertheless, these super-
+76]. This makes them particularly suitable when the su-            vised methods heavily depend on large-scale paired syn-
+pervision is unavailable or impractical. Crucially, the high       thetic datasets, which limits their effectiveness in real-world
+dynamic range and temporal precision of events offer strong        scenarios. Therefore, recent research [22, 43] has moved to-
+structural cues that can resolve this ambiguity. To exploit        ward unsupervised dehazing methods without the need for
+this, we propose an event-guided diffusion model that incor-       paired data. Despite this progress, existing methods only
+porates both structural and illumination information from          rely on RGB frames, which have limited dynamic range and
+sparse events directly into the generative process. Rather         thus face significant challenges in dynamically scenes.
+than explicitly translating events into RGB images, we in-         Event-based Image Enhancement: Event cameras have
+ject event features into the latent denoising steps, allowing      shown exciting potential in image reconstruction tasks.
+the model to leverage event-based guidance implicitly. This        Early works apply events across diverse imaging tasks,
+approach enables the generation of realistic dehazed images        e.g., video frame interpolation [39, 58], image deblur-
+by aligning the sampling trajectory with physically consis-        ring [19, 33, 57, 72], rolling shutter correction [9, 77],
+tent edge and contrast priors from events.                         and HDR imaging [7, 42], overcoming the limitations of
+    To validate the effectiveness of our framework, we con-        conventional cameras in challenging conditions [18, 62].
+duct experiments on two public synthetic datasets and a            Beyond reconstruction, events help mitigate environmental
+newly collected real-world dataset. This real-world dataset        degradations, e.g., removal of rain and snow [10, 45, 59].
+is collected via drone under real weather conditions (AQI =        Zhang et al.[73] propose a framework that leverages motion
+341) for qualitative evaluation. To the best of our knowl-         cues from events, while Fu et al.[10] introduce a heteroge-
+edge, this is the first real-world dehazing dataset that           neous network for deraining. Despite this progress, using
+provides paired RGB and events, establishing a valuable            events for image dehazing remains an open problem.
+foundation for future research on event-based dehazing.            Diffusion Models: Diffusion models learn strong priors
+Our method achieves state-of-the-art performance across            from large-scale data to push image quality beyond sensor
+all diffusion-based methods, confirming both its theoreti-         limits. Early methods denoise iteratively [16, 56], while la-
+cal soundness and practical applicability. In summary, we          tent diffusion works in a compressed latent space to speed
+make three key contributions in this work: (1) We first in-        synthesis [51]. These models now support video synthe-
+troduce and formulate event-guided image dehazing as a             sis [4, 5, 30] and personalized text-to-image [23, 52]. Addi-
+conditional generation problem under a diffusion frame-            tionally, recent methods such as ControlNet [69], MultiD-
+work. (2) We build the first real-world RGB-event dehazing         iffusion [3], and MimicMotion [74] introduce fine-grained
+dataset captured under heavy haze conditions for practical         conditional control, enabling more flexible and guided gen-
+evaluation. (3) We propose EvDehaze, a diffusion-based             eration. Diffusion models have also been applied to real-
+model that leverages temporally precise and HDR event fea-         world image restoration [61, 64], further demonstrating
+tures for structural guidance, achieving state-of-the-art re-      their practical effectiveness. However, in ill-posed tasks like
+sults among diffusion-based approaches.                            dehazing, they may still generate unrealistic textures or ar-
+Clarification: Our goal is not to surpass RGB-only restor-         tifacts due to insufficient structural constraints.
+
+
+
+                                                              34029
+3. Preliminaries                                                        shown in Eq. 7, where µθ and Σθ denote the mean and co-
+                                                                        variance learned by the model.
+We first analyze how haze degrades image quality by com-
+pressing the dynamic range, and then explain the pivotal                           pθ (xt−1 |xt ) = N (xt−1 ; µθ (xt , t) , Σθ (xt , t))       (7)
+role of event guidance within the DDIM sampling process.
+HDR for Dehaze: The dynamic range of an imaging sys-                    Despite its effectiveness, DDPM suffers from high sam-
+tem is the ratio between the maximum and minimum de-                    pling latency due to its sequential and Markovian na-
+tectable luminance DRtrue = Jmax /Jmin , where Jmax and                 ture. To address this, DDIM (Denoising Diffusion Implicit
+Jmin denote the highest and lowest scene radiance that can              Models)[55] defines a non-Markovian deterministic sam-
+be recorded by the sensor. In hazy environments, image                  pling procedure that shares the same training objective as
+formation obeys the atmospheric scattering model:                       Eq. 6, but accelerates inference. The DDIM reverse pro-
+                                                                        cess is defined as Eq. 8, where σt2 is a user-defined variance
+                                            
+               I(x) = J(x) t(x) + A 1 − t(x) ,               (1)        parameter that allows trade-off between stochasticity and
+                                                                        determinism.
+where I(x) is observed intensity at pixel x, J(x) is scene
+                                                                                   qσ (xt−1 |xt , x0 ) = N xt−1 ; µ̃t (xt , x0 ) , σt2 I
+                                                                                                                                           
+radiance at x, t(x) ∈ [0, 1] is transmission describing the                                                                                    (8)
+portion of light that reaches the camera, and A is global at-
+                                                                           The actual DDIM sampling update can be written as Eq. 9,
+mospheric light (air-light). For analytical clarity, we assume
+                                                                           where z ∼ N (0, I) and σt is a hyperparameter controlling
+a spatially constant transmission t. Let
+                                                                           the diffusion noise scale.
+                                                                                          √            √                      √ 
+                 a = Jmin t,       b = A (1 − t).            (2)                 xt−1 =    αt−1    xt − 1 − ᾱt · ϵϕ (xt , t) / ᾱt
+                                                                                                  q                                            (9)
+The observed minimum and maximum intensities become                                              + 1 − αt−1 − σt2 · ϵϕ (xt , t) + σt z
+
+              Imin = a + b,          Imax = k a + b,         (3)
+                                                                           4. Methods
+with DRtrue = Jmax /Jmin = k > 1. Hence the observed                       Our objective is to recover high-quality images from hazy
+dynamic range is                                                           inputs by leveraging the high dynamic range cues provided
+                     Imax   ka+b
+                                                                           by event data. To this end, we propose a novel event-guided
+          DRobs =         =      < k = DRtrue ,              (4)           diffusion framework, EvDehaze, denoted as fedh , as illus-
+                     Imin   a+b
+                                                                           trated in Fig. 2. Given a hazy RGB frame Ii and the cor-
+which proves that haze compresses the dynamic range. The                   responding event stream E, our model predicts a dehazed
+closer t is to zero (dense haze), the smaller a becomes, and               output frame Io = fedh (Ii , E).
+the more DR is lost. Therefore, high-dynamic-range sens-                       The overall pipeline consists of three main components:
+ing is essential for retaining contrast and enabling effective             (1) DDIM backbone with latent VQ-VAE: A frozen VQ-
+dehazing under severe visibility degradation.                              VAE [50] first encodes the hazy frame into a latent repre-
+DDPM and DDIM: DDPM [16] samples x0 ∼ pdata (x)                            sentation xhz = fE (Ii ), where fE is the encoder. The
+from the data distribution. Gaussian noise is then injected                latent is then injected with Gaussian noise to form xT ,
+to the sampled x0 up to T timesteps, finally get a standard                and a DDIM-based denoising U-Net iteratively generates
+Gaussian distribution xT ∼ N (0, I). The simplified for-                   a clean latent x0 , which is finally decoded to the output im-
+ward process follows:                                                      age Io = fD (x0 ) by the frozen VQ-VAE decoder fD . (2)
+                                   √                                       Events Representation Model fe : The raw event stream
+           q (xt |x0 ) = N (xt ;    αt x0 , (1 − αt ) I) ,   (5)           E is encoded into a multi-scale, high dynamic range fea-
+                                                                           ture xe = fe (E). This is achieved via the event tempo-
+where ᾱt = s = 1t (1−βs ) denotes the cumulative prod-
+             Q
+                                                                           ral pyramid representation [34] followed by a convolutional
+uct of the variance schedule βs . To recover data from noise,
+                                                                           encoder with pooling layers. (3) Event-Guided Diffusion
+a denoiser ϵϕ is trained to predict noise through reweighted
+                                                                           Module feg : During each DDIM denoising step, we in-
+Evidence Lower Bound (ELBO) minimizing optimization,
+                                                                           ject the event features xe into intermediate U-Net layers via
+which follows:
+                                                                           cross-attention. This ensures that the generative trajectory is
+         Lsimple = Ex0 ,t,ϵ∼N (0,I) ∥ϵ − ϵϕ (xt , t)∥2 .
+                                                     
+                                                             (6)           guided by physically grounded edge and contrast cues from
+                                                                           events feature, enabling realistic, artifact-free dehazing.
+                                √              √
+Here, xt is derived via xt = αt x0 + 1 − αt ϵ, enabling
+direct noise prediction without explicit likelihood compu-                 4.1. DDIM Backbone with Latent VQ-VAE
+tation and ϵϕ (xt , t) is the noise predicted by the denoiser.             Our framework builds upon a DDIM [55] denoising process
+The reverse process reconstructs data through sampling as                  operating in the latent space of a frozen VQ-VAE [50]. As
+
+
+
+                                                                   34030
+

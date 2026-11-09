@@ -1,0 +1,201 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+             Coded-E2LF: Coded Aperture Light Field Imaging from Events
+
+ Tomoya Tsuchida†             Keita Takahashi† Chihiro Tsutake† Toshiaki Fujii†                         Hajime Nagahara‡
+                             †
+                               Nagoya University, Japan ‡ Osaka University, Japan
+
+
+                         Abstract                                 terns are sufficient to reconstruct a light field [12, 20, 48].
+                                                                     To enhance the efficiency of coded-aperture light-field
+We propose Coded-E2LF (coded event to light field), a com-        imaging, Habuchi et al. [14] used an event camera, which
+putational imaging method for acquiring a 4-D light field         can detect intensity changes as events asynchronously at
+using a coded aperture and a stationary event-only camera.        each pixel. In their method, intensity changes caused by
+In a previous work, an imaging system similar to ours was         the change in coding patterns were detected as events and
+adopted, but both events and intensity images were captured       used for light-field reconstruction. However, an intensity
+and used for light field reconstruction. In contrast, our         image, captured simultaneously with the events, was also
+method is purely event-based, which relaxes restrictions for      used. Therefore, a hybrid camera was required that can take
+hardware implementation. We also introduce several ad-            both events and intensity images. Due to the dependence
+vancements from the previous work that enable us to theo-         on intensity images, their method went only halfway in ex-
+retically support and practically improve light field recon-      ploiting the potential of event-based sensing.
+struction from events alone. In particular, we clarify the key
+                                                                      We propose a purely event-based method for coded-
+role of a black pattern in aperture coding patterns. We fi-
+                                                                  aperture light field imaging, called Coded-E2LF, which
+nally implemented our method on real imaging hardware to
+                                                                  stands for coded event to light field. In contrast to Habuchi
+demonstrate its effectiveness in capturing real 3-D scenes.
+                                                                  et al.’s [14], our method eliminates the need for intensity im-
+To the best of our knowledge, we are the first to demon-
+                                                                  ages, which relaxes restrictions for hardware implementa-
+strate that a 4-D light field with pixel-level accuracy can
+                                                                  tion. Our method is constructed on Habuchi et al.’s [14]; we
+be reconstructed from events alone. Our software and sup-
+                                                                  used their algorithm pipeline (with small modifications) as
+plementary video are available from our project website:
+                                                                  the baseline. However, we introduce several advancements
+https://www.fujii.nuee.nagoya-u.ac.jp/Research/EventLF/.
+                                                                  from previous work that enables us to theoretically sup-
+                                                                  port and practically improve light-field reconstruction from
+                                                                  events alone; in particular, we clarify the key role of a black
+1. Introduction                                                   pattern in the aperture coding patterns. We theoretically
+The notion of a light field enables us to extend the represen-    analyze the event generation process with a coded aper-
+tation of visual information from the conventional 2-D spa-       ture and derive two key properties: (i) approximate equiva-
+tial domain to the 4-D spatial-angular domain. The appli-         lence between event-based and intensity-based coded aper-
+cation of light fields includes depth estimation [16, 22, 43],    ture imaging in the presence of a black pattern and (ii) ap-
+object/material recognition [27, 54], view synthesis [5, 21,      proximate permutation invariance of coding patterns. More-
+30], and 3-D display [18, 23, 56]. In this paper, we consider     over, on the basis of the theoretical analysis, we introduce
+how to acquire a light field efficiently.                         two improvements to the baseline algorithm: (i) a black-
+    A light field usually consists of a large number of im-       first coding sequence (BF for short) and (ii) reference-aware
+ages arranged in a 2-D grid with small viewpoint inter-           event generation (RA for short). We finally implemented
+vals (e.g., 8 → 8 views). A brute-force approach for light-       our method on real imaging hardware to demonstrate its
+field imaging is to directly sample all pixels at all view-       effectiveness in capturing real 3-D scenes. Although our
+points [10, 45, 57]. As a more efficient alternative, coded-      method was designed under the static-scene assumption, it
+aperture imaging [12, 20, 25, 33, 41] has also been devel-        was applicable to slowly moving scenes thanks to the mod-
+oped, in which light-attenuating coding patterns are placed       erate measurement time (↑ 30 ms).
+in the aperture plane of a camera to optically encode the in-        To the best of our knowledge, we are the first to demon-
+coming light rays before they reach the image sensor. With        strate that a 4-D light field with pixel-level accuracy can be
+this method, only a small number (e.g., 2–4) of images            reconstructed from events alone. Our study will contribute
+taken from a stationary camera with different coding pat-         to both the progress of light-field imaging and the explo-
+
+
+
+                                                             19726
+ration of the full potential of event-based sensing.              2.2. Light-field Imaging
+                                                                  We first mention light-field imaging methods using conven-
+2. Related Works                                                  tional intensity-based cameras. The most straight-forward
+                                                                  approach to light-field imaging is to use an array of cam-
+2.1. Event-based Sensing                                          eras [10, 45, 57], which involves costly and bulky hardware.
+                                                                  Alternatively, placing a lens array before the image sensor
+Event cameras [4, 11] feature bio-inspired sensors that can       enables light-field imaging in a single shot [1, 2, 34, 35].
+detect intensity changes as events asynchronously at each         However, this method has a trade-off between the number of
+pixel. Compared with conventional intensity-based sensors,        views and the spatial resolution of each view. Another ap-
+event sensors excel in temporal resolution, dynamic range,        proach is to place light-attenuating coding patterns before
+and data efficiency. Therefore, event cameras find many ap-       the image sensor [12, 20, 25, 28, 31–33, 47, 48, 50–52].
+plications such as optical-flow estimation, camera-pose es-       Specifically, with the coded-aperture method, only two to
+timation, slow-motion video synthesis, and 3-D reconstruc-        four images, captured from a stationary camera with differ-
+tion. Some of the methods for these applications require hy-      ent coding patterns, are sufficient to reconstruct a light field
+brid cameras that can take both intensity images and events,      with 8 → 8 views at the full-sensor resolution [12, 20, 48].
+but others work with events only.                                    Some early attempts to use event cameras for light-field
+   From the perspective of hardware implementation,               imaging have been reported. Habuchi et al. [14] combined
+event-only methods are more advantageous than those re-           a coded aperture with an event camera. However, their
+lying on hybrid (intensity + event) inputs. Off-the-shelf         method depended on intensity images as well as events.
+hybrid sensors are very limited in performance; e.g., an          In contrast, we eliminate the need for intensity images,
+iniVation DAVIS346 has only 346→260 pixels and a 12M              which relaxes the restriction for hardware implementation.
+events/sec throughput. A far better performance is avail-         In other works [13, 38], event cameras were combined with
+able with an event-only sensor; e.g., a Prophesee EVK4            a lens array, kaleidoscope, and galvanometer-based optics
+features 1280→720 pixels and 1.066G events/sec [9]. A             for light-field imaging, but their focus was on the optical
+hybrid camera can also be implemented by combining an             designs rather than the methods/theories for light-field re-
+event-only sensor and an intensity-based sensor via a beam        construction. In contrast, we, for the first time, demonstrate
+splitter [29, 49], but it inevitably involves additional hard-    that a 4-D light field with pixel-level accuracy can be recon-
+ware/software complexities.                                       structed from events alone.
+    Intensity reconstruction from events is a challenging is-        Compared with intensity-based coded aperture imag-
+sue. Event-to-video (E2VID) methods [6, 8, 37, 39, 42, 44,        ing, our method has the potential to reduce the measure-
+55] were developed to reconstruct a video (a sequence of          ment time for light fields even in low light conditions.
+intensity images) from events. However, either the target         A short measurement time is favorable for capturing dy-
+scene or the camera needs to move so as to trigger the events     namic scenes, because events induced by a coded aperture
+necessary for the reconstruction. Moreover, in general            can dominate those generated by scene motion. Mean-
+cases, reconstruction of pixel-level intensities from events      while, low-light conditions are challenging for high-speed
+alone is an ill-posed problem; therefore, E2VID methods           intensity-based imaging, especially when using a coded
+were usually designed to pursue perceptual quality and tem-       aperture that further attenuates the incoming light.
+poral consistency rather than pixel-level accuracy. Event-
+NeRF [40] reconstructed a 3-D object from events alone.
+However, the target object needs to be mounted on a rotat-        2.3. Computational Imaging and Deep Optics
+ing stage in front of a constant color background. Bao et         Various computational imaging methods have been devel-
+al. [3] reconstructed an intensity image from the events that     oped on the basis of deep optics [19, 20, 24, 31, 36,
+were captured with a gradually opening aperture, while Han        53, 58, 59], with which the camera-side optical elements
+et al. [15] used events recorded during the turn-on process       and computational algorithms are jointly optimized in a
+of a light for intensity reconstruction. Although both Bao et     deep-learning-based framework. Our method follows the
+al.’s and Han et al.’s methods worked for static scenes with      concept of deep optics to fully exploit the potential of a
+a stationary camera, they were limited to 2-D images.             coded aperture and an event camera with the power of
+   In contrast to the previous methods, our method can re-        data-driven knowledge. Moreover, along with some recent
+construct a 4-D light field with pixel-level accuracy from        works [3, 14, 15, 46, 60], our method can be regarded as
+events alone. Moreover, our method works for static scenes        one of the early attempts to apply computational imaging
+with a stationary camera because the events necessary for         methods to event cameras, which opens a new horizon for
+reconstruction are caused actively by the coded aperture.         event-based sensing.
+
+
+
+                                                             19727
+                                               Acquired Events                               ())
+                                                              (')      !!,#
+                                                                           (()              !!,#
+                                                     (%)     !!,#
+                      Aperture                     !!,#
+                   coding patterns                                                                                              "
+                                                                                                                                               #*,+,!,#
+
+                                                                                                               #
+              (", $)
+                             (&, ')
+                                                                                                        RecNet                      $
+                                                                                                                            %
+                       (!,#,$,%
+
+                                                                                                                   5
+
+               Coded aperture                                                                                      0            Reconstructed
+                                                             (%,')                  (',()              ((,))
+                                                            "*,+                   "*,+               "*,+
+            + event-only camera                                                                                  -5             8×8 light field
+
+
+Figure 1. Overview. Sequence of coding patterns is applied to aperture plane to generate events. Events are accumulated into event images
+and then used to reconstruct light field through learned reconstruction algorithm (RecNet). Coding patterns are optimized with RecNet.
+
+
+3. Proposed Method                                                               tain both intensity images and events simultaneously. In
+                                                                                 their method, N coding patterns (a(1) , . . . , a(N ) ) are ap-
+3.1. Background and Basics                                                       plied in sequence within a single exposure of an intensity
+We define a light field L in the 4-D space (x, y, u, v) to                       image. Consequently, I (1) , . . . , I (N ) cannot be
+                                                                                                                                     !Nindividu-
+parameterize all the light rays that come into a camera;                         ally recorded, but their sum, given as I sum = n=1 I (n) ,
+(u, v) and (x, y) denote the positions on the aperture and                       is recorded as a single intensity image. At the same time,
+imaging planes, respectively (see Fig. 1). We assume that                        events are recorded at each pixel asynchronously during
+x, y, u, v take discretized integer values; thus, L is equiv-                    the exposure. They assume that the target scene does
+alent to a set of multiview images in which (x, y) and                           not move; thus, these events are caused exclusively by
+(u, v), respectively, correspond to the pixel and viewpoint.                     the change of coding patterns. An event is described as
+We assume L has W → H pixels and 8 → 8 viewpoints;                               ex,y,t ↓ {+1, ↔1}, where t is the time stamp, and the
+L ↓ RW →H→8→8 . Each element of L is described using                             positive/negative signs correspond to the increase/decrease
+subscripts, i.e., Lx,y,u,v . We also assume that Lx,y,u,v has a                  in the intensity at pixel (x, y). During the change from
+monochrome intensity in the range of [0, 1].                                     a(n↑1) to a(n) , more than one event with some delay can
+   Our method aims to acquire a 4-D light field L from a                         be recorded at each pixel; the number of events at (x, y) is
+stationary event-only camera as shown in Fig. 1. Before                          roughly proportional to the logarithmic difference between
+                                                                                   (n↑1)      (n)
+describing our method, we summarize the previous methods                         Ix,y and Ix,y . Therefore, all the relevant events are accu-
+for coded aperture imaging using a conventional intensity-                       mulated to an event image, E (n↑1,n) ↓ Z W →H , as
+based camera and a hybrid event camera.                                                                         !
+                                                                                                    (n↑1,n)
+   Intensity-based coded aperture imaging [12, 20, 25,                                             Ex,y     =          t ↓T (n→1,n) ex,y,t ,              (2)
+33, 41]. A sequence of coding patterns, a(1) , . . . , a(N ) ,
+          (n)
+where au,v ↓ [0, 1] (u, v ↓ {1, . . . , 8}), is placed at the                    where T (n↑1,n) denotes the transient time between a(n↑1)
+aperture plane. Let I (n) be the intensity image formed un-                      and a(n) . In summary, a single intensity image (I sum ) and
+der the n-th coding pattern a(n) , which is described as                         N ↔ 1 event images (E (1,2) , . . . , E (N ↑1,N ) ) are captured
+                                                                                 from the target scene with a single exposure and used for
+                                  !
+                    (n)
+                   Ix,y =
+                                           (n)
+                                      u,v au,v Lx,y,u,v .            (1)         light-field reconstruction.
+                                                                                    Our method. The main limitation of Habuchi et al.’s
+N coded intensity images, I (1) , . . . , I (N ) (I (n) ↓ RW →H ),               method [14] is the dependence on a hybrid (intensity +
+captured under the N coding patterns are used for light field                    event) camera. In contrast, our method is purely event-
+reconstruction. With the power of deep learning, a relatively                    based, aiming to reconstruct the light field L only from
+small N (e.g. N = 4) is sufficient for accurate light-field                      N ↔ 1 event images, E (1,2) , . . . , E (N ↑1,N ) .
+reconstruction [12, 20, 48].
+   Coded aperture + hybrid event camera [14]. To en-
+                                                                                 3.2. Theoretical Analysis
+hance the efficiency of coded-aperture light-field imaging,                      Since we are the first to establish a purely event-based
+Habuchi et al. [14] introduced an event camera that can ob-                      method for coded-aperture light-field imaging, we present
+
+
+
+                                                                           19728
+

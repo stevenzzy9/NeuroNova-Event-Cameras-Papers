@@ -1,0 +1,270 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+          SpikeTrack: A Spike-driven Framework for Efficient Visual Tracking
+
+   Qiuyang Zhang1 , Jiujun Cheng1,† , Qichao Mao1,† , Cong Liu2 , Yu Fang1 , Yuhong Li3 , Mengying Ge4 ,
+                                             Shangce Gao5
+                     1
+                         Tongji University 2 Nova University of Lisbon 3 Stockholm University
+                                     4
+                                       Shanghai University 5 University of Toyama
+
+
+                            Abstract
+
+    Spiking Neural Networks (SNNs) promise energy-
+efficient vision, but applying them to RGB visual tracking
+remains difficult: Existing SNN tracking frameworks either
+do not fully align with spike-driven computation or do not
+fully leverage neurons’ spatiotemporal dynamics, leading
+to a trade-off between efficiency and accuracy. To address
+this, we introduce SpikeTrack, a spike-driven framework for
+energy-efficient RGB object tracking. SpikeTrack employs
+a novel asymmetric design that uses asymmetric timestep
+expansion and unidirectional information flow, harnessing
+spatiotemporal dynamics while cutting computation. To en-
+sure effective unidirectional information transfer between
+branches, we design a memory-retrieval module inspired
+by neural inference mechanisms. This module recurrently
+queries a compact memory initialized by the template to
+                                                                               Figure 1. Energy–accuracy trade-off on LaSOT[5]. SpikeTrack
+retrieve target cues and sharpen target perception over                        achieves lower energy consumption than efficient ANN trackers
+time. Extensive experiments demonstrate that SpikeTrack                        while matching the accuracy of precision-oriented methods.
+achieves the state-of-the-art among SNN-based trackers
+and remains competitive with advanced ANN trackers. No-
+                                                                               vantage over ANNs on neuromorphic chips [24, 25]. SNNs
+tably, it surpasses TransT on LaSOT dataset while consum-
+                                                                               have shown strong results on multiple vision tasks [13, 17,
+ing only 1/26 of its energy. To our knowledge, SpikeTrack
+                                                                               41], and their spatiotemporal dynamics make them natural
+is the first spike-driven framework to make RGB tracking
+                                                                               candidates for tracking continuously moving objects.
+both accurate and energy efficient. The code and models
+are available at this URL.                                                         Current SNN tracking work falls into RGB-based
+                                                                               and event-based methods. Within the RGB-based line,
+                                                                               SiamSNN [18] and Spike-SiamFC++ [32], adopt the
+1. Introduction                                                                Siamese architecture, achieve tracking via network conver-
+                                                                               sion and end-to-end training, respectively. Although these
+Spiking neural networks (SNNs) are a promising energy-                         methods use spiking neurons in form, they decode spike
+efficient computing paradigm that simulates the spatiotem-                     signals into continuous values for computation, prevent-
+poral dynamics and spiking mechanisms of biological neu-                       ing fully spike-driven processing and reducing energy ef-
+rons [20]. Their spike-driven computation has two advan-                       ficiency. Event-based methods [26, 34] adapt the dense
+tages: (i) computation is triggered only when driven by                        interaction framework [2, 37] from ANN, also known as
+events [21], and (ii) matrix multiplications between spike                     the one-stream architecture, as shown in Fig. 2. This ap-
+tensors and weights can be converted into sparse addi-                         proach concatenates the search region and multiple tem-
+tions [7]. This gives SNNs a significant power-saving ad-                      plates along the token length dimension within a single
+† Corresponding authors: Jiujun Cheng (chengjj@tongji.edu.cn), Qichao          timestep, feeding them into the backbone for joint model-
+Mao (mao qichao@tongji.edu.cn).                                                ing via spike self-attention. However, this direct imitation
+
+
+
+                                                                        6802
+underuses the spatiotemporal associative dynamic of SNNs,
+and dense, bidirectional interactions greatly increase com-                                                                ×L
+putational overhead. This raises a research question: Can                    Templates Concatenated                             Learned Search
+                                                                               with Search Region           SNN Backbone        Region Feature
+we design an SNN that adheres to the spike-driven paradigm
+while fully leveraging spatiotemporal modeling capabilities               Unidirectional
+                                                                             Branch
+for efficient RGB tracking?                                                Interaction
+                                                                          Bidirectional
+    To address this problem, we propose SpikeTrack,                          Token          Search Region
+                                                                           Interaction
+a spike-driven SNN for energy-efficient RGB tracking.
+                                                                           Branch Runs
+SpikeTrack adopts an asymmetric Siamese architecture,                     Limited Times
+
+with asymmetric timestep inputs and unidirectional infor-                   Temporal
+                                                                             Spiking
+                                                                                            Time-stacked
+mation transfer, as shown in Fig. 2. Specifically, the tem-                                  Templates
+plate branch expands across multiple timesteps, assign-
+ing a template to each step and jointly modeling template                Figure 2. Structure comparison between one-stream tracking SNN
+representations through neuron’s spatiotemporal dynamics,                (top) and our asymmetric tracking SNN (bottom). L represents the
+while the search branch performs efficient single-timestep               number of blocks in the backbone.
+inference. Information flows only from the template branch
+to the search branch, allowing the computation-heavy tem-
+plate branch to run only during initialization or template               intelligence [10]. By modeling neuronal membrane poten-
+updates, thereby cutting computation. Additionally, to en-               tial dynamics, SNNs possess powerful spatiotemporal en-
+sure effective unidirectional information transfer between               coding capabilities, making them particularly promising for
+branches, we design a memory-retrieval module (MRM) in-                  tracking tasks that require perceiving continuously moving
+spired by neural inference mechanism [27]. This module                   objects.
+recurrently queries a compact memory initialized from the
+template features to retrieve target cues and sharpen target             Visual Tracking Architecture.Visual tracking aims to pre-
+perception over time.                                                    dict a target’s position and scale across video frames given
+    Extensive experiments demonstrate that SpikeTrack                    its initial template. ANN-based trackers follow either two-
+achieves strong energy efficiency and accuracy with a                    stream (Siamese) or one-stream designs. Two-stream meth-
+simple framework, outperforming prior SNN-based track-                   ods extract template and search features separately, then
+ers. For instance, SpikeTrack-S256 outperforms SpikeSi-                  model their relation via cross-correlation or Transformer in-
+amFC++ by 8.5% on the UAV123 dataset. Moreover, as                       teraction. OSTrack [37] adopts a one-stream design, con-
+shown in Fig. 1, SpikeTrack-S256 surpasses the efficiency-               catenating template and search patches in a Vision Trans-
+oriented AsymTrack [39] with 2.5× better energy efficiency,              former to jointly extract and relate features with strong re-
+while SpikeTrack-B256 outperforms the precision-oriented                 sults. However, AsymTrack [39] shows that such bidirec-
+TransT [3] with 7.6× energy savings and 2.2% higher accu-                tional interactions are costly on edge devices, and proposes
+racy.                                                                    an asymmetric Siamese network with unidirectional tem-
+    Our main contributions are summarized as follows:                    plate modulation for competitive lightweight tracking. In-
+• We design an asymmetric SNN that fully utilizes the spa-               spired by this, we design an asymmetric architecture for
+  tiotemporal dynamics of neuron while significantly re-                 RGB-based SNN tracking, using asymmetric timestep in-
+  ducing computational cost.                                             puts and memory-retrieval-based unidirectional transfer to
+• We propose a brain-inspired memory retrieval module                    achieve efficient tracking with minimal overhead.
+  that enables effective unidirectional information transfer.
+• Building on the above designs, we propose SpikeTrack,                  SNN-based Visual Tracking. Current SNN-based track-
+  a spike-driven framework for efficient RGB-based track-                ing research primarily targets event-camera inputs, where
+  ing, with a family of model variants. Experiments across               sparse event data and one-stream architectures yield strong
+  multiple benchmarks demonstrate its effectiveness.                     results [26, 34], but the reliance on dedicated hardware lim-
+                                                                         its practical adoption. RGB-based tracking offers a more
+2. Related Work                                                          deployable alternative; however, existing efforts such as
+                                                                         SiameseSNN [18] and SpikeSiameseFC++ [32] are tied to
+SNNs in Vision Tasks. Recently, SNN-based approaches                     specific ANN frameworks, suffering from poor scalability,
+have achieved performance comparable to ANNs across                      limited performance, and lacking comprehensive evaluation
+various vision tasks, including image classification [35, 36],           or energy analysis. To address these issues, we propose
+object detection [17], semantic segmentation [13], and                   SpikeTrack, a concise and efficient RGB tracking baseline
+video classification [41], as well as higher-level applications          with extensive benchmark evaluation and detailed theoreti-
+such as autonomous driving perception [40] and embodied                  cal energy analysis.
+
+
+
+                                                                  6803
+                                                                                                                                                                                                                                                                                                                             Spiking           Branch Runs
+                                                                                                                                                                                                                                                                                                                           Neuron Layer       Limited Times
+                 t=T
+                                                                                                                                                                                                                                                                                                                     …       Temporal           Membrane
+                                                                                                                                                                                                                                                                                                                              Spiking            Shorcut
+
+
+
+
+                                                                                                                  Transformer Block
+
+
+
+
+                                                                                                                                                                                                                                          Transformer Block
+                                                              DownSample
+
+
+
+                                                                           Spike-Driven
+                           DownSample
+
+
+
+                                        Spike-Driven
+
+
+
+
+                                                                                                                    Spike-Driven
+                                                                                                     DownSample
+
+
+
+
+                                                                                                                                                                                                                                            Spike-Driven
+                                                                                                                                                                  DownSample
+                                                                            CNN Block
+                                         CNN Block
+       …         …                                     …                                   …                                            …
+                                                                                                                                                                                                                                                                                                                     Spike-Driven           Spike-Driven
+                                                                                                                                                                                                                                                                                                                      CNN Block           Transformer Block
+
+
+
+                                                                                                                                                                                                                                                                                                                                               Channel
+                                                                                                                                                                                                                                                                                                                          Channel               MLP
+                                                                                                                                                                                                                                                                                                                           Conv
+                 t=1
+  Templates            Template Branch
+
+                                                                                                Memory Bank                                                                                                                                                                                                                                   Efficient
+                                                                                                                                                                                                                                                                                                                                            Spike-Driven
+                         Weight-sharing                                                                                                                                                                                                                                                                                                     Self-Attention
+                          Backbone
+                                                           Memory Retrieval                    Memory Retrieval                             Memory Retrieval                                                                                                                                                                Spike
+                                                              Module                              Module                                       Module                                                                                                                                                                     Separable
+                                                                                                                                                                                                                                                                                                                            Conv
+                       Search Branch                                                                                                                                                                                                                                                                                                            Spike
+                                                                                                                                                                                                                                                                                                                                              Separable
+                                                                                                                                                                                                                                                                                                                                                Conv
+
+
+
+
+                                                                                                                                                                                                                                             Transformer Block
+                                                                                                                    Transformer Block
+
+
+
+
+                                                                                                                                                     DownSample
+                                                            DownSample
+
+
+
+
+                                                                                                DownSample
+                           DownSample
+
+
+
+
+                                                                                                                                                                                                                                               Spike-Driven
+                                                                            Spike-Driven
+                                        Spike-Driven
+
+
+
+
+                                                                                                                      Spike-Driven
+                                                                             CNN Block
+                                         CNN Block
+
+
+
+
+                                                                                                                                                                                                                                                                                                                         Spike-Driven
+                                                                                                                                                                                                                                                                                                                           Tracking
+ Search Region                                                                                                                                                                                                                                                                                                               Head
+
+
+
+                       L1 = 2, Stride = 2, 4               L2 = 2, Stride = 8                  L3 = 6, Stride = 16                          L4 = 2, Stride = 16
+
+
+
+Figure 3. Overview of SpikeTrack. The network consists of three components: a weight-sharing siamese backbone, a memory retrieval
+module for information transfer, and a prediction head. We use asymmetric timestep inputs and unidirectional information flow. During
+inference, template branch features are converted and cached as memory. The search branch queries this memory to extract target cues.
+The template branch runs once, per initialization or update.
+
+3. SpikeTrack-based Visual Tracking                                                                                    3.2. Spiking Neuron Model
+                                                                                                                       We adopt the Normalized Integer Leaky Integrate-and-Fire
+In this section, we present the proposed SpiketTrack in de-                                                            (NI-LIF) neuron [13]. It trains with normalized integer acti-
+tail. We begin with Sec. 3.1, briefly describing the over-                                                             vations based on the classical LIF neuron [19], and converts
+all network architecture, followed by Sec. 3.2, which intro-                                                           integer activations into equivalent spikes during inference to
+duces the basic spiking neuron model used. Subsequently,                                                               preserve spike-driven characteristics. In this work, we de-
+Sec. 3.3 describe the network components in detail. Finally,                                                           sign the leaky factor as a trainable variable to allow the net-
+Sec. 3.4 introduces the training and inference pipeline.                                                               work to adaptively model the correlation between timesteps.
+                                                                                                                       The neural dynamics equation for NI-LIF is:
+3.1. Overview                                                                                                                                 U[t] &= \beta _t H[t-1] + Y[t] \\ S[t] &= \text {Clip}\big (\text {round}\big (U[t]\big ),0,D\big )/D\\ H[t] &= U[t] - S[t]\times D\\ \beta _t &= \sigma (\theta _t)
+As shown in Fig. 3, SpikeTrack comprises three compo-
+nents: a shared-weight spiking backbone, a memory re-
+trieval module (MRM) for unidirectional branch interac-                                                                                                                                                                                                                                                                                                   (4)
+tion, and a prediction head. During inference, the template
+branch performs inference once after template initialization                                                           where t is the timestep, U [t] represents the membrane po-
+or template update, caching features from different inter-                                                             tential after charging but before firing. Spatial input Y [t]
+mediate layers in the memory bank as memory. The search                                                                is extracted from the original spike input through a Conv
+branch then uses MRMs to retrieve the targets cues from                                                                or MLP operation, temporal input βH[t − 1] is derived
+memory and progressively refine target perception. Finally,                                                            from the decay of the membrane potential at the previous
+the prediction head consumes the region features to produce                                                            timestep, βt is the leaky factor, σ(·) is the sigmoid function,
+the tracking results.                                                                                                  θt is a learnable variable, S[t] is the output spike, H[t] is
+
+
+
+                                                                                                             6804
+

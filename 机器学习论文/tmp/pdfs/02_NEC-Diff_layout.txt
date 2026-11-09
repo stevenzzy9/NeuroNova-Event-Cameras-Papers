@@ -1,0 +1,862 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+     NEC-Diff: Noise-Robust Event–RAW Complementary Diffusion for Seeing
+                         Motion in Extreme Darkness
+
+     Haoyue Liu1†, Jinghan Xu1†, Luxin Feng1 , Hanyu Zhou2 , Haozhi Zhao1 , Yi Chang1 *, Luxin Yan1
+          1
+            National Key Lab of Multispectral Information Intelligent Processing Technology
+   School of Artificial Intelligence and Automation, Huazhong University of Science and Technology
+                         2
+                           School of Computing, National University of Singapore
+                 {liuhy, xujinghan, fengluxin, yichang}@hust.edu.cn, hy.zhou@nus.edu.sg
+
+
+
+                            Abstract                                                              Insufficient denoising                    Excessive denoising
+
+
+
+High-quality imaging of dynamic scenes in extremely low-                                                                              vs.
+light conditions is highly challenging. Photon scarcity in-
+duces severe noise and texture loss, causing significant image
+degradation. Event cameras, featuring a high dynamic range                   Low-light image               The enhancement results
+(120 dB) and high sensitivity to motion, serve as powerful                         (a) Challenges of LLIE under photon-starved conditions
+complements to conventional cameras by offering crucial                                           From events                      Appearance                 Diffusion process
+                                                                       RAW image
+
+
+
+                                                                                                                                 SNR map
+cues for preserving subtle textures. However, most existing
+                                                                                                                        RAW
+approaches emphasize texture recovery from events, while                                                               denoise
+
+
+
+
+                                                                                                       tra ry
+                                                                                                              s
+                                                                                                          int
+                                                                                                     ns da
+paying little attention to image noise or the intrinsic noise of
+                                                                                                   Co oun
+                                                                                                    B
+
+
+
+
+                                                                                                                                                  Condition
+events themselves, which ultimately hinders accurate pixel re-                                                      Intensity     Complementary
+                                                                                                        Illu Pr    Consistency       fusion
+construction under photon-starved conditions. In this work,                                                 mi ior
+                                                                                                              na
+                                                                                                                tio
+we propose NEC-Diff, a novel diffusion-based event–RAW                                                             n
+                                                                                                                                 SNR map
+                                                                       Events
+
+
+
+
+hybrid imaging framework that extracts reliable information                                                            Events
+                                                                                                                       denoise
+from heavily noisy signals to reconstruct fine scene struc-
+tures. The framework is driven by two key insights: (1) com-                                      From RAW
+                                                                                                                                    Boundary
+
+bining the linear light-response property of RAW images with                                  (b) The main idea of NEC-Diff
+the brightness-change nature of events to establish a physics-
+driven constraint for robust dual-modal denoising; and (2)          Figure 1. Illustration of problem and main idea. (a) LLIE methods
+dynamically estimating the SNR of both modalities based on          suffer from a trade-off between texture preservation and noise
+denoising results to guide adaptive feature fusion, thereby         suppression. (b) Events effectively complement textures but in-
+injecting reliable cues into the diffusion process for high-        troduce additional noise. NEC-Diff exploits the characteristics of
+                                                                    both events and RAW images to achieve robust denoising while
+fidelity visual reconstruction. Furthermore, we construct the
+                                                                    preserving textures, fusing features guided by SNR and injecting
+REAL (Raw and Event Acquired in Low-light) dataset which            them into the diffusion model to achieve high-fidelity results.
+provides 47,800 pixel-aligned low-light RAW images, events,
+and high-quality references under 0.001–0.8 lux illumination.
+Extensive experiments demonstrate the superiority of NEC-
+Diff under extreme darkness. The project is available at:          extending the exposure time can collect more photons to
+https://github.com/jinghan-xu/NEC-Diff.                            improve image quality, it inevitably leads to motion blur
+                                                                   in dynamic scenes. Increasing camera gain amplifies both
+                                                                   signal and noise, further degrading the signal-to-noise ratio
+1. Introduction                                                    (SNR). Consequently, achieving high-quality imaging of dy-
+                                                                   namic scenes under extremely low-light conditions remains
+In extremely dark environments, the limited number of pho-         highly challenging.
+tons reaching the sensor causes conventional cameras to suf-          Existing low-light image enhancement (LLIE) methods
+fer from severe noise and loss of texture details. Although        [1–7] have made notable progress in general low-light scenar-
+    †Equal contribution. *Corresponding author.                    ios, but they still face significant limitations under extreme
+
+
+
+                                                               22281
+darkness and exposure constraints. On one hand, textures            lenge of distinguishing signal from noise in weakly textured
+that have been lost cannot be faithfully recovered; on the          regions; denoised events, in turn, provide high-dynamic-
+other, achieving a balance between noise suppression and            range edge cues, aiding noise suppression in images without
+texture preservation is difficult, often resulting in residual      oversmoothing subtle textures. Furthermore, we design an
+noise or oversmoothed details, as shown in Fig 1 (a).               intensity consistency loss based on the physical relation-
+    To improve noise modeling, several studies utilize RAW          ship between clean RAW images and corresponding events
+images [8–14] as input. Compared with sRGB images, RAW              to better constrain the denoising process. Events exhibit
+data preserves more unprocessed information and avoids the          high dynamic range and strong responses to motion edges
+nonlinear transformations of the image signal processing            and local variations, whereas images provide stable global
+(ISP) pipeline, thereby facilitating more accurate noise mod-       brightness and texture information. To fully exploit their
+eling and improved enhancement quality. However, RAW                complementary advantages, we design the SRIE to robustly
+imaging still follows the global exposure paradigm and thus         extract reliable information from both modalities by dynami-
+cannot fundamentally solve the information loss caused by           cally selecting features from the modality with higher SNR.
+short exposure in dynamic scenes, limiting its performance.         The CAD further leverages cross-modal attention to fuse
+    Event cameras [15, 16], which asynchronously respond to         these reliable features and injects them as conditional in-
+illumination changes, feature a high dynamic range (120 dB)         puts into a diffusion model, enabling robust and high-quality
+and microsecond-level temporal resolution. They are highly          reconstruction in extremely low-light conditions.
+sensitive to motion edges and can effectively complement                Since existing datasets [17, 23–26, 30] provide only
+texture information missing in conventional frames under            sRGB data, and RealRE [27] offers event–RAW pairs but
+fast motion. Consequently, many works [17–21] fuse sRGB             lacks low-light cases, we build a coaxial imaging system and
+images and events to improve low-light imaging. Some                construct the Raw and Event Acquired in Low-light (REAL)
+methods further mitigate image noise via motion consis-             dataset. REAL contains pixel-aligned triplets of low-light
+tency [22] and SNR estimation [23, 24], or suppress both            RAW images, low-light events, and high-quality sRGB GTs,
+event and image noise through filtering [25, 26]. However,          with illumination levels ranging from 0.01 lux to 0.8 lux.
+such filtering or single-network solutions struggle to achieve      Overall, our main contributions are summarized as follows:
+precise denoising while preserving weak signals, thereby             • We provide a novel solution to the noise–texture trade-off
+limiting imaging quality under extreme darkness. EvRAW                 inherent in photon-starved imaging, leveraging the texture
+[27] introduces an event–RAW hybrid approach focusing                  cues from events and the illumination-consistency rela-
+on detail and color recovery, yet it pays limited attention            tionship between RAW images and events to effectively
+to sensor noise. The severe noise present in both event and            disentangle sensor noise and preserve fragile signals in
+frame modalities under low-light conditions raises a funda-            extremely dark environments.
+mental question: how can we effectively remove noise from               • By examining the complementary signal behaviors of
+dual-modal degraded signals to restore fine scene details?                events and RAW images—events deliver high-fidelity
+    To address these issues, we propose a diffusion-based                 edge responses and RAW images preserve holistic bright-
+event–RAW hybrid imaging framework, NEC-Diff. Our de-                     ness, we introduce NEC-Diff, which adaptively selects
+sign focuses on two key aspects: (1) modeling and suppress-               reliable cross-modal features based on their SNR and in-
+ing noise in severely degraded signals, and (2) efficiently               jects them into a diffusion model, achieving high-quality
+fusing dual-modal features for high-fidelity imaging. Unlike              imaging under extreme darkness.
+previous methods [17–26], we adopt RAW images as input,
+                                                                        • We construct the REAL dataset comprising pixel-aligned
+which provide richer scene information and more tractable
+                                                                          RAW, event, and sRGB triplets, serving as a valuable
+noise distributions. The NEC-Diff framework consists of
+                                                                          benchmark for advancing low-light imaging research. Ex-
+three modules: Event–RAW Collaborative Noise Suppres-
+                                                                          tensive experiments demonstrate that NEC-Diff achieves
+sion (ECNS), SNR-Guided Reliable Information Extraction
+                                                                          state-of-the-art performance across multiple datasets.
+(SRIE), and Cross-Modal Attentive Diffusion (CAD).
+    The main idea of NEC-Diff is illustrated in Fig. 1 (b).         2. Related Work
+First, to tackle the severe noise in both modalities, the key in-
+sight of the ECNS is to exploit the complementary strengths         Frame-based Low-light Imaging. Frame-based low-light
+of events and frames to mutually assist in denoising. Since         imaging techniques, such as low-light image enhancement
+RAW images are linearly correlated with illumination, while         (LLIE), have been extensively explored. According to the
+event data are dominated by photon shot noise under low-            input type, LLIE methods can be broadly categorized into
+light conditions [28, 29], the illumination prior provided by       two types: sRGB-based [1–7] and RAW-based [8–14] ap-
+RAW images can effectively guide event denoising. Mean-             proaches. Compared with RAW images, sRGB images un-
+while, the bottleneck in image denoising arises from the chal-      dergo a series of visual corrections in the ISP pipeline, mak-
+
+
+
+                                                                22282
+         Raw Image         Event-RAW Collaborative Noise Suppression                                             SNR-guided Reliable Information Extraction                                                         Cross-modal Attentive Diffusion
+                                                                                                                                                                                    ...
+                                                           RAW-Denoise                                                                                  Ei
+                                                                                                           Frame encoder
+                                                                                                                                                                             Frame features
+                    500×                                                                                                                     Frame SNR                                              Frame weights               Qf
+                                                                                                                 Distribution of Patch Mean SNR
+                                                        Texture preservation cue                                                                             Frame SNR map
+
+
+
+
+                                                                                                                                                        }
+                                                                                                           0.9
+
+                           1 1 1                1 1 1
+                                                                                                           0.6
+                                                                                                                                                                                                                                Kf
+
+
+
+
+                                                                                                     SNR
+                           1 2 1                1 1 1
+                           1 1 1                1 1 1
+                                                                                                           0.3
+                                                                                                                                                                                                                                Vf                      Ffused
+                                                                                                            0
+                                   Gaussian blur                                                                 0     100       200        300   400
+
+
+
+
+                                                                                                                                                                                          Softmax
+                                                                                                                              Patch index
+
+
+                             Processed RAW image              Event edges            L cons
+                                                                                                                                             Event SNR                                              Event weights
+                                                                                                                 Distribution of Patch Mean SNR              Event SNR map
+                                                                                                                                                                                                                                Ke
+
+                                                                                                                                                        }
+                                                                                                       0.9
+
+
+
+
+                                                                                                                                                                                                                                                       Condition
+           Events                                                                                      0.6
+                                                                                                                                                                                                                                Ve
+
+
+
+
+                                                                                                     SNR
+                                                                                                       0.3
+
+                             Illumination Prior         Boundary Constraints
+                                                                                                           0
+                                                                                                                 0     100      200
+                                                                                                                             Patch index
+                                                                                                                                            300   400                                                                           Qe
+                                                                                                                                                                               Event features
+                                                                                                            Event encoder
+                                   EV-Denoise                                                                                                           Ee                            ...
+                                                                                                                                                                                                                                               DDIM
+
+
+                              Ffused                                        =(       -1 |      ,                         )                                                                Ffused
+                                                                                                                                                                                                                                  Forward diffusion
+                                                                                                                                                                                                                                  Reverse denoising
+  DDIM
+
+
+
+
+                                                                  …                                                          …
+                                                                                                                                                                                                                                  Element-wise product
+                                                                                                                                                                                                                                  Channel concatenate
+                                                                                 (    |       -1 )                                                                                                                          L cons Intensity consistency loss
+                     x0                            x1                                                                                                        x T-1                                            xT
+
+Figure 2. The architecture of NEC-Diff includes an Event-RAW Collaborative Noise Suppression (ECNS), a SNR-Guided Reliable
+Information Extraction (SRIE), and a Cross-Modal Attentive Diffusion (CAD). The ECNS jointly exploits illumination priors from RAW
+images and texture cues from events for cross-modal denoising. The SRIE adaptively selects high-SNR features from both modalities. The
+CAD integrates reliable features via cross-modal attention into a diffusion model for high-quality reconstruction.
+
+
+ing them more consistent with human visual perception.                                                                                            conditions. Several methods [17, 19, 20] directly fuse fea-
+However, under extremely low-light conditions, the SNR of                                                                                         tures from events and frames; however, these approaches
+images drops sharply, and the ISP pipeline instead becomes                                                                                        often overlook the impact of sensor noise on low-light im-
+a burden—both the original signals and noise are distorted                                                                                        age quality, leading to unstable fusion results in ultra-dark
+by nonlinear transformations, making it more difficult to sep-                                                                                    scenes. EvLowLight [22] reduces the interference of image
+arate signal from noise during enhancement. Hence, RAW                                                                                            noise from a motion consistency perspective, while EvLight
+images serve as a more suitable input for extreme low-light                                                                                       [23] utilizes events to supplement regions with low signal-
+enhancement. Single-stage methods [10, 31, 32] directly                                                                                           to-noise ratio in images, yet neither addresses event noise.
+learn a mapping from noisy RAW data to clean sRGB im-                                                                                             ELEDNet [25] and RETINEV [26] further employ low-pass
+ages, while multi-stage methods [12, 13, 33, 34] decouple                                                                                         filtering and CNNs to process event noise. However, simple
+this mapping into multiple nonlinear transformation pro-                                                                                          low-pass filtering or standalone event-denoising networks
+cesses, further improving the final imaging quality.                                                                                              struggle to simultaneously preserve weak signals and achieve
+    Although existing RAW-based methods have achieved                                                                                             accurate noise suppression, thereby limiting their generaliza-
+promising results, the short exposure required for imaging                                                                                        tion and robustness in extremely low-light environments.
+dynamic scenes further reduces the number of photons cap-                                                                                             This work integrates the illumination priors of RAW im-
+tured by the sensor, making it difficult to recover reasonable                                                                                    ages with the texture cues of events for collaborative denois-
+results when the signal is severely lacking.                                                                                                      ing, where SNR-guided fusion and diffusion-based recon-
+Event-based Low-light Imaging. Benefiting from the high                                                                                           struction enable robust imaging under extreme darkness.
+dynamic range and temporal resolution of event cameras,
+directly reconstructing images from events has become an                                                                                          3. Event–RAW Complementary Diffusion
+efficient approach [35–38]. DVS-Dark [37] attempts to im-
+prove nighttime performance through domain adaptation,                                                                                            3.1. Framework Overview
+transferring knowledge learned from daytime data. NER-                                                                                            The core challenge of imaging in photon-starved environ-
+Net [39, 40] explicitly models the non-ideal event responses                                                                                      ments lies in robustly suppressing noise while preserving
+in darkness—such as trailing effects and noise—and adopts                                                                                         the weak textures of the scene. We propose the Event–RAW
+a low threshold setting to further enhance low-light recon-                                                                                       Complementary Diffusion framework (Fig. 2), integrating
+struction. Nevertheless, since events only record changes in                                                                                      noise suppression, complementary fusion, and diffusion-
+scene brightness, they cannot accurately recover intensity                                                                                        based enhancement. We first analyze noise properties under
+information in smooth regions where no events are triggered.                                                                                      photon-starved conditions, using RAW illumination priors to
+    Recently, event–frame hybrid methods demonstrates                                                                                             guide event denoising. Denoised high-dynamic event edges
+strong potential for high-precision imaging under low-light                                                                                       then facilitate texture–noise separation in frames, mitigating
+
+
+
+                                                                                                                        22283
+                                                                                       can capture brightness changes with high temporal precision
+                                                                                       and are highly sensitive to motion edges and structural de-
+                                                                                       tails, providing reliable edge priors for image denoising. We
+                                                                                       leverage the high-dynamic edge information from denoised
+       A B C D E F G H I                        A B C D E F G H I
+                                                                                       events to guide the image denoising process, suppressing
+                                                                                       noise while maintaining texture and structural integrity, thus
+(a) Denoised raw image of the gray card         (b) Event frame of the gray card       achieving a more balanced denoising performance under ex-
+                                                                                       tremely low-light conditions. We devise an event-assisted
+                                                G            H                 I
+                                       F                                               module building upon the architecture of [42],
+Event count
+
+
+
+
+                               E
+ ev/pix/s
+
+
+
+
+                           D                                                           Intensity Consistency. To ensure the effectiveness of both
+                       C
+                   B                                                                   event and frame denoising modules, we further introduce an
+               A                                                                       intensity consistency constraint between RAW images and
+                                                                                       events, designed through physical modeling of the signal
+                                       Grayscale values
+              (c) Correlation between regional grayscale values and event noise
+                                                                                       formation process. We first model their respective noise
+                                                                                       generation processes. The RAW image captured by the
+Figure 3. Correlation between event noise density and illumination                     frame camera can be expressed as [11]:
+under low-light conditions. (a) Denoised RAW image indicating                                         R = KI + KNp + Nread + Nd ,                  (1)
+illumination intensity across different regions. (b) Event noise
+density under varying illumination levels. (c) Statistical analysis of                 where, R denotes the pixel value of the RAW image, K is the
+event noise density across regions of the gray card.                                   overall gain, and I represents the number of photoelectrons
+                                                                                       proportional to the illumination. Np , Nread , and Nd denote
+                                                                                       the photon shot noise, readout noise, and quantization noise,
+over-smoothing. We further use dual-modality SNR informa-                              respectively. Based on this model, we denote the noise-free
+tion to guide robust cross-modal fusion. Finally, a diffusion                          signal component of the RAW image by R̃ = KI.
+model reconstructs high-quality outputs, providing strong                                  Under extremely low-light conditions, the observed raw
+robustness and detail preservation in extreme darkness.                                discrete event stream E(t) is modeled as [43]:
+3.2. Event-RAW Collaborative Noise Suppression                                                                  1        I(t) + bpr
+                                                                                                      E(t) = log                       ,           (2)
+                                                                                                                C     I(t − ∆t) + bpr
+Illumination-guided Event Denoising. Under low-light
+conditions, shot noise becomes the dominant source of back-                            where bpr is the photoreceptor bias term, and C is the event
+ground activity (BA) in event cameras, with a density more                             contrast threshold. However, the ideal condition for an event
+than 50 times higher than other types of noise [28, 29]. Such                          camera to generate an event at pixel (x, y) is given by [44]:
+noise events approximately follow a Poisson distribution                                         log I(x, y, t) − log I(x, y, t − ∆t) = pC,        (3)
+and are closely correlated with illumination, as illustrated in                        where p ∈ {−1, 1} is the event polarity. For brevity, the
+Fig. 3. Under a 0.5 lux lighting condition, we simultaneously                          spatial coordinates (x, y) are omitted hereafter. From this,
+captured the same grayscale chart using both a frame camera                            the ideal accumulated event stream Ẽ(t) is derived as:
+and an event camera. It can be observed that the density of
+                                                                                                     1       KI(t)     1       R̃(t)
+event noise increases with illumination intensity, showing                                 Ẽ(t) =     log            = log            .          (4)
+a positive correlation between the two. Meanwhile, RAW                                               C     KI(t − ∆t)  C    R̃(t − ∆t)
+images without ISP processing exhibit a linear response                                    Building on the physical models above, we jointly op-
+with ambient illumination. This observation inspires us to                             timize the denoising modules by enforcing strict intensity
+leverage the illumination prior provided by RAW images to                              consistency between their outputs. Specifically, let R̂(t) and
+guide the event denoising process. To this end, we design                              Ê(t) denote the denoised RAW image and refined event
+an event denoising network similar to EDformer [41], which                             stream, respectively. Ideally, these predictions should satisfy
+takes the RAW image and raw events as inputs and outputs                               the logarithmic relationship derived in Eq. 4. To leverage this
+denoised events. Considering that low-light RAW images                                 intrinsic physical correspondence as a complementary con-
+inherently contain noise, we employ a simple and efficient                             straint, we introduce an intensity consistency loss computed
+Gaussian blur to suppress it. We avoid using more sophisti-                            directly from the network outputs:
+cated denoising methods since the event denoising process
+                                                                                                                            R̂(t) + ϵ
+only requires a coarse indication of regional illumination                                     Lcons = Ê(t) · C − log                      ,     (5)
+rather than precise denoising results.                                                                                   R̂(t − ∆t) + ϵ 1
+Event-assisted Image Denoising. Image denoising under                                  where C represents a learnable scaling factor adapting the
+low-light conditions is challenging because it requires pre-                           physical contrast threshold, and ϵ is a small constant to
+serving weak signals while removing noise. Event cameras                               prevent numerical instability. This loss enforces that the
+
+
+
+                                                                                   22284
+                                 Patch 4
+                                                                                 SNR maps for both image and event modalities. Let Min
+                                                                                 denote the original input and Mden the denoised result; then
+                           Patch 2
+                                                                                 the SNR map for each modality is defined as:
+            Patch 1
+                                                                                                                       Min2
+                                                                                             MSNR = 10 · log                      ,        (6)
+                      Patch 3                                                                                  (Min − Mden )2 + ϵ
+                 (a) Raw image                 (b) SNR map of raw image             The resulting SNR maps provide an intuitive measure of
+                                                                                 signal reliability at each spatial location. We then process
+                                                                                 the image and event SNR maps jointly using a lightweight
+                                                                                 network, and apply a channel-wise softmax to generate the
+                                                                                 final spatial weight maps Wimg and Wevt . The normalized
+                                                                                 weight maps are then applied to the corresponding modality
+                                                                                 features via element-wise multiplication:
+                      (c) Events                 (d) SNR map of events                  Fimg-w = Fimg ⊙ Wimg , Fevt-w = Fevt ⊙ Wevt . (7)
+                                                                                      This mechanism allows the network to focus on the high-
+ Mean SNR
+
+
+
+
+                                                                                  confidence regions of each modality while adaptively sup-
+                                                                                  pressing noise-dominated areas, thereby improving robust-
+                                                                                  ness and detail fidelity in low-light scenarios. Building on
+                                                                                  this, we further construct a cross-modal fusion mechanism
+                                                                                  in the next section to fully exploit the complementary infor-
+                      Patch 1      Patch 2        Patch 3          Patch 4
+                       (e) SNR Comparison Across Different Regions                mation from both event and image modalities.
+
+Figure 4. SNR Comparison between RAW and Event Modalities.                        3.4. Cross-Modal Attentive Diffusion
+(a) and (c) show the visualizations of the RAW image and events,
+                                                                                 In Sec. 3.3, we extract reliable features from both image and
+while (b) and (d) present their SNR maps. (e) compares the SNR
+of the image and events across different regions. It can be observed
+                                                                                 event modalities using the SNR-guided mechanism. Event
+that in dark regions with rich textures, the event SNR is higher,                features respond strongly to dynamic edges and local detail
+whereas in smooth areas, the event SNR approaches zero.                          variations, while image features provide more stable global
+                                                                                 brightness and texture information. To fully leverage the
+                                                                                 complementary strengths of these two modalities, we design
+brightness change between consecutive denoised frames                            a Cross-modal attentive diffusion module to achieve adaptive
+matches the event amplitudes, ensuring physical consistency                      feature fusion and reconstruction.
+and structural alignment across the two modalities.                                 Specifically, the weighted image features Fimg-w and
+                                                                                 weighted event features Fevt-w obtained in the previous stage
+3.3. SNR-Guided Reliable Information Extraction                                  are fed into a bidirectional cross-modal attention module for
+Under extremely low-light conditions, the image and event                        feature interaction:
+modalities exhibit notable differences in signal reliability                                      
+                                                                                                    Q K⊤
+                                                                                                                              
+                                                                                                                                 Q K⊤
+                                                                                                                                      
+across spatial regions. As illustrated in Fig. 4, the SNR of                      AE = Softmax I√dE VE , AI = Softmax E√d I VI , (8)
+the image is mainly affected by illumination, with brighter
+regions exhibiting higher signal quality. In contrast, events                    where Q, K, and V denote queries, keys, and values, and
+are more reliable around edge and texture regions but tend                       d is the feature dimension. Through this bidirectional inter-
+to be absent in smooth areas. Compared with popular hybrid                       action, the event modality supplements image features with
+LLIE methods such as EvLight [23], which solely relies on                        details and dynamic responses at motion edges, while the
+image SNR as a weighting basis to supplement information                         image modality provides stable absolute brightness distribu-
+in low-SNR image regions with events, we simultaneously                          tions to guide event features in flat regions. This ensures a
+consider the SNR of both modalities during information                           balanced representation that preserves both global brightness
+extraction, effectively mitigating information loss. For in-                     consistency and local detail fidelity.
+stance, in dark smooth-textured regions where events are                             The interacted features are then concatenated along the
+nearly absent, greater emphasis should be placed on the                          channel dimension to obtain a unified multi-modal repre-
+weak signals provided by the image.                                              sentation Ffused , which preserves structural information and
+    To implement this, we propose a SNR-guided reliable                          illumination priors while forming a joint feature suitable for
+information extraction module, which models the signal reli-                     the diffusion model.
+ability of both image and event modalities. Specifically, we                         During the diffusion-based reconstruction stage, the fused
+use the denoised outputs from the previous stage to compute                      multi-modal feature Ffused serves as a conditional input to
+
+
+
+                                                                             22285
+                                                                             RAW vs. GT Brightness Distribution                    Event frame   RAW Image   GT (overlap)
+                                                                                                                         500×
+
+
+
+
+                                                     GT Mean Intensity
+                                                                                           1000×
+
+                         Event camera
+
+          ND filter                                                                                                                                  500×
+                                                                                                                                                      500×
+
+
+
+
+                                                                                                                                                                            Illumination
+                                  Frame camera
+
+
+
+
+                                                                                                                                                                             Intensity
+                                                                                                                                                     500×
+                                                                                                                                                      500×
+                                                                         Raw Mean Intensity (under low-light conditions)
+        Beam splitter                                                    Distributions of Illumination and Platform Motion Speed
+
+
+                                                                                                                                                     500×
+                                                                                                                                                      500×
+
+
+
+
+                                                                                                                                                     500×
+                                                                                                                                                      500×
+
+
+               (a) Hardware Setup                                                  (b) Dataset Distribution                           (c) Visual examples of REAL
+
+Figure 5. Details of the REAL dataset. (a) Hardware setup of the coaxial imaging system. (b) Distributions of image-pair brightness and
+platform motion speed. (c) Visualization of representative data pairs.
+
+
+guide the noise prediction network ϵθ , which predicts the                                     1 × 10−4 for 50 epochs. Input images are cropped to 256 ×
+noise at each timestep based on the current state xt :                                         256 patches before being fed into the network. The forward
+                   ϵ̂θ = ϵθ (xt , Ffused , t).          (9)                                    diffusion process is set to 1000 steps. All experiments are
+                                                                                               conducted on a single NVIDIA RTX 4090 GPU.
+    The image is then progressively reconstructed following
+the deterministic DDIM sampling process:
+                                                                                               4. REAL Dataset
+                 xt−1 = DDIM(xt , ϵ̂θ , αt ),             (10)
+By employing this deterministic sampling strategy, the model                                   Capturing aligned visual data under extremely low-light and
+substantially reduces diffusion steps while maintaining sta-                                   dynamic scenes is challenging, especially when pursuing
+ble reconstruction. The fused cross-modal features offer                                       precise spatial correspondence, reliable timing, and phys-
+strong conditioning cues, enabling the diffusion model to                                      ically accurate dark-scene responses. To address this, we
+progressively recover the true image distribution in low-SNR                                   design a coaxial multi-sensor imaging system and emulate
+regions and achieve a balanced improvement in physical con-                                    ultra-low illumination in real outdoor environments through
+sistency, structural integrity, and texture fidelity.                                          controlled optical attenuation, avoiding artifacts typically
+                                                                                               introduced by synthetic degradation, as shown in Fig. 5 (a).
+3.5. Optimization                                                                                  Fig. 5 (b) and (c) show the statistical characteristics and
+                                                                                               visualization results of the dataset, respectively. To charac-
+Loss Function. We adopt a two-stage training strategy. In
+                                                                                               terize the illumination level and enhancement difficulty, we
+the first stage, the image and event noise suppression mod-
+                                                                                               randomly crop spatially corresponding regions from each
+ules are trained independently, without introducing the other
+                                                                                               low-light RAW image and its paired normally exposed ref-
+modality, to reduce the training burden for the subsequent
+                                                                                               erence, and compute their mean intensity values. Analysis
+DDIM stage. The dataset and training configurations fol-
+                                                                                               reveals that reference images are 300 × to 500 × brighter
+low [41, 42] . In the second stage, cross-modal consistency
+                                                                                               than the RAW inputs on average, highlighting the severe
+constraints are incorporated for joint training. Specifically,
+                                                                                               photon-starvation regime and the extremely large gain and
+three loss terms are employed: the pixel reconstruction loss
+                                                                                               noise-suppression demand imposed on enhancement models.
+Lrec , the gradient-preserving loss Lgrad , and the physical con-
+                                                                                               Illumination statistics further indicate that approximately
+sistency loss Lcons defined previously. The overall loss is
+                                                                                               70% of the scenes fall below 0.3 lux, confirming the extreme
+formulated as:
+                                                                                               darkness covered by our dataset. Data are collected using
+            Ltotal = Lrec + λgrad Lgrad + λcons Lcons ,      (11)                              a vehicle-mounted platform across diverse motion condi-
+where λgrad = 10 and λcons = 0.5 are hyperparameters                                           tions. To balance motion sharpness with photon collection,
+balancing the contributions of each term. The consistency                                      we adopt a speed-aware exposure strategy: 1 ms for high-
+loss Lcons ensures that the ECNS module produces reliable                                      speed motion, 2 ms for moderate motion, and up to 5 ms in
+pre-denoised outputs, while the reconstruction and gradi-                                      slow-motion scenes.
+ent losses guide the network to match ground truth in both                                         In summary, the dataset reflects real-world extreme low-
+intensity and edge structures.                                                                 illumination conditions with controlled camera motion and
+Implementation Details. We optimize all model parameters                                       exposure scheduling to avoid blur. The dataset contains
+using the Adam optimizer with an initial learning rate of                                      severely photon-limited inputs and large exposure gaps to
+
+
+
+                                                                                    22286
+LLRVD-simu
+
+
+
+
+             20×
+
+
+
+
+             20×
+
+             500×
+REAL
+
+
+
+
+             500×
+
+
+
+
+             500×
+                    Input        LightenDiffusion       RID              NER-Net               EvLowLight                NEC-Diff (Ours)                     GT
+
+                      Figure 6. Visual comparison between other SOTA methods and the proposed NEC-Diff across different datasets.
+
+
+the reference. Beyond low-level enhancement, we provide                         Table 1. Quantitative comparison on LLRVD and REAL datasets.
+annotations for downstream high-level tasks, including ob-
+                                                                                                                              LLRVD-simu                   REAL
+ject detection and semantic segmentation. This creates a                         Input        Method
+                                                                                                                      PSNR↑     SSIM↑   LPIPS↓     PSNR↑   SSIM↑   LPIPS↓
+realistic and challenging benchmark for low-light enhance-                                    SDSD [49]               16.52     0.350      0.429   17.11   0.295   0.520
+                                                                                              SCI [1]                 17.71     0.444      0.586   21.26   0.576   0.340
+ment and event-based imaging. Dataset details are provided                       sRGB Only    RetinexFormer [6]       20.92     0.768      0.325   21.38   0.456   0.411
+in the supplementary material.                                                                LightenDiffusion [47]
+                                                                                              LFPVs [48]
+                                                                                                                      21.64
+                                                                                                                      17.86
+                                                                                                                                0.818
+                                                                                                                                0.626
+                                                                                                                                           0.265
+                                                                                                                                           0.406
+                                                                                                                                                   22.19
+                                                                                                                                                   20.09
+                                                                                                                                                           0.714
+                                                                                                                                                           0.637
+                                                                                                                                                                   0.282
+                                                                                                                                                                   0.312
+                                                                                              PAP + HB [51]           27.15     0.821      0.137   22.47   0.723   0.309
+                                                                                              LED [50]                25.78     0.823      0.153   16.48   0.628   0.364
+                                                                                 RAW Only
+                                                                                              BRVE [52]               27.58     0.817      0.137   21.87   0.717   0.334
+                                                                                              RID [42]                26.76     0.825      0.127   22.72   0.729   0.258
+5. Experiments                                                                                E2VID+ [53]             12.53     0.512      0.342   14.78   0.472   0.368
+                                                                                 Event Only
+                                                                                              NER-Net [39]            14.78     0.655      0.236   15.93   0.601   0.320
+
+5.1. Datasets and Experimental Settings                                          Event-sRGB
+                                                                                              EvLowLight [22]
+                                                                                              EvLight [23]
+                                                                                                                      18.85
+                                                                                                                      17.06
+                                                                                                                                0.756
+                                                                                                                                0.677
+                                                                                                                                           0.303
+                                                                                                                                           0.291
+                                                                                                                                                   20.20
+                                                                                                                                                   21.20
+                                                                                                                                                           0.674
+                                                                                                                                                           0.626
+                                                                                                                                                                   0.323
+                                                                                                                                                                   0.277
+                                                                                              ELEDNet [25]            18.65     0.703      0.327   21.58   0.662   0.400
+Datasets. We evaluate all methods on both synthetic and real                     Event-RAW    NEC-Diff (Ours)         27.74     0.828      0.125   24.51   0.742   0.201
+
+datasets. For the synthetic evaluation, we use the RAW video
+dataset LLRVD [45] and generate noisy events using V2E
+[46], named LLRVD-simu. For the real evaluation, since                        5.2. Comparison Experiments
+there is no publicly available event-RAW low-light dataset,                   Comparison on Synthetic Dataset. Fig. 6 (top two rows)
+we conduct experiments on the proposed REAL dataset.                          and Tab. 1 present the qualitative and quantitative compar-
+Comparison Methods. We conduct a comprehensive com-                           isons on the LLRVD-simu dataset. Given the relatively sim-
+parison against four categories of SOTA methods, including                    ple noise distribution in simulated data, RAW-based meth-
+sRGB-based, RAW-based, event-based, and event–frame                           ods yield superior performance on this dataset. In contrast,
+hybrid approaches. The sRGB-based methods include Light-                      sRGB- and event-only approaches suffer from artifacts in
+enDiffusion [47], RetinexFormer [6], SCI [1], LFPVs [48],                     extremely dark or smooth regions. Compared to other SOTA
+and SDSD [49]. The RAW-based methods consist of Noise-                        methods, NEC-Diff delivers balanced luminance and sharp
+Modelling [42], LED [50], PAP + HB [51], and BRVE [52].                       edges for enhanced image quality.
+The event-based methods include E2VID+ [53] and NER-                          Comparison on Real Dataset. Fig. 6 (bottom two rows)
+Net [39]. The hybrid methods comprise EvLight [23],                           and Tab. 1 show the comparison results on the REAL dataset.
+EvLowLight [22], and ELEDNet [25]. For methods that                           This dataset closely reflects authentic, intricate low-light sce-
+take sRGB images as input, RAW images are converted into                      narios. sRGB-based methods exhibit pronounced noise resid-
+sRGB space using the camera’s recorded ISP parameters.                        uals, whereas RAW-based approaches effectively mitigate
+To ensure fairness, all methods are fine-tuned separately on                  image noise but incur luminance imbalances and edge blur-
+both the LLRVD-simu and REAL datasets.                                        ring. Event-only and hybrid methods falter in reconstructing
+
+
+
+                                                                        22287
+                      Table 2. Ablation study of each module on the REAL dataset.                                Min: 23.07 dB Max: 25.17 dB                Min: 22.83 dB Max: 25.73 dB                     Min: 23.12 dB Max: 26.34 dB
+                                                                                                                     Avg: 23.75 dB                           Avg: 24.08 dB                                   Avg: 24.51 dB
+                         ECNS       SRIE        CAD           PSNR ↑       SSIM ↑     LPIPS ↓                   26                                         26                                              26                                      26
+
+                                                                                                                25                                         25                                              25
+                                     ✓           ✓             21.06        0.653      0.278                    24                                         24                                              24
+                                                                                                                                                                                                                                                   25
+
+                           ✓                     ✓             23.24        0.698      0.243                    23                                         23                                              23                                      24
+                                                                                                                                                            1.0                                            1.0
+                           ✓          ✓                        22.53        0.671      0.265                    1.0
+                                                                                                                   0.8
+                                                                                                                     0.6
+                                                                                                                                                              0.8
+                                                                                                                                                                0.6
+                                                                                                                                                                                                              0.8
+                                                                                                                                                                                                                0.6
+                                                                                                                                                  1.0             0.4                     1.0                     0.4                     1.0
+                                                                                                                       0.4                0.6 0.8                                 0.6 0.8                                         0.6 0.8
+                           ✓          ✓           ✓            24.51        0.742      0.201                             0.2      0.2 0.4                           0.2   0.2 0.4                                   0.2   0.2 0.4
+
+
+                                                                                                                         (a) Direct fusion              (b) Image SNR-guided Fusion (c) Dual SNR-guided Fusion
+                                           w/ ER and L cons
+                                          w/o ER and L cons                                                 Figure 8. Effectiveness of SNR-guided fusion. Compared with
+Reconstruction Loss
+
+
+
+
+                                                                                                            (a) direct fusion and (b) image SNR-guided fusion, (c) dual SNR-
+                                                                                                            guided fusion achieves the best performance.
+                                        Fusion feature
+                                                               w/o ER and L cons    w/L cons , w/o ER
+
+
+
+
+                                                                                                                                                                                          NIQE Score↓
+                                                                                                                           500×
+
+                                                               w/o L cons , w/ ER   w/ ER and L cons                 Input image              NER-Net                 EvLowLight
+                                    Epoch
+                            (a) Iteration process                  (b) Qualitative comparison
+Note: ER denotes feeding the other modality as input to the event and RAW denoising networks.
+
+                                                                                                                  Input events                    RID               NEC-Diff (Ours)                     NER-Net EvLowLight RID              Ours
+Figure 7. Effectiveness of ECNS. (a) ECNS effectively enhances                                                                    (a) visual comparisons                                                   (b) Quantitative results
+the quality of reconstructed details. (b) Effects of cooperative
+denoising and consistency loss.                                                                              Figure 9. (a) Visual comparisons and (b) quantitative results in
+                                                                                                             dynamic scenes under extremely low-light nighttime conditions.
+
+plausible colors. In stark contrast, NEC-Diff exhibits marked
+superiority across multiple dimensions of visual quality.                                                    Generalization for Unseen Nighttime Scenes. We eval-
+                                                                                                             uated six real nighttime sequences with moving objects.
+5.3. Ablation Study and Discussion                                                                           Fig. 9 (a) shows our method yields superior texture and
+                                                                                                             color fidelity, confirming strong generalization to unseen
+Effectiveness of Collaborative Noise Suppression. We
+                                                                                                             data. Quantitatively, Fig. 9 (b) reports NIQE scores [54]
+evaluate the effectiveness of the ECNS module. As shown
+                                                                                                             across varying illuminations, where NEC-Diff consistently
+in Fig. 7 (a), the red curve denotes denoising without cross-
+                                                                                                             outperforms all competitors.
+modal input or consistency loss, while the blue curve rep-
+                                                                                                             Limitation and Future Work. While the intensity consis-
+resents the full ECNS. The complete module consistently
+                                                                                                             tency loss effectively enhances denoising for both modalities,
+achieves lower reconstruction loss and yields finer textures
+                                                                                                             learning the event threshold C from data implies that varying
+during training. As illustrated in Fig. 7 (b), single-modal
+                                                                                                             thresholds in practical applications may degrade noise sup-
+denoising leads to blurred textures, and using only cross-
+                                                                                                             pression accuracy and limit generalization. To address this,
+modal input or consistency loss brings limited gains. When
+                                                                                                             future work will explore test-time adaptation [55] to fine-
+both are jointly applied, ECNS effectively suppresses noise
+                                                                                                             tune parameters during inference, enabling robust adaptation
+while preserving fine details, significantly improving image
+                                                                                                             to threshold-induced distribution shifts.
+quality. Tab. 2 further demonstrates the importance of the
+ECNS, as removing it leads to a 3.45 dB drop in PSNR.
+                                                                                                             6. Conclusion
+Effectiveness of SNR-guided fusion We analyze the effec-
+tiveness of different fusion strategies by statistically evaluat-                                            In this work, we introduce NEC-Diff, a diffusion-based hy-
+ing the event SNR, image SNR, and reconstruction quality                                                     brid imaging framework that leverages the complementary
+on the REAL test dataset, as shown in Fig. 8. Compared                                                       strengths of event and RAW images for robust reconstruction
+with direct fusion, the image SNR-guided fusion performs                                                     in extreme darkness. It incorporates a physics-driven denois-
+better when the image quality is relatively high, but degrades                                               ing constraint via illumination correlations between modal-
+in regions where both the image and event SNRs are low.                                                      ities, enabling reliable structure extraction from severely
+This is because the strategy tends to rely more on event                                                     degraded signals. Additionally, SNR-guided adaptive fu-
+features when the image quality deteriorates, thereby dis-                                                   sion dynamically balances contributions, allowing the dif-
+carding the weak yet useful information that may still exist                                                 fusion process to prioritize trustworthy data and preserve
+in the image. In contrast, the dual SNR-guided fusion strat-                                                 fine details. The proposed method significantly outperforms
+egy jointly considers the reliability of both modalities and                                                 state-of-the-art approaches. We will release a large-scale
+achieves consistent improvements in all regions, increasing                                                  paired dataset of low-light events, RAW images, and high-
+the average PSNR by 0.76 dB and 0.43 dB over the direct                                                      quality GTs to the community, facilitating broader research
+and image-guided strategies, respectively.                                                                   in extreme low-light imaging.
+
+
+
+                                                                                                        22288
+Acknowledgments. This work was supported by the Na-                  [14] Hai Jiang, Binhao Guan, Zhen Liu, Xiaohong Liu, Jian Yu,
+tional Natural Science Foundation of China under Grant                    Zheng Liu, Songchen Han, and Shuaicheng Liu. Learning to
+U24B20139, National Key Research and Development                          see in the extremely dark. arXiv preprint arXiv:2506.21132,
+Program of China under Grant 2024YFB3909901, the                          2025. 2
+Hubei Provincial Natural Science Foundation under Grant              [15] Patrick Lichtsteiner, Christoph Posch, and Tobi Delbruck.
+JCZRQT202600099 andJCZRJQ202500097.                                       A 128 ×128 120 db 15 µs latency asynchronous temporal
+                                                                          contrast vision sensor. IEEE J. Solid-State Circuits, 43(2):566–
+                                                                          576, 2008. 2
+References
+                                                                     [16] Guillermo Gallego, Tobi Delbrück, Garrick Orchard, Chiara
+ [1] Long Ma, Tengyu Ma, Risheng Liu, Xin Fan, and Zhongx-                Bartolozzi, Brian Taba, Andrea Censi, Stefan Leutenegger,
+     uan Luo. Toward fast, flexible, and robust low-light image           Andrew J Davison, Jörg Conradt, Kostas Daniilidis, et al.
+     enhancement. In IEEE Conf. Comput. Vis. Pattern Recog.,              Event-based vision: A survey. IEEE Trans. Pattern Anal.
+     pages 5637–5646, 2022. 1, 2, 7                                       Mach. Intell., 44(1):154–180, 2020. 2
+ [2] Wenhui Wu, Jian Weng, Pingping Zhang, Xu Wang, Wenhan           [17] Yu Jiang, Yuehang Wang, Siqi Li, Yongji Zhang, Minghao
+     Yang, and Jianmin Jiang. Uretinex-net: Retinex-based deep            Zhao, and Yue Gao. Event-based low-illumination image
+     unfolding network for low-light image enhancement. In IEEE           enhancement. IEEE Trans. Multimedia, 26:1920–1931, 2023.
+     Conf. Comput. Vis. Pattern Recog., pages 5901–5910, 2022.            2, 3
+ [3] Xiaogang Xu, Ruixing Wang, Chi-Wing Fu, and Jiaya Jia. Snr-     [18] Lin Liu, Junfeng An, Jianzhuang Liu, Shanxin Yuan, Xiangyu
+     aware low-light image enhancement. In IEEE Conf. Comput.             Chen, Wengang Zhou, Houqiang Li, Yan Feng Wang, and
+     Vis. Pattern Recog., pages 17714–17724, 2022.                        Qi Tian. Low-light video enhancement with synthetic event
+ [4] Yue Cao, Ming Liu, Shuai Liu, Xiaotao Wang, Lei Lei, and             guidance. In AAAI Conf. Artif. Intell., volume 37, pages
+     Wangmeng Zuo. Physics-guided iso-dependent sensor noise              1692–1700, 2023.
+     modeling for extreme low-light photography. In IEEE Conf.       [19] Chunyan She, Fujun Han, Chengyu Fang, Shukai Duan,
+     Comput. Vis. Pattern Recog., pages 5744–5753, 2023.                  and Lidan Wang. Exploring fourier prior and event collab-
+ [5] Zhexin Liang, Chongyi Li, Shangchen Zhou, Ruicheng Feng,             oration for low-light image enhancement. arXiv preprint
+     and Chen Change Loy. Iterative prompt learning for unsuper-          arXiv:2508.00308, 2025. 3
+     vised backlit image enhancement. In Int. Conf. Comput. Vis.,    [20] Xuejian Guo, Zhiqiang Tian, Yuehang Wang, Siqi Li,
+     pages 8094–8103, 2023.                                               Yu Jiang, Shaoyi Du, and Yue Gao. Eretinex: Event camera
+ [6] Yuanhao Cai, Hao Bian, Jing Lin, Haoqian Wang, Radu Tim-             meets retinex theory for low-light image enhancement. arXiv
+     ofte, and Yulun Zhang. Retinexformer: One-stage retinex-             preprint arXiv:2503.02484, 2025. 3
+     based transformer for low-light image enhancement. In Int.      [21] Kanghao Chen, Zixin Zhang, Guoqiang Liang, Lutao Jiang,
+     Conf. Comput. Vis., pages 12504–12513, 2023. 7                       Zeyu Wang, and Ying-Cong Chen. Event-guided consistent
+ [7] Wenjing Wang, Huan Yang, Jianlong Fu, and Jiaying Liu.               video enhancement with modality-adaptive diffusion pipeline.
+     Zero-reference low-light enhancement via physical quadruple          In Adv. Neural Inform. Process. Syst., 2025. 2
+     priors. In IEEE Conf. Comput. Vis. Pattern Recog., pages        [22] Jinxiu Liang, Yixin Yang, Boyu Li, Peiqi Duan, Yong Xu,
+     26057–26066, 2024. 1, 2                                              and Boxin Shi. Coherent event guided low-light video en-
+ [8] Chen Chen, Qifeng Chen, Minh N Do, and Vladlen Koltun.               hancement. In Int. Conf. Comput. Vis., pages 10615–10625,
+     Seeing motion in the dark. In Int. Conf. Comput. Vis., pages         2023. 2, 3, 7
+     3185–3194, 2019. 2                                              [23] Guoqiang Liang, Kanghao Chen, Hangyu Li, Yunfan Lu, and
+ [9] Haiyang Jiang and Yinqiang Zheng. Learning to see moving             Lin Wang. Towards robust event-guided low-light image
+     objects in the dark. In Int. Conf. Comput. Vis., pages 7324–         enhancement: a large-scale real-world event-image dataset
+     7333, 2019.                                                          and novel approach. In IEEE Conf. Comput. Vis. Pattern
+[10] Shuhang Gu, Yawei Li, Luc Van Gool, and Radu Timofte.                Recog., pages 23–33, 2024. 2, 3, 5, 7
+     Self-guided network for fast image denoising. In Int. Conf.     [24] Kanghao Chen, Guoqiang Liang, Yunfan Lu, Hangyu Li, and
+     Comput. Vis., pages 2511–2520, 2019. 3                               Lin Wang. Evlight++: Low-light video enhancement with an
+[11] Kaixuan Wei, Ying Fu, Jiaolong Yang, and Hua Huang. A                event camera: A large-scale real-world dataset, novel method,
+     physics-based noise formation model for extreme low-light            and more. IEEE Trans. Pattern Anal. Mach. Intell., 2025. 2
+     raw denoising. In IEEE Conf. Comput. Vis. Pattern Recog.,       [25] Taewoo Kim, Jaeseok Jeong, Hoonhee Cho, Yuhwan Jeong,
+     pages 2758–2767, 2020. 4                                             and Kuk-Jin Yoon. Towards real-world event-guided low-light
+[12] Minfeng Zhu, Pingbo Pan, Wei Chen, and Yi Yang. Eemefn:              video enhancement and deblurring. In Eur. Conf. Comput.
+     Low-light image enhancement via edge-enhanced multi-                 Vis., pages 433–451, 2024. 2, 3, 7
+     exposure fusion network. In AAAI Conf. Artif. Intell., vol-     [26] Lei Sun, Yuhan Bao, Jiajun Zhai, Jingyun Liang, Yulun
+     ume 34, pages 13106–13113, 2020. 3                                   Zhang, Kaiwei Wang, Danda Pani Paudel, and Luc Van Gool.
+[13] Xin Jin, Ling-Hao Han, Zhen Li, Chun-Le Guo, Zhi Chai, and           Low-light image enhancement using event-based illumination
+     Chongyi Li. Dnf: Decouple and feedback network for seeing            estimation. arXiv preprint arXiv:2504.09379, 2025. 2, 3
+     in the dark. In IEEE Conf. Comput. Vis. Pattern Recog., pages   [27] Wenli Zheng, Huiyuan Fu, Xicong Wang, Hao kang, Chuan-
+     18135–18144, 2023. 3                                                 ming Wang, Jin Liu, Zekai Xu, Heng Zhang, and Huadong
+
+
+
+
+                                                                 22289
+     Ma. Evraw: Event-guided structural and color modeling for          [42] Feiran Li, Haiyang Jiang, and Daisuke Iso. Noise modeling in
+     raw-to-srgb image reconstruction. In ACM Int. Conf. Multi-              one hour: Minimizing preparation efforts for self-supervised
+     media, pages 209–218, 2025. 2                                           low-light raw image denoising. In IEEE Conf. Comput. Vis.
+[28] Shasha Guo and Tobi Delbruck. Low cost and latency event                Pattern Recog., pages 5699–5708, 2025. 4, 6, 7
+     camera background activity denoising. IEEE Trans. Pattern          [43] Ruiming Cao, Dekel Galor, Amit Kohli, Jacob L Yates, and
+     Anal. Mach. Intell., 45(1):785–795, 2022. 2, 4                          Laura Waller. Noise2image: noise-enabled static scene recov-
+[29] Rui Graca and Tobi Delbruck. Unraveling the paradox                     ery for event cameras. Optica, 12(1):46–55, 2025. 4
+     of intensity-dependent dvs pixel noise. arXiv preprint             [44] Federico Paredes-Vallés and Guido CHE De Croon. Back to
+     arXiv:2109.08640, 2021. 2, 4                                            event basics: Self-supervised learning of image reconstruction
+[30] Peiqi Duan, Boyu Li, Yixin Yang, Hanyue Lou, Minggui Teng,              for event cameras via photometric constancy. In IEEE Conf.
+     Xinyu Zhou, Yi Ma, and Boxin Shi. Eventaid: Benchmarking                Comput. Vis. Pattern Recog., pages 3446–3455, 2021. 4
+     event-aided image/video enhancement algorithms with real-          [45] Ying Fu, Zichun Wang, Tao Zhang, and Jun Zhang. Low-
+     captured hybrid dataset. IEEE Trans. Pattern Anal. Mach.                light raw video denoising with a high-quality realistic motion
+     Intell., 2025. 2                                                        dataset. IEEE Transactions on Multimedia, 25:8119–8131,
+[31] Chen Chen, Qifeng Chen, Jia Xu, and Vladlen Koltun. Learn-              2022. 7
+     ing to see in the dark. In IEEE Conf. Comput. Vis. Pattern         [46] Yuhuang Hu, Shih-Chii Liu, and Tobi Delbruck. v2e: From
+     Recog., pages 3291–3300, 2018. 3                                        video frames to realistic dvs events. In IEEE Conf. Comput.
+[32] Mohit Lamba and Kaushik Mitra. Restoring extremely dark                 Vis. Pattern Recog., pages 1312–1321, 2021. 7
+     images in real time. In IEEE Conf. Comput. Vis. Pattern            [47] Hai Jiang, Ao Luo, Xiaohong Liu, Songchen Han, and
+     Recog., pages 3487–3497, 2021. 3                                        Shuaicheng Liu. Lightendiffusion: Unsupervised low-light
+[33] Xingbo Dong, Wanyan Xu, Zhihui Miao, Lan Ma, Chao                       image enhancement with latent-retinex diffusion models. In
+     Zhang, Jiewen Yang, Zhe Jin, Andrew Beng Jin Teoh, and                  Eur. Conf. Comput. Vis., pages 161–179, 2024. 7
+     Jiajun Shen. Abandoning the bayer-filter to see in the dark. In    [48] Xiaogang Xu, Jiafei Wu, Qingsen Yan, Jiequan Cui, Richang
+     IEEE Conf. Comput. Vis. Pattern Recog., pages 17431–17440,              Hong, and Bei Yu. Learnable feature patches and vectors
+     2022. 3                                                                 for boosting low-light image enhancement without external
+[34] Haofeng Huang, Wenhan Yang, Yueyu Hu, Jiaying Liu, and                  knowledge. In Int. Conf. Comput. Vis., pages 7761–7770,
+     Ling-Yu Duan. Towards low light enhancement with raw                    2025. 7
+     images. IEEE Trans. Image Process., 31:1391–1405, 2022. 3          [49] Ruixing Wang, Xiaogang Xu, Chi-Wing Fu, Jiangbo Lu, Bei
+[35] Henri Rebecq, Rene Ranftl, Vladlen Koltun, and Davide                   Yu, and Jiaya Jia. Seeing dynamic scene in the dark: A high-
+     Scaramuzza. Events-to-video: Bringing modern computer                   quality video dataset with mechatronic alignment. In Int.
+     vision to event cameras. In IEEE Conf. Comput. Vis. Pattern             Conf. Comput. Vis., pages 9700–9709, 2021. 7
+     Recog., pages 3857–3866, 2019. 3                                   [50] Xin Jin, Jia-Wen Xiao, Ling-Hao Han, Chunle Guo, Ruixun
+[36] Lin Wang, S. Mohammad Mostafavi I., Yo-Sung, and Kuk-                   Zhang, Xialei Liu, and Chongyi Li. Lighting every darkness
+     Jin Yoon. Event-based high dynamic range image and very                 in two pairs: A calibration-free pipeline for raw denoising. In
+     high frame rate video generation using conditional generative           Int. Conf. Comput. Vis., pages 13275–13284, 2023. 7
+     adversarial networks. In IEEE Conf. Comput. Vis. Pattern           [51] Yi Zhang, Hongwei Qin, Xiaogang Wang, and Hongsheng Li.
+     Recog., pages 10081–10090, 2019.                                        Rethinking noise synthesis and modeling in raw denoising.
+[37] Song Zhang, Yu Zhang, Zhe Jiang, Dongqing Zou, Jimmy                    In Int. Conf. Comput. Vis., pages 4593–4601, 2021. 7
+     Ren, and Bin Zhou. Learning to see in the dark with events.        [52] Gengchen Zhang, Yulun Zhang, Xin Yuan, and Ying Fu. Bi-
+     In Eur. Conf. Comput. Vis., pages 666–682, 2020. 3                      narized low-light raw video enhancement. In Proceedings of
+[38] Siying Liu and Pier Luigi Dragotti. Sensing diversity and               the IEEE/CVF Conference on Computer Vision and Pattern
+     sparsity models for event generation and video reconstruction           Recognition, pages 25753–25762, 2024. 7
+     from events. IEEE Trans. Pattern Anal. Mach. Intell., 2023. 3      [53] Timo Stoffregen, Cedric Scheerlinck, Davide Scaramuzza,
+[39] Haoyue Liu, Shihan Peng, Lin Zhu, Yi Chang, Hanyu Zhou,                 Tom Drummond, Nick Barnes, Lindsay Kleeman, and Robert
+     and Luxin Yan. Seeing motion at nighttime with an event                 Mahony. Reducing the sim-to-real gap for event cameras. In
+     camera. In Proceedings of the IEEE/CVF Conference on Com-               Eur. Conf. Comput. Vis., pages 534–549, 2020. 7
+     puter Vision and Pattern Recognition, pages 25648–25658,           [54] Anish Mittal, Rajiv Soundararajan, and Alan C. Bovik. Mak-
+     2024. 3, 7                                                              ing a “completely blind” image quality analyzer. IEEE Sign.
+[40] Haoyue Liu, Jinghan Xu, Shihan Peng, Yi Chang, Hanyu                    Process. Letters, 20(3):209–212, 2012. 8
+     Zhou, Yuxing Duan, Lin Zhu, Yonghong Tian, and Luxin Yan.          [55] Hoonhee Cho, Taewoo Kim, Yuhwan Jeong, and Kuk-Jin
+     Ner-net+: Seeing motion at nighttime with an event camera.              Yoon. Tta-evf: test-time adaptation for event-based video
+     IEEE Trans. Pattern Anal. Mach. Intell., 47(6):4768–4786,               frame interpolation via reliable pixel and sample estimation.
+     2025. 3                                                                 In IEEE Conf. Comput. Vis. Pattern Recog., pages 25701–
+[41] Bin Jiang, Bo Xiong, Bohan Qu, M Salman Asif, You Zhou,                 25711, 2024. 8
+     and Zhan Ma. Edformer: Transformer-based event denoising
+     across varied noise levels. In Eur. Conf. Comput. Vis., pages
+     200–216, 2024. 4, 6
+
+
+
+
+                                                                   22290
+

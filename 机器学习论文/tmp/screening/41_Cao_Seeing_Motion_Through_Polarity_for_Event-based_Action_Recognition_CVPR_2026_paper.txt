@@ -1,0 +1,224 @@
+                  This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                               Except for this watermark, it is identical to the accepted version;
+                         the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+         Seeing Motion Through Polarity for Event-based Action Recognition
+
+                       Meiqi Cao1 , Jiachao Zhang2† , Xin Jiang1 , Rui Yan1 , Yazhou Yao1 ,
+                                           Zechao Li1 , Xiangbo Shu1†
+       1
+         School of Computer Science and Engineering, Nanjing University of Science and Technology
+ 2
+   School of Artificial Intelligence Industrial Technology Research Institute, Nanjing Institute of Technology
+                                                     †
+                                                         Corresponding authors
+
+
+
+                       Abstract                                                                                  Event       Align         Text
+                                                                                                                Encoder                  Encoder          Shake hands
+                                                                                                                                                           Event Label
+                                                                                     Event Frames
+Event-based Action Recognition (EAR) provides a promis-                                                (a) Event-text alignment learning (General)
+ing pathway for understanding dynamic behaviors under
+                                                                                            Seeing Motion Through Polarity
+challenging conditions. Recent progress in vision-language                                                                               Reason the
+                                                                                                                                     Polarity Movements
+models has introduced a cross-modal learning paradigm
+
+                                                                     Polarity Cues
+                                                                      Capture the
+                                                                                                                                      Event Label
+into EAR, enabling models to associate event streams with                                             Event Frames                   Shake hands          Step by Step
+                                                                                                                                                     {arms, moving toward
+textual semantics for enhancing conceptual understanding.                                       neg                                                       each other}->
+                                                                                                                             Align                       {hands, making
+However, existing methods typically overlook the intrinsic                                                       Event                   Text
+                                                                                                                                                            contact}
+                                                                                                                Encoder                Encoder
+                                                                                          pos
+polarity-driven motion cues that are fundamental to event                                                                                              ->{hands,releasing}
+
+                                                                                     (b) Polarity knowledge enhanced event-text alignment learning (Ours)
+data, leading to suboptimal spatiotemporal representations.
+To address this limitation, we propose a POlarity Knowl-
+                                                                  Figure 1. Insight of the proposed POKER. (a) Previous event-
+edge Enhanced framework (POKER), which explicitly in-
+                                                                  text alignment methods adhere to general paradigms, which limit
+corporates event polarity-aware motion knowledge across           the sufficiency of cross-modal semantic alignment between events
+visual and textual modalities. POKER consists of two syn-         and text. (b) Our approach explicitly leverages the polarity-aware
+ergistic components: Polarity Motion Capturer (PMC) and           motion knowledge embedded in event streams from both visual
+Polarity Motion Reasoner (PMR). Specifically, PMC decou-          and textual modalities, thereby achieving significantly enhanced
+ples positive and negative polarities to capture polarity-        event-text alignment.
+sensitive motion cues, while PMR semantically analyzes
+polarity-induced motion dynamics via large language mod-          raising concerns about privacy leakage. Event cameras, as
+els. Through the polarity alignment, POKER couples se-            a new type of bio-inspired vision sensor, asynchronously
+mantic reasoning with visual dynamics, achieving more dis-        record per-pixel brightness changes to generate sparse event
+criminative representations. Extensive experiments on mul-        streams [9, 18, 20, 36]. Compared with conventional RGB
+tiple benchmarks demonstrate that POKER enhances per-             cameras, event cameras offer unique properties such as a
+formance across diverse event representations.                    high dynamic range, low power consumption, and inherent
+                                                                  sparsity, enabling robust visual perception under extreme
+                                                                  lighting, high-speed motion, and privacy-sensitive condi-
+1. Introduction                                                   tions. Benefiting from these unique properties, researchers
+                                                                  have begun exploring the potential of event data for dy-
+Human action recognition is a fundamental task in com-            namic scene understanding, giving rise to the emerging
+puter vision, supporting applications such as intelligent         field of Event-based Action Recognition (EAR) [22, 25, 32–
+surveillance [38, 39, 44] and human–computer interac-             34, 42, 47, 52].
+tion [29, 43]. RGB-based methods primarily rely on                    EAR aims to exploit the dynamic cues embedded in
+RGB data to capture spatio-temporal dynamics [12, 13,             event streams for robust motion understanding, offering a
+27]. However, these methods rely on frame-based imag-             novel paradigm for intelligent perception in dynamic envi-
+ing mechanisms with limited motion capture capability, of-        ronments. However, a key challenge in EAR lies in effec-
+ten failing in scenes involving rapid movement or signifi-        tively leveraging the spatially sparse and temporally asyn-
+cant lighting changes. Furthermore, the high redundancy           chronous nature of event data. Existing studies can be
+of RGB data increases computational costs, simultaneously         broadly categorized based on the fundamental event rep-
+
+
+
+                                                             37075
+resentations: (1) spatiotemporal-preserved representations,      progressive reasoning prompt, generating semantic descrip-
+such as event points or event voxels [10, 17]; and (2) frame-    tions with polarity awareness. We perform polarity align-
+stacked representations, notably event frames or time sur-       ment between polarity-enhanced visual and textual features,
+faces [26, 47]. The former typically employs point-based         effectively integrating visual dynamics with semantic rea-
+encoders (e.g., GCNs or SNNs). While these architectures         soning to enable more discriminative feature learning.
+are intrinsically compatible with the asynchronous event             The main contributions are summarized as follows,
+characteristics and naturally offer low power consumption,       • New polarity-aware framework: We propose a Polar-
+the recognition performance often remains suboptimal com-           ity Knowledge Enhanced framework (POKER) for event-
+pared to frame-based methods. Conversely, the latter lever-         based action recognition, which integrates polarity-driven
+ages powerful frame-based encoders (e.g., CNNs or Trans-            motion knowledge from both textual and visual modali-
+formers). By converting sparse events into dense frame rep-         ties to explicitly enrich the spatiotemporal representations
+resentations, this approach achieves superior performance           and improve feature discriminability.
+and has therefore attracted considerable research attention.     • Dual-polarity synergy: We design two synergistic mod-
+    In recent years, the rapid advancement of vision-               ules, Polarity Motion Capturer and Polarity Motion Rea-
+language models has driven EAR research toward cross-               soner, which collaboratively exploit cross-modal polarity
+modal learning paradigms, aiming to improve the semantic            cues and couple semantic reasoning with visual dynamics
+robustness of action recognition. As shown in Fig. 1 (a),           via a polarity alignment.
+conventional frameworks establish robust event-text asso-        • Comprehensive evaluation: Extensive experiments on
+ciations through cross-modal alignment learning. Despite            multiple datasets validate the effectiveness and scalabil-
+these advances, a key limitation remains. Existing cross-           ity of our framework, consistently enhancing recognition
+modal methods typically treat event streams as stacked              performance across diverse event representations.
+frames, ignoring the unique motion dynamics inherent to
+the events. This simplification neglects the directional and     2. Related Work
+temporal information encoded in event polarities, which are
+critical for understanding motion cues. Consequently, se-        2.1. Single-modal Event-based Action Recognition
+mantic alignment between modalities remains incomplete,          Single-modal methods for EAR are primarily categorized
+resulting in features with limited discriminative power.         based on the format of event data representation. One ma-
+    To tackle the limitation in previous cross-modal meth-       jor stream of work aims to preserve the asynchronous nature
+ods, we anchor our solution in the intrinsic mechanism of        of event data, representing it as event points or event voxels
+event generation. An event is triggered when the logarith-       to capture fine-grained spatiotemporal relationships. These
+mic brightness change at a pixel reaches a threshold, where      approaches typically employ bio-inspired Spiking Neural
+the direction of the change is encoded by its polarity (posi-    Networks [4, 34] or specialized Graph Convolutional Net-
+tive for brightening, negative for darkening) [3, 6, 48]. From   works [8, 41]. For instance, SpikePoint [24] proposes
+a motion perspective, positive and negative polarities cap-      an end-to-end SNN architecture that concurrently extracts
+ture the leading and trailing edges of motion, reflecting the    global and local features to effectively process sparse event
+directional evolution of dynamic scenes. Building on this        streams. Similarly, VMv-GCN [41] introduces a novel vol-
+decisive principle, we seek to understand the motion cues        umetric multi-view framework designed to extract critical
+encapsulated within the polarity. As shown in Fig. 1 (b), we     spatial and temporal information from event voxels. Con-
+aim to collaboratively extract and integrate polarity-aware      currently, another significant stream of work chooses to ag-
+motion cues from both the visual and textual modalities,         gregate the asynchronous event streams into regular ten-
+thus strengthening the event-text learning framework.            sors [16, 28, 37], subsequently applying powerful architec-
+    Formally, we introduce the POlarity Knowledge En-            tures such as Vision Transformers or Mamba-based mod-
+hanced framework (POKER) to fully exploit polarity-aware         els. For example, EventTransAct [5] utilizes a video trans-
+motion information inherent in the event stream. Specifi-        former network and incorporates specific enhancements to
+cally, POKER comprises two synergistic components: Po-           handle event frames. Furthermore, PAST-SSM [50] learns
+larity Motion Capturer (PMC) and Polarity Motion Rea-            complex spatiotemporal dependencies from encoded event
+soner (PMR). The PMC is designed to decompose the                frame features using a state space model.
+event stream by polarity, capturing temporal correlations
+                                                                 2.2. Cross-modal Event-based Action Recognition
+within each polarity and spatial correlations across polar-
+ities, thereby comprehensively modeling the spatiotempo-         The limited ability of single-modal methods to extract suf-
+ral motion dynamics in the event data. Meanwhile, the            ficient information from sparse event streams has driven re-
+PMR guides multi-modal large language models to reason           cent EAR research to shift towards multi-modal and cross-
+about motion changes induced by key polarities through a         modal paradigms. Early multi-modal efforts, such as TSC-
+
+
+
+                                                             37076
+                                                                          Polarity Motion Capturer                              Test phase
+                               Event Stream 𝐸                   T
+
+
+
+
+                                                                                                                Event Encoder
+                                                                                                                                 FV
+                                                                                                        I
+                                                                                         𝑊𝑏
+      Please analyze the
+       provided events
+
+
+
+
+                                                                                   𝑊𝑟𝑏                                             FV,P
+
+
+
+
+                                                                          Router
+                                ISC
+                                                                                    ∑ Polarity Motion   IP
+                                          IPTC           INTC
+                                                                          Polarity Motion Reasoner
+
+
+
+
+                                                                                                                                          Contrastive
+                                                                                                                                           Loss 𝐿𝑅
+                           Polarity cues motion direction.              Open/close-sourced MLLMs                         Align Loss 𝐿𝑃
+      Step 1: Observation
+           Locate the person & identify their status.
+
+      Step 2: Thinking
+           Determine the direction and nature of
+
+
+
+
+                                                                                                                 Text Encoder
+                                                                    {arms, moving toward each other}->
+      movement & Link the just observed movement                        {hands, making contact}->
+      with the broader action narrative built from                          {hands, releasing}                                        FT,P
+      previous frames.
+                                                                                    ->        ->
+      Step 3: Synthesis
+           Briefly restate the entire event observed                                                    T
+      from the first frame to the current frame.                                   Text Prompts                                  FT
+
+Figure 2. The overall framework of our proposed POKER enhances feature discriminability via polarity-aware motion knowledge. It
+consists of event and text encoders augmented by Polarity Motion Capturer (PMC) and Polarity Motion Reasoner (PMR). During training,
+the encoders process two distinct data streams: one for generating base features from the original event frames and text prompts, and another
+for generating polarity-enhanced features from the PMC’s decoupled visual streams and the PMR’s generated reasoning descriptions. These
+base and enhanced features are jointly optimized through contrastive learning and a polarity alignment loss to achieve robust cross-modal
+coupling. Critically, inference relies solely on the base features for final action prediction.
+
+Former [34], focus on fusing event data with RGB frames                        Augmented Generation further showcase the efficacy of re-
+to enhance perception for event data. More recently, the                       trieving customized knowledge [15]. Recently, the strat-
+success of Vision-Language Models has accelerated cross-                       egy has been extended to Computer Vision, where external
+modal knowledge transfer, leveraging rich language seman-                      knowledge is leveraged to bridge the semantic gap between
+tics to address the high semantic uncertainty in event data.                   low-level features and high-level concepts. For instance,
+Representative examples include ExACT [52], which pio-                         MLLM4WTAL [46] uses MLLMs to generate semantic
+neers the use of language semantics for event frame pro-                       priors for weakly supervised temporal action localization,
+cessing, and EZSR [45] and EventGPT [19], which adapt                          and ENNGINE [49] employs a dual-branch framework for
+VLM knowledge for scalable zero-shot recognition and                           knowledge injection in incremental learning. Building upon
+MLLM-based event stream comprehension, respectively.                           the successful paradigms, our work applies this knowledge-
+However, a persistent limitation is that these works often                     centric viewpoint to event-based vision. We delve into
+overlook the intrinsic polarity clues fundamentally embed-                     the fundamental principles of event generation to explic-
+ded within the event generation mechanism, thereby re-                         itly mine the inherent polarity and motion knowledge within
+stricting the integrity of semantic alignment. In this work,                   event streams, offering a new approach to enhance EAR.
+we explicitly leverage event-intrinsic polarity knowledge,
+achieving semantically robust cross-modal alignment.                           3. Methodology
+2.3. Knowledge Enhanced Methods                                                In this section, we introduce POKER, a new framework
+Knowledge Enhanced Methods have achieved remarkable                            designed to enhance EAR by fully leveraging the inher-
+success in Natural Language Processing, aiming to integrate                    ent polarity-aware motion knowledge embedded in event
+external or prior knowledge to guide model prediction and                      streams. The overall architecture is shown in Fig. 2. We be-
+enhance interpretability [11, 46, 49]. Following the prolifer-                 gin by presenting the preliminary concepts of event-based
+ation of Large Language Models, techniques like Retrieval-                     action recognition in Sec. 3.1. Building on the insights
+
+
+
+                                                                       37077
+

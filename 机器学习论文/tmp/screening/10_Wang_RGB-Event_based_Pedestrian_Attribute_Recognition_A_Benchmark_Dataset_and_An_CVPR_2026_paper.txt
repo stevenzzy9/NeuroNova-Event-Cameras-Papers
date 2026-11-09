@@ -1,0 +1,194 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+RGB-Event based Pedestrian Attribute Recognition: A Benchmark Dataset and
+               An Asymmetric RWKV Fusion Framework
+
+              Xiao Wang1 , Haiyang Wang1 , Shiao Wang1 , Qiang Chen1 , Jiandong Jin2 ,
+                              Haoyu Song1 , Bo Jiang1 *, Chenglong Li2 *
+           1
+             School of Computer Science and Technology, Anhui University, Hefei, China
+                  2
+                    School of Artificial Intelligence, Anhui University, Hefei, China
+      why2434961256@163.com, {xiaowang, jiangbo}@ahu.edu.cn, wsa1943230570@126.com,
+           {e23301220, e22214005}@stu.ahu.edu.cn, {jdjinahu, lcl1314}@foxmail.com
+
+
+                           Abstract                               1. Introduction
+                                                                      Existing Pedestrian Attribute Recognition (PAR) [38,
+Existing pedestrian attribute recognition methods are gen-        43–46, 54] systems are typically developed using RGB
+erally developed based on RGB frame cameras. However,             frame cameras, with the goal of enabling a model to ac-
+these approaches are constrained by the limitations of RGB        curately select matching attributes from a predefined list
+cameras, such as sensitivity to lighting conditions and mo-       based on a given pedestrian image or video. Common at-
+tion blur, which hinder their performance. Furthermore,           tributes include appearance information such as hairstyle,
+current attribute recognition primarily focuses on analyz-        gender, upper and lower body clothing, and carried objects.
+ing pedestrians’ external appearance and clothing, lack-          With the advancement of artificial intelligence technol-
+ing an exploration of emotional dimensions. In this pa-           ogy, pedestrian attribute recognition has garnered increas-
+per, we revisit these issues and propose a novel multi-modal      ing attention and is now widely applied in various human-
+RGB-Event attribute recognition task by drawing inspira-          centric visual tasks, including pedestrian detection and
+tion from the advantages of event cameras in low-light,           tracking [22, 23, 37, 42], person re-identification [9, 36, 52],
+high-speed, and low-power consumption. Specifically, we           and text-image retrieval [5, 8, 50, 59] for pedestrians. De-
+introduce the first large-scale multi-modal pedestrian at-        spite significant progress, the overall performance of these
+tribute recognition dataset, termed EventPAR, comprising          systems remains constrained by the inherent limitations of
+100K paired RGB-Event samples that cover 50 attributes            RGB cameras, such as sensitivity to lighting conditions,
+related to both appearance and six human emotions, diverse        clutter background, and susceptibility to motion blur. In-
+scenes, and various seasons. By retraining and evaluat-           terestingly, while multi-modal fusion has been extensively
+ing mainstream PAR models on this dataset, we establish a         adopted in other computer vision tasks [29, 47, 49], it is
+comprehensive benchmark and provide a solid foundation            surprising that pedestrian attribute recognition still predom-
+for future research in terms of data and algorithmic base-        inantly relies on single-modality RGB cameras. This limi-
+lines. In addition, we propose a novel RWKV-based multi-          tation highlights an opportunity for innovation through the
+modal pedestrian attribute recognition framework, featur-         integration of additional modalities to address the existing
+ing an RWKV visual encoder and an asymmetric RWKV fu-             performance bottlenecks.
+sion module. Extensive experiments are conducted on our               On the other hand, the pedestrian attributes defined in
+proposed dataset as well as two simulated datasets (MARS-         existing PAR benchmark datasets focus on describing the
+Attribute and DukeMTMC-VID-Attribute), achieving state-           visible appearance cues, but none of them consider the in-
+of-the-art results. The source code has been released on:         visible emotion information, which is also very important
+https://github.com/Event-AHU/OpenPAR                              for human-centric perception. Recognizing emotions such
+                                                                  as anxiety, anger, or joy can help the system better under-
+                                                                  stand pedestrian behavioral intent and enhance the natu-
+                                                                  ralness of human-computer interaction, improve safety and
+                                                                  risk assessment, and support personalized services. Incor-
+                                                                  porating emotion analysis into pedestrian attribute recogni-
+  * Corresponding Author: Bo Jiang, Chenglong Li                  tion tasks can make the system smarter and more human-
+
+
+
+                                                            32745
+                                                                         maps the fused features to multi-label attribute predictions.
+                                                                         We extensively validate the proposed framework on three
+                                                                         datasets and achieve state-of-the-art performance.
+                                                                            To sum up, we draw the main contributions of this paper
+                                                                         as the following three aspects:
+                                                                            1). We propose to recognize the pedestrian attributes us-
+                                                                         ing an event camera and construct a large-scale benchmark
+                                                                         dataset termed EventPAR. It contains 100K aligned RGB
+                                                                         frames and event streams, collected from multiple scenar-
+                                                                         ios, illuminations, etc.
+Figure 1. (left) Comparison between existing PAR datasets and our           2). We propose a novel RWKV-based framework for
+newly proposed EventPAR; (right) Imaging principle and results           frame-event fusion based attribute recognition. A novel
+of Frame and Event cameras.                                              asymmetric RWKV fusion module fuses the RGB frame
+                                                                         and event streams effectively and efficiently.
+                                                                            3). We build a large-scale benchmark for the EventPAR
+centric, while also providing support for a broader range of             dataset by re-training 17 representative and strong PAR al-
+practical application scenarios.                                         gorithms. This benchmark will be a good platform to boost
+    In this work, we first propose to recognize human at-                the development of event-based attribute recognition fur-
+tributes using a DVS346 event camera that outputs aligned                ther.
+frame-event streams. This is because event cameras have                     In addition, we also conduct extensive experiments on
+inherent advantages in high dynamic range, high temporal                 three PAR benchmark datasets, including the newly pro-
+resolution, and low power consumption. However, event                    posed EventPAR, MARS-Attribute, and DukeMTMC-VID-
+streams contain some noise and are less sensitive to static              Attribute datasets. More experiments fully validated the
+objects. Therefore, combining them with RGB frame cam-                   effectiveness of our proposed model for the frame-event
+eras is necessary to achieve more robust and accurate re-                pedestrian attribute recognition.
+sults. Due to the lack of datasets in this area, we first pro-
+pose a large-scale multi-modal RGB-Event pedestrian at-                  2. Related Works
+tribute recognition benchmark dataset, termed EventPAR.
+                                                                         2.1. Pedestrian Attribute Recognition
+This dataset covers common human appearance attributes
+as well as six human emotional attributes, totaling 50 at-                   Pedestrian Attribute Recognition aims to identify and
+tributes and 100K paired RGB-Event samples, as shown in                  classify multiple attributes of pedestrians, such as age,
+Fig. 1. These videos were collected under various challeng-              gender, clothing type, and accessories, from images or
+ing scenarios, including different lighting conditions, mo-              videos. Video-based PAR is a relatively new research topic.
+tion blur, object occlusion, and adverse weather conditions.             Researchers have introduced multi-task models, temporal
+In addition to natural challenging factors, we also artificially         pooling, and sparse temporal attention modules, among
+introduced some adversarial attack noises and degradation                other techniques. Chen et al. [2] proposed a multi-task
+strategies, such as various types of noise and occlusion. To             model with an attention module to handle each attribute per
+provide a solid benchmark for future research, we re-train               frame. Specker et al. [32] introduced global features to in-
+and report 17 mainstream PAR algorithms, as shown in Ta-                 corporate information from different frames. Li et al. [16]
+ble 3.                                                                   proposed a sparse temporal attention module to select unob-
+    Based on the proposed EventPAR dataset, we introduce a               structed frames, enhancing robustness. Thakare et al. [34]
+novel multi-modal RGB-Event pedestrian attribute recogni-                calculated the mutual correlations of attribute predictions
+tion framework leveraging the RWKV model [6], which ef-                  from pedestrian images across different views, while Liu
+fectively integrates event streams to further enhance pedes-             et al. [25] introduced a spatio-temporal saliency module to
+trian attribute recognition results from the traditional RGB             capture correlations between attributes in both spatial and
+frame. Specifically, given the input RGB image and event                 temporal domains. Different from these works, this paper
+streams, we first employ an RWKV encoder to extract vi-                  firstly exploits the multi-modal PAR task using the event
+sual features from both modalities. These features are then              camera and proposes a large-scale benchmark dataset and
+fed into an asymmetric RWKV fusion module, designed to                   RWKV-based framework for this task.
+better fuse spatial features from RGB frames with temporal
+information from event streams. This fusion module effi-
+                                                                         2.2. Event-based Vision
+ciently removes redundant event tokens while achieving in-                  Event cameras have been widely used in computer vision
+teractive fusion with RGB features. Finally, a linear layer              and multi-modal related tasks. Specifically, in the image
+
+
+
+                                                                    32746
+restoration and enhancement tasks, EventSR [35] proposes         Table 1. Comparison with existing PAR benchmark datasets.
+a novel end-to-end super-resolution image reconstruction         #Att. is short for the number of Attributes. Deg and Adv is short
+framework that reconstructs low-resolution images from           for Degradation and Adversary, respectively.
+event streams, enhances image quality, and upsamples the            Dataset               Year   #Att.   #Samples   Video   Frame   Event   Emotion   Deg   Adv
+enhanced images. EG-VSR [26] learns spatial-temporal                PETA [4]              2014   61      19,000      %        !      %        %       %      %
+                                                                    WIDER [21]            2016   14      57,524      %        !      %        %       %      %
+coordinates and implicit neural representations from RGB            RAPv1 [18]            2016   69      41,585      %        !      %        %       %      %
+                                                                    PA100K [24]           2017   26      100,000     %        !      %        %       %      %
+frames and event features, leveraging the high temporal res-        RAPv2 [19]            2019   76      84,928      %        !      %        %       %      %
+                                                                                                                     %        !      %        %       !      %
+olution of events to achieve video super-resolution at arbi-        MSP60K [15]
+                                                                    MARS-Attribute [56]
+                                                                                          2024
+                                                                                          2016
+                                                                                                 57
+                                                                                                 43
+                                                                                                         60,015
+                                                                                                         16,360      !        %      %        %       %      %
+trary resolutions. Jiang et al. [13] and colleagues have in-        DukeMTMC-VID [28]     2017   36      4,832       !        %      %        %       %      %
+                                                                    EventPAR (Ours)       2025   50      100,000     !        !      !        !       !      !
+troduced a method that effectively restores motion-blurred
+video sequences from event-based camera data, achieving
+this by integrating global and local scale visual and tem-       Table 2. Attribute groups and details defined in our proposed
+poral knowledge, along with a differentiable directional         EventPAR dataset.
+event filtering module. Jiang et al. [12] proposed a pos-
+                                                                    Attribute Group                                     Details
+terior attention module that adjusts standard attention us-         #01 Gender            Male, Female
+ing the prior knowledge provided by event data, which im-           #02 Age               Child, Adult, Elderly
+                                                                    #03 Body Size         Fat, Normal, Thin
+proves the segmentation performance for moving objects.             #04 Viewpoint         Front, Back, Side
+                                                                    #05 Head              Long Hair, Black Hair, Hat, Glasses, Mask, Scarf, Headphones
+Inspired by these works, in this paper, we attempt to achieve       #06 Upper Body        Short Sleeves, Long Sleeves, Shirt, Coat, Cotton-padded Coat
+high-performance PAR by fusing the event stream and RGB             #07 Lower Body        Trousers, Shorts, Jeans, Long Skirt, Short Skirt, Casual Pants, Dress
+                                                                    #08 Shoes             Casual Shoes, Other Shoes
+frames.                                                             #09 Accessory         Backpack, Shoulder Bag, Hand Bag, Umbrella, Cup, Cellphone
+                                                                    #10 Posture           Walking, Running, Standing, Sitting
+2.3. RWKV Model                                                     #11 Activity          Smoking, Reading
+                                                                    #12 Emotion           Happiness, Sadness, Anger, Surprise, Fear, Disgust
+    The Receptance Weighted Key Value (RWKV) [27] was
+originally proposed in natural language processing to ad-
+dress the quadratic time complexity of Transformers in           lection, obtaining spatiotemporal aligned multi-modal data
+handling long sequences. Inspired by the linear attention        comprising visible light and event streams. It is the first
+mechanism in the Attention Free Transformer (AFT) [31],          multi-modal PAR database, laying a solid data foundation
+RWKV introduced the WKV attention mechanism. At the              for subsequent research. 2). Emotion Attributes: Unlike
+same time, the token shift operation was proposed to cap-        conventional PAR datasets that primarily focus on pedes-
+ture local context. This combination allows RWKV to take         trians’ appearance attributes, our new dataset incorporates
+advantage of both the parallel processing attention mech-        six fundamental human emotional attributes, i.e., Happi-
+anism of Transformers and the sequential time-series pat-        ness, Sadness, Anger, Surprise, Fear, and Disgust. This ad-
+tern of Recurrent Neural Networks (RNNs). Later, RWKV            dition effectively fills the gap in the attribute recognition
+was extended to computer vision tasks. BSBP-RWKV [48]            domain by addressing the lack of discussion on the emo-
+proposes an efficient medical image segmentation frame-          tional analysis dimension. The static and dynamic presen-
+work that integrates Perona-Malik Diffusion for noise sup-       tations are shown on the right side of Fig. 2. 3). Diverse
+pression with boundary preservation and an RWKV-based            Scenes and Cross-Seasonal: Different from existing PAR
+architecture to reduce computational complexity. RWKV-           datasets that involve short-term data collection, our data ac-
+SAM [53] proposes an efficient segment-anything frame-           quisition spanned several months, encompassing data from
+work with a mixed convolution-RWKV backbone and mul-             different seasons (summer and winter). Additionally, it cov-
+tiscale token decoder, using a joint training benchmark to       ers a variety of scenes and weather conditions, such as day-
+achieve twice the inference speed and superior segmenta-         time and nighttime scenes, as well as weather conditions
+tion quality compared to Transformer and vision Mamba            like sunny and rainy days, as shown in Fig. 2 (a, b). These
+baselines. Unlike these works, this paper is the first to ap-    elements significantly enhance the diversity and challenge
+ply RWKV to pedestrian attribute recognition.                    of the dataset, providing better validation of a model’s fit-
+                                                                 ting ability and generalization capability. 4). Large Scale:
+3. EventPAR Benchmark Dataset                                    It contains 100K spatio-temporally aligned pedestrian sam-
+                                                                 ples of RGB frames and event streams, 12 attribute groups,
+3.1. Protocols
+                                                                 and 50 fine-grained pedestrian attributes. It is one of the
+   In this work, we follow the guidelines below when con-        largest PAR datasets, comparable to PA100K in scale, as
+structing the EventPAR benchmark dataset: 1). Multi-             shown in Table 2. 5). Simulated Complex Real-world En-
+Modal: As shown in Table 1, unlike existing frame-based          vironments: Our dataset is carefully designed to incorpo-
+PAR datasets, we utilize the DVS346 camera for data col-         rate a wide range of challenges, such as variations in illumi-
+
+
+
+                                                            32747
+

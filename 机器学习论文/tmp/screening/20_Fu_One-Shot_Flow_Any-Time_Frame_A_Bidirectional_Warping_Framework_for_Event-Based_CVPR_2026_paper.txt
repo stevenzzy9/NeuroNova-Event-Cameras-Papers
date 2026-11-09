@@ -1,0 +1,219 @@
+                      This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                   Except for this watermark, it is identical to the accepted version;
+                             the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+    One-Shot Flow, Any-Time Frame: A Bidirectional Warping Framework for
+                    Event-Based Video Frame Interpolation
+
+                  Linghui Fu1, * Yuhan Liu2,∗                         Hao Chen3              Zhen Yang1                   Yongjian Deng4,†
+                                         1
+                                             College of Computer Science, Beijing University of Technology
+                                                        2
+                                                            School of Informatics, Xiamen University
+                              3
+                                  Key Lab of Computer Network and Information Integration, Southeast University
+                                                 4
+                                                     College of Artificial Intelligence, Nankai University
+                     {fulinghui@emails., yangzhen@}bjut.edu.cn, yuhanliu@stu.xmu.edu.cn
+                                        haochen303@seu.edu.cn, yjdengty@foxmail.com
+
+
+
+                             Abstract                                                  𝐼!                                    Event Voxels                                           𝐼"
+
+
+Video Frame Interpolation (VFI) is a crucial task in video
+processing. Flow-based methods, despite their success, are                                                One step                          𝑛 Steps                         One step
+                                                                                          Forward                       Backward                       Bidirectional
+constrained by a fundamental dilemma: forward warping                                   OF estimation
+                                                                                                            𝐹!→#
+                                                                                                                       OF estimation
+                                                                                                                                            𝐹%! →!
+                                                                                                                                                       OF estimation
+                                                                                                                                                                              𝐹&'(
+
+is efficient but prone to artifacts, while backward warp-                             𝑡# ··· 𝑡$ ··· 𝑡)                       𝑡$                       𝑡# ··· 𝑡$ ··· 𝑡)   Flow Query
+ing yields higher quality at a significant computational
+                                                                                            Forward Warping               Backward Warping                  Bidirectional Warping
+cost, especially for multi-frame interpolation. This trade-
+off is a major bottleneck. To overcome this, we introduce                                                 Cost less     High                                              Cost less
+                                                                                                                                        Cost a lot
+                                                                                      𝐼#!       𝐼##      Error-prone   Quality    𝐼#"                 𝐼#!      𝐼##       High Quality
+“One-Shot Flow, Any-Time Frame,” a novel framework for
+                                                                                         (a) Forward method            (b) Backward method                   (c) Our method
+Event-based VFI (E-VFI) that achieves both high efficiency
+and superior quality for arbitrary-time interpolation. Our
+                                                                                    Figure 1. Comparison of different optical flow methods. (a) For-
+framework uniquely computes a comprehensive motion tra-
+                                                                                    ward method enables fast interpolation but produces artifacts such
+jectory representation in a single pass using a Bidirectional                       as holes. (b) Backward method improves quality via backward
+Flow Estimation Block (BiFEB), leveraging the high tem-                             warping but requires heavy computation. (c) Our method unifies
+poral resolution of event data. Subsequently, our Flow                              both advantages, achieving high-quality synthesis with low cost.
+Query (FQ) module can instantly retrieve the bidirectional
+optical flow for any timestamp, enabling the generation of                          motion video [1, 13, 42], video compression [40], and view
+any number of frames without repeated computation. Fi-                              synthesis [48]. Among various VFI techniques, optical
+nally, a novel Bidirectional Warping (BiW) mechanism in-                            flow-based methods have become the dominant paradigm
+telligently fuses the strengths of both warping directions,                         due to their ability to generate sharp and geometrically con-
+effectively mitigating artifacts and producing high-fidelity                        sistent results [9, 11, 15, 16, 22]. These methods fall into
+results. Extensive experiments show that our approach con-                          two categories, each with its own limitations.
+sistently surpasses state-of-the-art E-VFI methods in both
+                                                                                       Forward methods achieve high efficiency for a large
+reconstruction quality and inference efficiency, representing
+                                                                                    number of frames by estimating optical flow (I0 → I1 ) only
+a substantial advance in efficient and high-quality event-
+                                                                                    once and scaling it linearly for t (Fig. 1(a)). However, this
+based video interpolation. The project page is available at:
+                                                                                    linear approximation struggles with complex motion, and
+https://github.com/Sudadaaaa/OF-AF
+                                                                                    forward warping often leaves regions uncovered, producing
+                                                                                    holes and degraded image quality (Fig. 2(a)). In contrast,
+                                                                                    backward methods ensure full pixel coverage and supe-
+1. Introduction                                                                     rior quality by sampling every target pixel from the source
+Video Frame Interpolation (VFI) is a fundamental task in                            frames via reverse optical flow (I1 → I0 ) (Fig. 2(b)). How-
+computer vision with widespread applications such as slow-                          ever, predicting flow for every interpolated frame incurs
+                                                                                    substantial computational costs, creating a critical trade-off
+  * : Equal contribution   † : Corresponding author                                 between computational cost and quality (Fig. 1(b)).
+
+
+
+                                                                             2832
+                   Continuous Linear Flow 퐹�→�         Event enhanced Continuous Non-linear Flow 퐹�→�                                       in a single forward pass, enabling the rapid and memory-
+but low quality
+
+                                        error          Still holes
+   Anytime
+
+
+
+                                                                                                                                            efficient synthesis of a large number of high-quality inter-
+
+
+
+
+                                                                                                        Anytime and high quality
+                                                                                                                                            mediate frames at arbitrary timestamps.
+                     퐼�                           퐼�           퐼�        events           퐼�
+                          (a) Forward warping                                          Guide refine                                       • We introduce the Bidirectional Flow Estimation Block
+                                                       Event enhanced Continuous Non-linear Flow 퐹�→�
+                   Discrete Flow 퐹�� →�                                                                                                     (BiFEB), which estimates a holistic representation of
+but high quality
+   Cost a lot
+
+
+
+
+                                                                                                                                            bidirectional optical flows, and a Flow Query (FQ) mod-
+                                                                                                                                            ule that allows efficient flow retrieval for any target time.
+                     퐼�                           퐼�            퐼�         events          퐼�
+                          (b) Backward warping                 (c) Bidirectional warping (ours)                                           • We design the Bidirectional Warping (BiW) module,
+                                           hole                   True position                                                             which intelligently repairs warping artifacts by generating
+                                                                                                                                            adaptive restoration masks and sourcing contextual infor-
+ Figure 2. Comparison of different warping. Our method combines
+                                                                                                                                            mation from reference frames.
+ the advantages of forward warping and backward warping.
+                                                                                                                                          • Extensive experiments on both synthetic and real-world
+    The advent of event cameras [38] has offered a promis-                                                                                  datasets demonstrate that our method significantly outper-
+ ing direction for breaking this trade-off. By capturing per-                                                                               forms state-of-the-art E-VFI approaches, achieving supe-
+ pixel brightness changes with microsecond-level precision,                                                                                 rior visual quality while substantially reducing computa-
+ event data provides dense, continuous motion cues that                                                                                     tional and memory costs
+ complement conventional VFI inputs, leading to notable
+ progress in Event-based VFI (E-VFI). However, existing                                                                                   2. Related Work
+ E-VFI methods [18, 25, 29, 38, 39] still fail to overcome                                                                                Video frame interpolation. Video Frame Interpola-
+ the fundamental efficiency–quality dilemma. To alleviate                                                                                 tion (VFI) has historically been pursued via two main
+ the costly per-frame estimation inherent to their backward                                                                               paradigms: synthesis-based and flow-based methods.
+ warping foundations, several works [25, 29] adopt iterative                                                                              Synthesis-based approaches, including kernel-based [3, 4,
+ strategies, which improve inference efficiency but introduce                                                                             17, 21, 32, 33, 35] and diffusion models [12, 47], gener-
+ substantial memory overhead that grows rapidly with the                                                                                  ate pixels directly. However, since they lack strong geo-
+ number of interpolated frames. Ultimately, constrained by                                                                                metric constraints, they often result in blurry or temporally
+ the backward warping paradigm itself, these methods re-                                                                                  inconsistent outputs, especially in scenes with complex mo-
+ main unable to achieve true efficiency–quality unification.                                                                              tion. In contrast, flow-based methods [9, 13, 20, 31] have
+    To break this impasse, we propose a new framework,                                                                                    emerged as the dominant paradigm. By leveraging explicit
+ “One-Shot Flow, Any-Time Frame,” which synergistically                                                                                   motion estimation via optical flow, they warp pixels from
+ fuses the advantages of forward warping, backward warp-                                                                                  existing frames to synthesize intermediate ones, producing
+ ing, and event data. Our key insights are as follows: (1) The                                                                            significantly sharper and more coherent results. However,
+ linear motion assumption inherent to forward flow causes                                                                                 their performance is fundamentally limited by the sparse
+ accumulated errors, but dense event streams provide con-                                                                                 temporal information between keyframes. This makes es-
+ tinuous, non-linear motion cues that can correct it; and (2)                                                                             timating complex, non-linear motion an ill-posed problem
+ the hole artifacts produced by forward warping can be ef-                                                                                and creates a critical information bottleneck that hinders
+ fectively filled by leveraging backward flow information, en-                                                                            quality.
+ suring reconstruction quality. Building on these insights,                                                                               Event-based video frame interpolation. Event cameras
+ our framework performs one-shot motion estimation and                                                                                    provide dense motion cues that alleviate the temporal in-
+ enables arbitrary-time interpolation via efficient flow query-                                                                           formation bottleneck in conventional VFI, driving rapid
+ ing and adaptive refinement (Fig. 1(c)). At its core, the Bidi-                                                                          progress in Event-based VFI (E-VFI) [6, 7, 18, 23, 25–
+ rectional Flow Estimation Block (BiFEB) jointly processes                                                                                29, 36, 38, 39, 41, 43, 46]. Existing methods fall into two
+ keyframes and event streams to build a unified motion rep-                                                                               categories: flow-free and flow-based approaches.
+ resentation. The Flow Query (FQ) module then retrieves ac-                                                                                  Flow-free methods [2, 6, 26, 28] directly synthesize pix-
+ curate flows for any intermediate timestamp, while the Bidi-                                                                             els from events, bypassing motion estimation. However, by
+ rectional Warping (BiW) module detects unreliable regions                                                                                forgoing explicit motion modeling, they often struggle to
+ and guides refinement to produce high-quality, artifact-free                                                                             preserve fine-grained textures and are prone to artifacts, as
+ frames. By harmonizing these components, our method                                                                                      the synthesis process lacks robust geometric guidance.
+ unifies the efficiency of forward approaches with the fidelity                                                                              Flow-based methods [27, 39, 41] exploit events to im-
+ of backward ones, marking a significant step toward bridg-                                                                               prove optical flow estimation. Recent works follow two
+ ing the efficiency–quality gap in VFI. The main contribu-                                                                                strategies: 1) Single-frame estimation [18, 38], which pre-
+ tions of this work are summarized as follows:                                                                                            dicts a precise flow for each target timestamp. This yields
+ • We propose a novel event-based video interpolation                                                                                     strong quality but incurs prohibitive computational cost
+   framework that captures continuous motion trajectories                                                                                 when many frames are required. 2) Multi-frame estimation
+
+
+
+                                                                                                                                   2833
+[25, 29], which refines flows across multiple timestamps to              design is supported by a fundamental and reasonable mo-
+reduce redundant computation. However, it still requires a               tion assumption: object motion can be approximated as lin-
+flow prediction for every frame, and storing numerous in-                ear and uniform over extremely short intervals.
+termediate variables leads to massive memory overhead.                      The architecture of BiFEB is detailed in Fig. 3. Focus-
+   In contrast, our method breaks this trade-off with a new              ing on the t-th temporal segment, BiFEB first aggregates the
+paradigm: we compute a holistic, bidirectional motion rep-               current events feature Et with the contextual features θt−1
+resentation for the entire time interval in a single pass, from          and motion information Vt−1 from the (t − 1)-th segment to
+which the optical flow at any timestamp can be retrieved                 obtain the θt and Vt . Subsequently, we estimate the bidirec-
+on demand. This eliminates per-frame flow prediction and                 tional optical flow by starting from the keyframe I0 . This
+avoids the memory burden of iterative schemes, enabling                  process can be represented by Eq. (1).
+both high efficiency and high-quality interpolation.
+                                                                                          \begin {aligned} \theta ^0_t &= RES(\theta ^0_{t-1},E_t),\\ V^0_t &= RES(V^0_{t-1},E_t,\theta ^0_t),\\ F_{0 \rightarrow t} &= FFE(V^0_{t}, \theta ^0_{t}),\\ F_{t \rightarrow 0} &= BFE(V^0_t,\theta ^0_t,D^0_{t-1},F_{t-1 \rightarrow 0}), \label {eq:bifeb} \end {aligned} 
+3. Proposed Method                                                                                                                                                                                                                                                                                                                                                                                                                                                                              (1)
+3.1. Method Overview
+Our proposed method takes the two keyframes (I0 and I1 )
+and the intervening events as input and synthesizes an arbi-             where (·)0 denotes the variable processed from I0 . The
+trary number of intermediate frames. Fig. 3 shows the over-              Res denotes a residual block. The Forward Flow Estimator
+all architecture, which is decomposed into two main stages:              (FFE) module utilizes a GRU [37] to estimate the F0→t .
+Bidirectional Flow Estimation and Bidirectional Warping.                 The Backward Flow Estimator (BFE) estimates the back-
+    Initially, the raw events are processed into a voxel grid            ward flow Ft→0 . The detailed architecture of the BFE mod-
+representation, following [29, 38]. We then employ two                   ule is provided in the Supplementary Material.
+separate feature extractors to derive 1/4 scale features from               Initially, we set D00 and θ00 as the feature D0 , and set
+both keyframes and the voxel grid. The Bidirectional Flow                F0→0 and V00 as 0. We input the events in the reverse order
+Estimation Block (BiFEB) then predicts the dense bidirec-                and set D01 and θ01 as the feature D1 to estimate the forward
+tional optical flow between the two keyframes for arbitrary              flow F1→t and backward flow Ft→1 . Finally, we obtain the
+time t. Crucially, this step is performed only once, regard-             bidirectional flow Farb of the object at arbitrary time.
+less of the number of frames subsequently interpolated, en-
+                                                                         3.3. Flow Query
+suring high computational efficiency.
+    Given a target time t, we rapidly obtain two sets of                 After BiFEB computes the Farb , the Flow Query (FQ) mod-
+bidirectional optical flow (F0→t , Ft→0 ) and (F1→t , Ft→1 )             ule enables the efficient retrieval of bidirectional optical
+through Flow Querying. These flows are then utilized by the              flows for any target timestamp t ∈ (0, 1). We first query
+Bidirectional Warping (BiW) module to guide the network                  the bidirectional optical flow and the contextual informa-
+in synthesizing an accurate intermediate frame.                          tion corresponding to the target time from the keyframe I0 .
+    The following sections will detail the core components               We begin by performing the querying using Eq. (2).
+of our architecture, BiFEB and BiW.                                                     \begin {aligned} F_{0 \rightarrow t_l},F_{t_l \rightarrow t_r} &= Q(F_{arb}, 0 \rightarrow t),\\ F_{t_r \rightarrow t_l},F_{t_l \rightarrow 0} &= Q(F_{arb}, t \rightarrow 0),\\ \theta ^0_{t_l},\theta ^0_{t_r} &= Q(\theta ,0,t), \label {eq:flowquery} \end {aligned} 
+3.2. Bidirectional Flow Estimation Block                                                                                                                                                                                                                                                                                                                                                                                                                                                        (2)
+To circumvent the need for repeatedly calculating optical
+flow for every time t, we introduce BiFEB. Similar to for-               where Q first determines the starting time tl and ending
+ward methods, BiFEB can estimate the bidirectional opti-                 time tr of the time segment containing the input time t.
+cal flow of objects at an arbitrary time between the two                 Then, according to tl and tr , it queries Farb and θ to ob-
+keyframes in a single pass. However, conventional forward                tain the bidirectional optical flow and contextual features at
+methods typically assume linear and uniform motion be-                   time tl and tr . Then, we use Eq. (3) to get the final output.
+tween the keyframes, leading to inaccurate flow estimation
+when confronted with non-uniform or curvilinear motion.                                                                 \begin {aligned} \lambda &= \frac {t-t_l}{t_r-t_l},\\ F_{0 \rightarrow t} &= F_{0 \rightarrow t_l} + \lambda \cdot F_{t_l \rightarrow t_r},\\ F_{t \rightarrow 0} &= (1-\lambda ) \cdot F_{t_r \rightarrow t_l} + F_{t_l \rightarrow 0},\\ \theta ^0_t &= (1-\lambda ) \cdot \theta ^0_{t_l} + \lambda \cdot \theta ^0_{t_r}, \label {eq:blend query} \end {aligned} 
+BiFEB addresses this limitation by using the high-temporal-
+resolution motion from events. Specifically, we divide the                                                                                                                                                                                                                                                                                                                                                                                                                                      (3)
+object’s total motion over time into n continuous temporal
+segments, regardless of the target interpolation frame count
+(N ). The events in each segment are then utilized to es-
+timate the corresponding localized optical flow, enabling a              where the weight λ is utilized to interpolate the bidirectional
+more accurate optical flow between the two frames. This                  optical flow and the contextual information at tl and tr . This
+
+
+
+                                                                  2834
+

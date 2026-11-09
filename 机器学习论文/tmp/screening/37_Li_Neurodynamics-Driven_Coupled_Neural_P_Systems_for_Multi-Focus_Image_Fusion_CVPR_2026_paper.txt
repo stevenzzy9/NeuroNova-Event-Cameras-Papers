@@ -1,0 +1,234 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+Neurodynamics-Driven Coupled Neural P Systems for Multi-Focus Image Fusion
+
+                      Bo Li1,2 Yunkuo Lei1,2 Tingting Bao1,2 Hang Yan1,2
+                    Yaxian Wang4 Weiping Fu1,2 Lingling Zhang1,2 * Jun Liu1,3
+               1
+                 School of Computer Science and Technology, Xi’an Jiaotong University
+     2
+       Ministry of Education Key Laboratory of Intelligent Networks and Network Security, China
+   3
+     Shaanxi Province Key Laboratory of Big Data Knowledge Engineering 4 Chang’an University
+                             morvanli@stu.xjtu.edu.cn, zhanglling@mail.xjtu.edu.cn
+
+
+
+                            Abstract                                                           Limited Interpretability          w/o post-processing
+                                                                                                                                    Decision Map
+
+Multi-focus image fusion (MFIF) is a crucial technique in
+
+
+
+
+                                                                                                    Encoder
+
+
+
+                                                                                                                 Decoder
+image processing, with a key challenge being the generation
+of decision maps with precise boundaries. However, tra-
+ditional methods based on heuristic rules and deep learn-
+                                                                     Near/Far-focus Images                                        (a) Y-NetIJCV2023
+ing methods with black-box networks are difficult to gen-
+erate high-quality decision maps. To overcome this chal-             Near-focus Image               Spike Matrix
+lenge, we introduce neurodynamics-driven coupled neural                                         4    6 7 … 39 41            0                     50
+                                                                                        ND-CNP 5     4 8 … 42 43
+P (CNP) systems, which are biological neural computation                                 System
+                                                                                                3    4 6 … 42 50
+models inspired by spiking mechanisms, to enhance the ac-                                       4    5 6 … 43 45
+curacy of decision maps. Specifically, we first conduct an
+                                                                                                …
+                                                                                                …
+                                                                                                …
+
+                                                                                                              …
+                                                                                                              …
+                                                                                                 3 5 4 … 38 42
+in-depth analysis of the model’s neurodynamics to identify                                                                 Max
+
+the constraints between the network parameters and the in-                                      42 43 45 … 11 8
+                                                                                        ND-CNP 41 42 43 … 9 8
+put signals. This solid analysis avoids abnormal contin-                                 System 40 42 43 … 7 8
+                                                                                                                                 w/o post-processing
+uous firing of neurons and ensures the model accurately                                         41 43 50 … 8 10
+                                                                                                                                    Decision Map
+distinguishes between focused and unfocused regions, gen-
+                                                                                                 …
+                                                                                                 …
+                                                                                                 …
+
+                                                                                                              …
+                                                                                                              …
+                                                                                                39 40 42 … 6 5
+erating high-quality decision maps for MFIF. Based on                Far-focus Image              Spike Matrix             (b) ND-CNPFuse (Ours)
+this analysis, we propose a Neurodynamics-Driven CNP
+Fusion model (ND-CNPFuse) tailored for the challeng-               Figure 1. Workflow comparison of the existing decision method
+ing MFIF task. Unlike current ideas of decision map gen-           and the proposed ND-CNPFuse. ND-CNPFuse encodes source
+eration, ND-CNPFuse distinguishes between focused and              images into spike matrices and generates the decision map by com-
+unfocused regions by mapping the source image into in-             paring spike counts. Focused regions produce more spikes than
+terpretable spike matrices. By comparing the number of             unfocused ones, consistent with human visual perception [12].
+spikes, an accurate decision map can be generated directly
+without any post-processing. Extensive experimental results        varying focal depths. The fused image improves both per-
+show that ND-CNPFuse achieves new state-of-the-art per-            ceptual quality and information richness, benefiting down-
+formance on four classical MFIF datasets, including Lytro,         stream vision applications such as action detection [32] and
+MFFW, MFI-WHU, and Real-MFF. The code is available at              object detection [17]. By integrating the focused regions
+https://github.com/MorvanLi/ND-CNPFuse.                            from source images with different focus settings, MFIF ef-
+                                                                   fectively alleviates the blurring artifacts introduced by the
+                                                                   limited depth of field inherent in imaging systems.
+1. Introduction                                                       Before the advent of deep learning (DL), MFIF meth-
+                                                                   ods were performed in the transform [18] and spatial do-
+Multi-focus image fusion (MFIF) [45] is an important task          mains [46]. These methods often rely heavily on manually
+in computer vision that aims to generate an all-in-focus im-       designed fusion rules and strong prior assumptions, which
+age by fusing multiple images of the same scene captured at        may not always be applicable or sufficiently accurate.
+  * Corresponding author.                                             In recent years, DL-based approaches have become
+
+
+
+                                                             26541
+the dominant paradigm in MFIF, achieving remarkable               CNPFuse provides an interpretable and accurate decision
+progress [20]. Some studies have applied DL techniques            map generation workflow, in contrast to existing DL-based
+to end-to-end image fusion frameworks [7, 15, 30, 37, 39].        MFIF methods that rely on black-box networks (Fig. 1(a)).
+Different end-to-end methods may use various network                 In conclusion, this paper makes three contributions:
+structures, but they generally consist of an encoder network      1. We conduct a detailed analysis of the neurodynamic
+for extracting image features, a fusion network for merging          mechanisms of CNP neurons, which is essential to clar-
+features, and a decoder network for reconstructing the fused         ify the constraints between network parameters and in-
+features. Another line of studies draws inspiration from spa-        put signals. To the best of our knowledge, this is the first
+tial domain methods, suggesting the use of DL techniques             study to investigate the neurodynamics of CNP systems.
+to generate decision maps [10, 23, 28, 33, 48]. This pro-         2. We propose a bio-inspired neural network-based method
+cess involves training a network to map the source image             called ND-CNPFuse to address the challenge of gener-
+to a focus map, ultimately producing decision maps. Com-             ating accurate decision maps in MFIF tasks. The advan-
+pared to end-to-end methods, decision-based methods di-              tages of ND-CNPFuse are that it requires no training and
+rectly retain information from the source image at the pixel         the process of generating decision maps is interpretable.
+level, avoiding the spatial consistency issues of end-to-end      3. Extensive experimental results show that ND-CNPFuse
+methods. Therefore, more research has been done on DL-               achieves state-of-the-art performance on four MFIF
+based decision map methods. However, DL-based decision               datasets. Furthermore, ND-CNPFuse consistently out-
+map methods still have evident drawbacks. The most cru-              performs baseline CNP in six commonly used quantita-
+cial one is that the internal working mechanism is difficult         tive metrics, with an average improvement of 5.73%.
+to explain, hindering a clear understanding of the mapping
+between source images and the decision map [34]. This will        2. Related Work
+result in nuisance false edges and burrs in the generated de-
+cision map, as can be intuitively observed in Fig. 1(a).          2.1. DL-based MFIF methods
+   Coupled neural P (CNP) systems [26] are a class of             End-to-end methods. These methods directly generate
+neural-like computing models inspired by synchronous              fused images by leveraging the fitting ability of deep neu-
+pulse bursts in a mammal’s visual cortex. A CNP sys-              ral networks. Representative approaches include convolu-
+tem generates synchronous spikes through the mutual cou-          tional neural networks [4, 36, 40, 47], generative adversar-
+pling of neurons, where synchronous pulses of neurons are         ial networks [8, 41], Transformer architectures [24, 49], and
+treated as 0 or 1. After multiple iterations, the system pro-     diffusion models [2, 31, 42]. However, maintaining spatial
+duces a sequence of binary images that record the firing          consistency with source images remains challenging.
+states of each neuron at every time step. By comparing the        Decision-map methods. These methods formulate MFIF
+spike counts of neurons, the degree of focus corresponding        as a pixel-level classification task by predicting decision
+to each pixel can be effectively estimated, enabling the dif-     maps for focused and defocused regions. Liu et al. [19] first
+ferentiation between focused and defocused regions. This          applied this technique to MFIF, but the generated decision
+is particularly well-suited for decision map generation in        maps remain limited in precision. Subsequent studies im-
+the MFIF task, which serves as the core motivation for in-        proved performance using ensemble learning [1], attention
+troducing CNP systems into MFIF. However, when CNP                mechanisms [35], regression pair learning [16], multi-scale
+systems are directly applied to MFIF, neurons may suffer          architectures [21], edge preservation [34], and defocus blur
+abnormal continuous firing. In this case, the spike counts        modeling [29]. Nevertheless, unclear network mechanisms
+cannot accurately reflect the focus differences of the source     often introduce pseudo-edges and burr artifacts, and gener-
+images, which affects the quality of the decision map. This       ating high-quality decision maps remains to be explored.
+issue stems from an inappropriate constraint between net-
+work parameters and input signals.                                2.2. Coupled neural P systems
+    To address this problem, we first conduct a detailed study    Coupled neural P (CNP) systems are a class of multi-
+on the neurodynamics of CNP neurons. This analysis re-            parameter, single-layer, locally connected neural networks.
+veals the underlying constraints between network parame-          Their key feature, the coupled spiking mechanism, enables
+ters and input signals, thereby preventing abnormal contin-       efficient image feature extraction and has been applied in
+uous firing in neurons. A solid understanding of the neural       image fusion tasks [6, 13, 27]. However, existing CNP sys-
+firing mechanism is helpful for setting appropriate param-        tems heavily rely on manually tuned parameters. This may
+eters and provides a theoretical basis for effectively apply-     lead to neurons in invalid states, thus limiting the model’s
+ing CNP systems in MFIF. Building on the neurodynamics-           performance in image fusion tasks. In this paper, we ana-
+driven CNP system, we then propose a new fusion method            lyze the dynamics of CNP neurons and establish the con-
+called ND-CNPFuse. As illustrated in Fig. 1(b), ND-               straint relationships between network parameters and input
+
+
+
+                                                             26542
+signals, which can make the CNP system easier to use.                                           Following [26], we approximate the spike consumption
+                                                                                             of the three CNP units as linear decay to facilitate analysis.
+3. Neurodynamics-Driven CNP Systems
+In this section, we first review the definition of the CNP sys-                              U (t)    u = ↵U (t), V (t)        v = V (t), T (t) ⌧ = T (t),
+tem and then analyze its neurodynamic properties in detail.                                                                                             (7)
+3.1. Mathematical model of CNP systems                                                       where ↵, ,        2 (0, 1). We have the following theorem:
+
+In CNP systems, each neuron has three memory units: the                                      Theorem 1. For the feeding input unit U, the value in-
+feeding input unit (U ), the linking input unit (V ), and the                                creases with iterations and is represented as
+dynamic threshold unit (T ). The update rule for CNP neu-                                                                      t 1
+ron ij states is defined as follows:                                                                                  1    ↵t X
+                                                                                                         U (t) = I           +     K(n)↵t n 1 .           (8)
+            8                               P                                                                         1    ↵
+            < Uij (t      1)  u +Iij +     Wkl Pkl (t             1),   if   ij fires
+                                                                                                                               n=0
+                                     Pkl 2 r
+Uij (t) =                                                                                                                      conditions: U (0) and K(0)
+                                                                                             Proof. Let us clarify the initial P
+            : Uij (t      1) + Iij +       Wkl Pkl (t             1),   otherwise
+                                          kl 2 r
+                                                                                             are both zero. Define K(n) =                   Wkl Pkl (n). Next,
+                                                                                  (1)                                                kl 2 r
+                                                                                             we describe U (1), U (2), U (3), . . . , U (t) step by step:
+            8                      P
+            < Vij (t      1)   v+        Wkl Pkl (t 1),                 if   ij fires                U (0) = 0
+Vij (t) =                       P kl 2 r                                                             U (1) = ↵U (0) + I + K(0) = I
+            : Vij (t      1) +     Wkl Pkl (t 1),                       otherwise
+                                 kl 2 r
+                                                                                                     U (2) = ↵U (1) + I + K(1) = ↵I + I + K(1)
+                                                                                  (2)
+             ⇢                                                                                            ..                                              (9)
+                 Tij (t        1) ⌧ + Pij (t                1),    if ij fires                             .
+Tij (t) =
+                 Tij (t        1),                                 otherwise                                              t 1
+                                                                                                                 1    ↵t X
+                                                                                  (3)                U (t) = I          +     K(n)↵t n 1 .
+                                                                                                                 1    ↵   n=0
+where subscripts (i, j) denote the coordinates of the neuron,
+(k, l) denote the coordinates of its neighboring neurons, and                                   Theorem 1 is proved.
+t represents the current iteration count. u, v, ⌧ indicate the
+                                                                                             Theorem 2. For the linking input unit V, the value grows
+spikes consumed by three units. Iij is an external input.
+                                                                                             continuously with the increasing number of iterations and
+Wkl characterizes synaptic weight. Pkl symbolizes spikes
+                                                                                             can be represented by the following formula:
+received from the surrounding neurons kl , where neigh-
+borhood radius is r ( kl 2 r ). is a threshold weight.                                                                     t 1
+                                                                                                                           X
+                                                                                                                 V (t) =         K(n) t n 1 .            (10)
+3.2. Why neurodynamics analysis is necessary?                                                                              n=0
+In certain cases, CNP neurons may enter a state of contin-
+                                                                                             Proof. Similarly, the initial state V (0) = 0. We list V (1),
+uous firing, generating spikes at each time step. As illus-
+                                                                                             V (2), V (3), V (4), ..., and V (t).
+trated in Fig. 2(c) and Fig. 2(d). This uncontrolled spiking
+behavior can lead to model failure, as the output no longer                                          V (0) = 0
+reflects the features of the input signal. For the MFIF task,
+                                                                                                     V (1) = V (0) + K(0) = 0
+such outputs do not effectively distinguish between focused
+and defocused regions, thereby affecting the generation of                                           V (2) = V (1) + K(1) = K(1)
+accurate decision maps. We next analyze this invalid state                                           V (3) = V (2) + K(2) = K(1) + K(2)
+                                                                                                                                                         (11)
+and identify parameter configurations that prevent it.                                                    ..
+Analysis of continuous firing condition. We analyze the                                                    .
+continuous firing condition of CNP neurons to derive con-                                                      t 1
+                                                                                                               X
+straints between parameters and the input signal. For con-                                           V (t) =         K(n) t n 1 .
+tinuously firing CNP neurons, the state update is given by:                                                    n=0
+                                   X
+   U (t) = U (t 1) u + I +               Wkl Pkl (t 1), (4)                                     Theorem 2 is proved.
+                                                   kl 2 r
+                                          X                                                  Theorem 3. For the dynamic threshold unit T, the value
+  V (t) = V (t            1)    v+                  Wkl Pkl (t      1),           (5)        increases with iterations and is expressed as follows
+                                      kl 2 r
+                                                                                                                                         t 1
+                                                                                                                                 1
+   T (t) = T (t        1)       ⌧ + P (t              1).                         (6)                                T (t) =                   .         (12)
+                                                                                                                                     1
+
+
+
+                                                                                        26543
+

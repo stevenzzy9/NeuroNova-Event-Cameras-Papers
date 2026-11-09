@@ -1,0 +1,232 @@
+                               This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                            Except for this watermark, it is identical to the accepted version;
+                                      the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                         BiEvLight: Bi-level Learning of Task-Aware Event Refinement
+                                     for Low-Light Image Enhancement
+
+                Zishu Yao1 , Xiang-Xiang Su1 , Shengning Zhou2 , Guang-Yong Chen1 , Guodong Fan2 *, Xing Chen1
+                                                                   1
+                                                                       Fuzhou University, China
+                                             2
+                                                 Shandong Technology and Business University, China
+  zishuyao98@gmail.com, sxxdyx0619@163.com, 2023420043@sdtbu.edu.cn, cgykeda@mail.ustc.edu.cn,
+
+                                                      fgd96@outlook.com, chenxing@fzu.edu.cn
+
+
+                                                                                             Modal-Independent                                                               eSLNet
+                                                                                                                                                 †
+
+                                                                             Evlight URWKV
+                                                                                                                                             SDE-in                       (ECCV-20)
+ Event Camera
+
+
+
+
+                                                                                                                                                                             SNRNet
+                                                                                                                                  
+                                                                                                                                                                           (CVPR-22)
+                                                                                                                               SDE-out                      
+                                                                                                                                                         SDE-in               CUE
+                                                                                                                                                                          (ICCV-23)
+                                                                                                                                                                           FourLLIE
+                                                                                                                                                                            (MM-23)
+                                                                 Denoising                                                                                                  Reformer
+                                                                                                                                                                           (ICCV-23)
+                                                                                                                                †                                             ELIE
+                                                                                             Cross-Modal Aware               SDE-out
+                                                                                                                                                                  †
+                                                                                                                                                           SDSD-out        (TMM-23)
+ Frame Camera
+
+
+
+
+                                                                                                                                                                             Evlight
+                                                                                                                                                                          (CVPR-24)
+                                                                                                                                                                            URWKV
+                                                                                                                                                                          (CVPR-25)
+                                                                             Ours
+
+
+
+
+                                                                                                                                                                              Ours
+                                                                                                                                                                        (Proposed)
+                                                                                                                              SDSD-in                   SDSD-out
+                                                                                                                                                                      †       SSIM
+
+                                                              Enhancement                                                                        †
+                                                                                                                                             SDSD-in                         PSNR
+
+
+                   (a) Low-light scene              (b) Proposed Strategy                       (c) Qualitative Comparison               (d) Quantitative Comparison
+
+Figure 1. (a) Two modalities exhibiting different types of degradation in low-light environments. (b) The proposed strategy, we aim to
+utilize cross-modal interaction to guide denoising to achieve the event representation adapted to lower-level enhancement tasks. (c) Visual
+comparison with the current most representative methods, as well as visualization of events after denoising. (d) Quantitative and visual
+comparison with current mainstream methods, the proposed method achieves optimal results on mainstream datasets.
+
+
+                                         Abstract                                                   stead of treating event denoising as a static pre-processing
+                                                                                                    stage—which inevitably incurs a trade-off between over-
+    Event cameras, with their high dynamic range, show                                              and under-denoising and cannot adapt to the requirements
+great promise for Low-light Image Enhancement (LLIE).                                               of a specific enhancement objective—we recast it as a
+Existing works primarily focus on designing effective modal                                         bilevel optimization problem constrained by the enhance-
+fusion strategies. However, a key challenge is the dual                                             ment task. Through cross-task interaction, the upper-level
+degradation from intrinsic background activity (BA) noise                                           denoising problem learns event representations tailored to
+in events and low signal-to-noise ratio (SNR) in images,                                            the lower-level enhancement objective, thereby substan-
+which causes severe noise coupling during modal fusion,                                             tially improving overall enhancement quality. Extensive ex-
+creating a critical performance bottleneck. We therefore                                            periments on the Real-world noise Dataset SDE demon-
+posit that precise event denoising is the prerequisite to                                           strate that our method significantly outperforms state-of-
+unlocking the full potential of event-based fusion. To                                              the-art (SOTA) approaches, with average improvements of
+this end, we propose BiEvLight, a hierarchical and task-                                            1.30dB in PSNR , 2.03dB in PSNR* and 0.047 in SSIM, re-
+aware framework that collaboratively optimizes enhance-                                             spectively. The code will be publicly available at https:
+ment and denoising by exploiting their intrinsic interde-                                           //github.com/iijjlk/BiEvlight.
+pendence. Specifically, BiEvLight exploits the strong gra-
+dient correlation between images and events to build a                                              1. Introduction
+gradient-guided event denoising prior that alleviates insuf-
+ficient denoising in heavily noisy regions. Moreover, in-                                           Acquiring high-quality images in nighttime dynamic scenes
+                                                                                                    is crucial for applications that rely on visual content, such
+         * Corresponding author.                                                                    as autonomous driving and video surveillance. Traditional
+
+
+
+                                                                                              41541
+frame-based cameras typically employ long exposure times          ity is essentially fixed and cannot adapt to the require-
+to capture images under low-light conditions. However,            ments of the specific enhancement objective, leading to a
+this approach is not only highly prone to motion blur             dilemma: excessive denoising removes critical structural
+but also introduces substantial noise. Although existing          details, whereas insufficient denoising allows residual noise
+LLIE methods [4, 22, 31, 37–39, 43] have achieved re-             to propagate into the fusion stage, ultimately degrading en-
+markable progress in image restoration, the loss of key           hancement quality.
+structural information remains largely unresolved. Conse-            To address this challenge, we introduce BiEvLight, a
+quently, achieving high-quality imaging in dynamic night-         task-aware bilevel learning framework. In this framework,
+time scenes with conventional frame-based cameras re-             denoising is no longer treated as a static pre-processing
+mains a significant and unresolved challenge.                     step but is reformulated as a bilevel optimization prob-
+    Recently, the emergence of event cameras [3, 9, 17, 24]       lem constrained by the enhancement task. Specifically,
+has offered a new paradigm for addressing this challenge.         during the enhancement process that fuses complemen-
+Unlike traditional cameras, event cameras asynchronously          tary event-modal information, the lower-level enhancement
+record pixel-level brightness changes. Leveraging their           task dynamically calibrates the upper-level event denoising
+microsecond-level temporal resolution and high dynamic            through its gain feedback. The refined event signals, in
+range characteristics, they effectively overcome the mo-          turn, deliver high-SNR complementary cues to the enhance-
+tion blur and exposure issues inherent to traditional frame-      ment branch. This task-aware bilevel learning mechanism
+based cameras in low-light and high-speed dynamic scenes.         adaptively achieves a delicate balance between noise sup-
+Building on these significant advantages of event cameras,        pression and structural fidelity, enabling the model to learn
+existing Event-based LLIE methods [12, 16, 29, 30] are            event representations tailored to low-light enhancement and
+widely dedicated to designing various fusion strategies to        thereby substantially improve overall enhancement quality.
+achieve effective integration of the event modality with im-      Our contributions can be summarized in three aspects:
+age frames.                                                       • We proposed BiEvLight, a task-aware bilevel learning
+    However, existing work largely overlooks event data             framework that, by leveraging the intrinsic interdepen-
+degradation in low-light. This stems from intrinsic sen-            dence between event denoising and LLIE, redefines the
+sor properties: random fluctuations in internal circuitry and       denoising problem as an upper-level optimization prob-
+dark current trigger spurious events (i.e., BA noise) when          lem constrained by the lower-level enhancement task,
+exceeding a preset threshold. Crucially, in low light, low-         thereby achieving collaborative optimization of denoising
+ering the response threshold to capture faint changes dra-          and enhancement.
+matically amplifies BA noise [10]. As Fig. 1 (a) shows,           • We proposed a Spatially-adaptive Gradient-guided De-
+event streams in real low-light scenes are heavily contami-         noising strategy, which leverages the strong gradient cor-
+nated by BA noise, severely undermining events’ reliability         relation between images and events to implicitly guide
+as high-frequency priors, thus limiting enhancement perfor-         event stream denoising, thereby achieving precise noise
+mance. Current event denoising methods largely rely on lo-          suppression.
+cal spatio-temporal correlations (e.g., nearest-neighbor fil-     • Sufficient comparisons on more benchmarks with recent
+tering [6, 14, 18], time surfaces [20, 25]) and can effectively     advanced methods and detailed analyses are performed to
+suppress isolated noise at low-to-moderate densities. How-          prove our effectiveness.
+ever, in extremely low-light scenarios where high-density
+BA noise occurs, single-modality denoising fails to effec-        2. Related Works
+tively suppress noise and preserve structural details.
+                                                                  2.1. Low-light Image Enhancement
+    To alleviate the insufficient denoising in heavily noisy
+regions caused by the lack of modal guidance, we exploit          Frame-based LLIE methods: fall into end-to-end [7,
+the strong gradient correlation between images and events         21, 40–42] and Retinex-based [13, 15, 26, 34] methods.
+to develop a gradient-guided denoising prior. This prior im-      End-to-end methods learn a direct mapping from low-light
+plicitly guides the event stream denoising, effectively filter-   to normal images and do not incorporate priors on human
+ing artifacts while preserving true signals. Moreover, exist-     color perception, which can lead to color distortions and
+ing event–image fusion methods primarily focus on design-         reduced perceptual fidelity. Retinex-based methods, which
+ing fusion modules for merging data or features from dif-         decompose the image x as x = R ⊙ L and optimize illumi-
+ferent modalities, while overlooking the intrinsic coupling       nation L and reflectance R separately, typically yield supe-
+between denoising and enhancement. As a result, event de-         rior enhancement. However, in extreme photon-starved set-
+noising is typically treated as a static pre-processing step      tings where severe information loss occurs, frame-based ap-
+prior to enhancement. Without cross-task feedback or in-          proaches commonly produce reconstructions with blurred
+formation exchange, the resulting denoised event modal-           or missing structural details.
+
+
+
+                                                              41542
+Event-based LLIE methods: fall into only-event and                     of BA noise to be erroneously triggered. As a result, these
+event-assisted categories. Only-event methods [20, 27] re-             noise events dominate the event stream, severely diminish-
+construct images solely from event streams, but the lack               ing its value as a reliable high-frequency prior.
+of image cues (e.g., initial pixel intensities) makes accu-
+                                                                       3.1.2. Low-Light Imaging with Retinex
+rate per-pixel absolute intensity estimation difficult. Event-
+assisted methods use events to provide complementary edge              Based on the Retinex model, we solve for the reflectance
+and temporal information to frame images. For example,                 and illumination components by minimizing a regularized
+ELIE [12] leverages cross-modal residuals to reduce the                energy function:
+domain gap and introduces a contrast-distribution function
+to lessen perceptual differences. To address the scarcity               E(xr , xl ) = ||xlow − xr ⊙ xl ||2F + αΦ(xr ) + βϕ(xl ), (2)
+of real paired data, Liang et al. [16] released a real
+                                                                       where ||xlow − xr ⊙ xl ||F is the fidelity term, Φ(xr ) and
+low-light event–image dataset SDE and proposed Evlight,
+                                                                       ϕ(xl ) are regularization terms, and α and β are penalty co-
+which exploits differing noise distributions between events
+                                                                       efficients. Here, xr denotes the degraded reflectance map,
+and frames and achieves strong enhancement performance.
+                                                                       representing the intrinsic properties of the image, and xl
+However, existing works rarely systematically model the
+                                                                       represents the degraed illumination map, xlow denotes the
+event degradation caused by BA noise, resulting in recon-
+                                                                       degraded low-light image. In extremely dark environments,
+structions that remain blurred at the detail level.
+                                                                       insufficient photon capture cause many details in the xr to
+2.2. Event denoising                                                   be lost. The fidelity term becomes noise-dominated, and
+                                                                       conventional constraints alone cannot recover reliable struc-
+Early research primarily focused on nearest-neighbor fil-
+                                                                       ture.
+tering [6, 14, 18]. The core principle of these methods
+is to exploit the spatio-temporal locality of events, allow-           3.1.3. Bridging Events and Image
+ing only spatially adjacent or temporally close events to              By integrating the event stream with respect to time, we
+pass, thereby filtering out isolated, randomly generated               obtain the change in its logarithmic intensity:
+background noise. Another class of denoising algorithms
+                                                                                                    Z t
+[20, 25] treats noise events as non-ideal, instantaneous in-
+tensity change triggers. These methods achieve denoising                                 Jζ (t) =          E(τ )dτ,             (3)
+                                                                                                     t−ζ
+by filtering out non-initial trigger events based on the Time
+                                                                                       P∞
+Surface principle. However, research [2] indicates that be-            where E(τ ) =      i=1 ∆ηi τ (τ − ti )dτ , and ζ > 0 is the
+cause these methods rely solely on a single modality for               temporal integration window length, ti denotes the times-
+denoising, they often suffer from excessive residual noise,            tamp of the i − th event, E(τ ) represents the continuous-
+particularly in regions with severe noise.                             time event stream. Next, the event increment within ∆t is
+                                                                       defined as ∆Jζ (t) = Jζ (t) − Jζ (t − ∆t), which can be
+3. Method                                                              approximated by
+3.1. Problem Formulation                                                                              ∂
+                                                                                         ∆Jζ (t) ≈       Jζ (t)∆t.              (4)
+3.1.1. Mechanism of Imaging via BA Noise                                                              ∂t
+In event cameras, xe = {ek }N        k=1 represents the collec-           Based on the brightness-constancy assumption [8], dur-
+tion of events within a certain period, where a four-tuple             ing the time interval ∆t, we have:
+event ek = (ik , tk , pk ) , is triggered when the photocurrent
+change at a pixel exceeds a preset threshold:                                         ∂
+                                                                                         Jζ (t) + ▽xJζ (t) · v = 0,             (5)
+                         (                                                            ∂t
+                             +1 if △ η > ϵ
+                 pk =                         ,             (1)     where ▽xJζ (t) is the spatial gradient, and v represents
+                             −1 if △ η < ϵ
+                                                                    the motion field. By the Retinex theory [13], ▽xJζ (t) ≈
+where ik = (xk , yk ) indicates a spatial        position,  ϵ is    ▽RJζ (t), therefore, we obtain:
+                                                     
+                                           P (ik )+b
+the contrast threshold, △η = log P (ik−1 )+b , P (ik )                               ∆Jζ (t) ≈ − ▽ RJζ (t) · v∆t,               (6)
+repersents the photocurrent of ik at tk , b is an infinitesimal
+positive number to prevent log(0).                                     this indicates that events are produced by the motion of
+   In low-contrast scenes, the contrast threshold ϵ is typ-            object edges; when the motion direction is perpendicular
+ically lowered to enhance sensitivity to subtle luminosity             to the gradient (v ⊥ ▽RJζ (t)), brightness changes occur
+changes. However, this makes the sensor highly suscepti-               and events are triggered. Thus, we utilize event structures
+ble to internal random fluctuations, causing a large number            to enhance degraded images, while taking into account the
+
+
+
+                                                               41543
+

@@ -1,0 +1,424 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+        Tracking through Severe Occlusion via Event-Derived Transient Cues
+
+  Hao Dong, Yujin Liu, Haoyue Liu, Zhenyu Wang, Shihan Peng, Zhiwei Shi, Yi Chang*, Luxin Yan
+        State Key Laboratory of Multispectral Information Intelligent Processing Technology
+  School of Artificial Intelligence and Automation, Huazhong University of Science and Technology
+                      {donghao0205, yujinliu, liuhy, yichang, yanluxin}@hust.edu.cn
+
+
+                                                                       Before occ.                  Partial occ.           Full occ.                    After occ.                             Appearance            Trajectory
+                            Abstract                                                                                                                                                                                No occ. (Linear)
+
+                                                                                                                                                                                                   No
+                                                                                                                                                                                                   occ.
+                                                                                  t-3 Target                                                                  t                                                     100% occ. (Linear)
+                                                                                               traje
+                                                                                                     ctory
+   Tracking targets with high-speed and nonlinear motion                                                     t-2
+                                                                                                                                        t-1
+                                                                                                                                                                                Causes            50%
+                                                                                                                                                                                                  occ.
+                                                                                                                                                                                                                   100% occ. (Nonlinear)
+
+under occlusion remains challenging due to spatial appear-                                                                                                                                                                               drift
+                                                                                                                                                                                                  100%
+                                                                                                                                                                                                   occ.
+ance deprivation and temporal trajectory fragmentation                                                                                                                                    deprivation           fragmentation
+caused by missing visual cues. Existing methods typically                               (a) Problem of visual object tracking in occluded scenarios
+either dynamically update templates to maintain appear-               Templa
+                                                                             te                                                                               100% occ.
+                                                                                                                                                                                                                                  Out of region
+                                                                                                                                                                                                                Search region
+ance similarity or employ autoregressive models to predict                                                                              t-1   Linear motion is regressive.               t-3
+
+                                                                                                             t-2                                                                                          t-2
+targets from historical trajectories. However, these methods          Where to ma
+                                                                                          tch ?                                                               100% occ.
+                                                                                                                                                                            ?
+                                                                                                                                                                            ?
+                                                                                                                                                                                                                      t-1
+are ineffective under severe occlusion owing to template                                                                                                                    ?
+                                                                                                                                                                                                                                         t
+                                                                                         Search                                               Where to regress ?
+contamination and limited frame rates for complex motion.            (b) Appearance-based matching                                                            (c) Trajectory-based autoregression
+In this work, we observe that occlusion inherently degrades
+                                                                     Tracking state y Predict under occlusion, rectify afterward.                    transient cues                                              Search region
+the spatial matching mechanism, highlighting the impor-                     Accurate                                                                                                     t-3                                             t
+tance of temporal cues. Meanwhile, event cameras with                       Drifted
+                                                                                                    ···
+                                                                                                                                   c.                  oc
+                                                                                                                                                         c.
+                                                                                                                                                                                                          t-2
+                                                                                                                                                                                                                      t-1
+                                                                            Failed                                           %
+                                                                                                                                 oc
+                                                                                                                                                10
+                                                                                                                                                  0%
+
+microsecond-level temporal resolution provide transient                 on/off events
+                                                                                                      x                    50
+
+
+
+                                                                                                             regression    prediction         rectification
+dynamic cues that facilitate modeling nonlinear motion. In           occ. = occlusion              Before & partial occ.     Full occ.          After occ.                time
+
+                                                                                                                   (d) Event-based motion autoregression
+light of this, we propose EvoTrack, an occlusion-robust
+tracking framework via event-derived transient evolution,         Figure 1. Illustration of three tracking paradigms. (a) Occlusion
+which comprises event-based motion autoregression and             causes spatial appearance deprivation and temporal trajectory
+target-aware appearance matching. Specifically, for motion        fragmentation. (b) Appearance-based matching fails under severe
+                                                                  occlusions as similarity collapses. (c) Trajectory-based autore-
+autoregression, the fine-grained timestamps of events nat-
+                                                                  gression drifts under nonlinear motion during occlusion, hindering
+urally encode the target’s direction and speed, motivating        rectification afterward. (d) We explore event-based motion autore-
+a bidirectional motion consistency that constrains inter-         gression, which leverages inter-frame motion to achieve precise
+frame displacement prediction under nonlinear motion. For         prediction during occlusion and effective rectification afterward.
+appearance matching, we adopt a Gaussian masking strat-
+egy to simulate occlusion degradation, guiding the model
+to focus on target regions and learn invariant representa-        remains a long-standing challenge, particularly for targets
+tions. Furthermore, we build a pixel-aligned Frame-Event          exhibiting nonlinear motion. For example, agile drones
+tracking dataset with higher spatial resolution and explicit      momentarily hidden by obstacles or fast-moving vehicles
+occlusion labels. Extensive experiments demonstrate the           temporarily occluded in traffic often cause catastrophic
+effectiveness of EvoTrack in challenging occlusion scenes.        tracking failures. The fundamental difficulty arises from
+                                                                  two coupled issues: (1) spatial appearance degradation
+                                                                  that destroys template–search similarity, and (2) temporal
+1. Introduction                                                   trajectory interruption that complicates motion dynamics,
+                                                                  as shown in Fig. 1(a). Tracking nonlinearly moving targets
+Visual object tracking (VOT) seeks to localize arbitrary
+                                                                  in occluded scenes remains a highly challenging problem.
+targets across video frames given their initial state. Despite
+the impressive advances of modern approaches [2, 7, 12,               An intuitive solution is to dynamically update the tem-
+13, 18, 27, 54], achieving reliable tracking under occlusion      plate [31] or construct template libraries [24] to preserve
+                                                                  appearance similarity between the template and the search
+   *Corresponding author.                                         region. However, such methods are prone to background
+
+
+
+                                                             29526
+or occluder interference, leading to template contamination.      formed into the global coordinate system to form trajectory
+More recently, several studies [50, 60] have explored learn-      tokens. We combine these trajectory tokens with local TS
+ing occlusion-robust invariant representations through ran-       cues to predict inter-frame displacements, supervised by
+dom masking strategies. Although these methods improve            bidirectional motion consistency. In the TAM module, a
+robustness, they remain constrained by the appearance-            Gaussian mask is generated from the template state, and
+matching paradigm, which inherently fails under severe            Transformer layers are employed to reconstruct template
+occlusions where target appearance is destroyed, especially       features, enhancing invariant target representation learning.
+during short-term full occlusion, as illustrated in Fig. 1(b).    Finally, an adaptive gating unit dynamically fuses motion
+   Beyond spatial appearance modeling, recent works [1,           and appearance features to handle varying occlusions.
+8, 29] have leveraged temporal cues to enhance tracking              In addition, we construct a coaxial imaging system to
+robustness. For instance, SeqTrack [9] and ARTrack [48]           collect a real-world object tracking dataset (FEOT) with
+formulate tracking as a sequential autoregression problem,        high spatial resolution and challenging occlusions, serving
+predicting the current target position from historical trajec-    as an evaluation benchmark. Compared to existing datasets
+tories. While these approaches improve robustness against         VisEvent [44], FE108 [55], COESOT [43], FELT [45],
+occlusion, they are sensitive to motion patterns and struggle     and CRSOT [63], FEOT contains occlusion sequences with
+with nonlinear motion of targets. This problem worsens            varying durations and ratios, along with occlusion-level
+under occlusion: the limited frame rate of conventional           annotations. Our contributions are summarized as follows:
+cameras fails to capture inter-frame dynamics, causing drift      • We propose a novel occlusion-robust visual object track-
+in autoregressive prediction. On the other hand, occlusion          ing framework based on event cameras, named EvoTrack.
+further fragments the sparse trajectories and amplifies pre-        This approach leverages temporal motion prediction to
+diction errors. Such errors may even push the target out of         alleviate spatial appearance degradation, enabling stable
+the search region, hindering recovery afterward, as shown           tracking under challenging occlusion scenarios.
+in Fig. 1(c). The nonlinear motion of occluded targets            • We introduce an event-based motion autoregression that
+poses a tricky challenge for autoregression-based trackers:         captures nonlinear motion dynamics from transient inter-
+How can we achieve robust tracking of targets with severe           frame events. Bidirectional motion consistency super-
+appearance degradation and drastic trajectory variations?           vision imposes physical constraints, ensuring precise
+   Fortunately, event cameras [30], with microsecond-level          prediction during occlusion and rapid recovery afterward.
+temporal resolution, provide a promising solution by cap-         • We present a high spatial resolution Frame-Event tracking
+turing transient motion details lost by conventional cameras.       dataset with pixel-level alignment and occlusion-level
+Although existing event-based trackers [39, 42, 46, 59]             annotations, serving as a reliable benchmark for evalu-
+perform well in high-speed and high dynamic scenes, they            ating occlusion-robust trackers. Extensive experiments
+largely overlook the challenge of occlusion. To address this,       demonstrate the superiority of the proposed method.
+our key insight is to leverage temporal motion prediction
+to alleviate appearance degradation under occlusion, while        2. Related Work
+exploiting event streams to capture inter-frame dynamics          Frame-based Visual Object Tracking. Frame-based VOT
+for modeling nonlinear motion, as illustrated in Fig. 1(d).       methods can be broadly categorized into two main ap-
+   Based on this idea, we propose EvoTrack, an occlusion-         proaches: appearance-based matching and trajectory-based
+robust tracking framework that consists of Event-based Mo-        autoregression. Appearance-based matching methods [3,
+tion Autoregression (EMA) and Target-aware Appearance             10, 19, 22, 49, 53, 54, 61] treat tracking as a similarity
+Matching (TAM). For motion autoregression, we observe             matching problem between the template and search region,
+that the fine-grained timestamps of events encode rich infor-     locating the target via similarity computation. However,
+mation about the target’s direction and speed, benefiting the     these methods heavily rely on appearance cues, making
+modeling of nonlinear motion. This inspires us to design          them unreliable under severe deformation or occlusion.
+a bidirectional motion consistency supervision to predict         Trajectory-based autoregression methods [1, 8, 9, 29, 48]
+inter-frame displacements, enforcing physical constraints         model tracking as a sequential autoregressive problem, in-
+for motion prediction. For appearance matching, we further        ferring the current target position from historical trajectories
+adopt a Gaussian-distributed masking strategy to partic-          while incorporating appearance cues from the template and
+ularly focus on the target region, thereby learning more          search image for enhanced robustness. Nevertheless, with-
+invariant representations by simulating occlusion effects.        out explicit motion modeling, they tend to drift under non-
+   Specifically, in the EMA module, we first project inter-       linear motion when appearance cues are unavailable (e.g.,
+frame events to construct a time-surface representation that      occlusion scenario). In this work, we aim to strengthen
+captures the transient dynamics of the target’s motion.           autoregressive modeling for nonlinear motion and improve
+Target coordinates from previous frames are then trans-           tracking robustness under appearance degradation scenes.
+
+
+
+                                                             29527
+                                                                            t-2
+            Template                                                                                                        t-1                                                                                                                                                                                                                                                                                                              ×N
+                                                                         Search                                                                                               t       time                                                                                                          projection
+                                                                                                                                                                                                                                                                                                                                                                                                                                                             displacementfw
+                                                                                                                         Search
+                                                                                                                                                                         Search                                                                                                                                                                                                                                                                                         t
+                                                                                                                                                                                                                                                                                                        t
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                     Patch Embedding
+                                                                                                                                                                                                                             time axis
+
+
+
+
+                                                                                                                                                                                                                                                                time axis
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      MLP
+
+
+
+
+                                                                                                                                                                                                Events (t-1~t)
+                                                                                                                                                                                                                                                                                                    t-1
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            t-1
+                                                                                                                                                                                                                                                 image plane                 image plane                                       TS
+                                                                                                                                                                                                                                                                                                                                    ma
+                                                                                                                                                                                                                                                                                                                                         p
+                                                                                                                                                                                                                                                                                                                                                 t min         t max                                                                                                0
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                         Gradient
+                                                                                                                                                                                                                                                                                                                          rd
+                                                                                                                                                                                                                                                                                                                     wa
+
+
+                                            Events
+                                                                                                                                                                                                                                                                                                                 for
+
+
+
+                                                                                                                                                                                                                                   build forward TS map                                    On events         Events with the
+                                                                                                                                                                                                                                                                                                                                             FTS map                                                Motion map
+                                                                                            Events
+                                                                                                                                                                                                                                                                                           Off events       maximum timestamp
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                       Mamba Layer
+                                                                                                                                            Events                                                                                                                                                  projection
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                        t
+                                                                                                                                                                                                                                                                                                                                                                                                                                                      MLP
+                                                                                                                                                                                                                                                                                                        t
+
+
+
+
+                                                                                                                                                                                                                             time axis
+
+
+
+
+                                                                                                                                                                                                                                                                time axis
+                                                                                                                                                                                                                                                                                                    t-1
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                            t-1
+                                                                                                                                                                                                                                                                                                                                                 t min         t max
+ x         y          x         y
+                                                                                                                                                                                                                                                                                                                                         p
+     t-1       t-1        t-1       t-1                                                                                                                                                                                                       image plane                   image plane                                        TS
+                                                                                                                                                                                                                                                                                                                                    ma
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                    0
+                                                                                                                                                                                                                                                                                                                       ard
+                                          Embedding to Coordinate                         Embedding to Coordinate                         Embedding to Coordinate                                                                                                                                               ba
+                                                                                                                                                                                                                                                                                                                  ckw
+     min       min        max       max
+                                                                    Search tokens                                   Search tokens                                   Search tokens
+                                                                                                                                                                                                                                   build backward TS map                                   On events
+                                                                                                                                                                                                                                                                                           Off events
+                                                                                                                                                                                                                                                                                                             Events with the
+                                                                                                                                                                                                                                                                                                            minimum timestamp                BTS map                                                Motion map                                               displacementbw
+                                                EMA
+                                                 TAM                                            EMA
+                                                                                                 TAM                                            EMA
+                                                                                                                                                 TAM
+
+
+
+
+                                                                                                                                                                                                Trajectory
+ x   t-2
+     min   y   t-2
+               min    x   t-2
+                          max   y   t-2
+                                    max
+                                                                      TAM                                             TAM                                             TAM                                                                                                                                                                    y
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                            M M M
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Motion
+                                                                                                                                                                                                                                                                                                                                                                                                     Command
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                      Embed.
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                    tokens
+                                                                                                                                                                                                                                                                                                                                                                                         Concat.
+                                          Command to Embedding                            Command to Embedding                            Command to Embedding                                                                                                                                                                                                    t-1
+                                                                    Template tokens                                 Template tokens                                 Template tokens                                                                                                                                                                      t-2
+
+ x   t-3
+           y   t-3
+                      x   t-3
+                                y   t-3
+                                          Unified Spatiotemporal Encoder                  Unified Spatiotemporal Encoder                  Unified Spatiotemporal Encoder
+                                                                                                                                                                                                                                             Coordinate Mapping
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                   ···
+     min       min        max       max
+                                                                                                                                                                                                                                                                                                                                                 t-n
+                ··· ···
+                                                                                                                                                                                                                                                                                                                                                                       x
+           Trajectory
+                                          M M M                     A        A        A   M M M                     A        A        A   M M M                     A        A        A                                                                        (b) Event-based Motion Autoregression (EMA)
+                Appearance                                                                Gated Adaptive Fusion
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Appearance
+                                                                                                                                                                                                                                                                                                                                                                                                                                                     ×N
+       A                                                                                                                                                                                                                                                                                              Target-centered                                                                      object      background
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                             A
+                                                                                                                                                                                                Search
+                  tokens
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                           probability
+                                                                                                                                                                                                                                   Transformer Encoder
+                                                                                                                                                                                                                                                                                                                                                                                           patch          patch
+                                                                                                                                                                                                                                                                                                                                                                                                                        Transformer
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                      tokens
+                                                                                                                                                                                                                                                                                                    Gaussian Distribution
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                             A
+                                                                                                                                                                                                                                                                                                                                                                                                             index
+
+
+      M
+                     Motion                                                                                                                                                                                                                                                                                                                                                              mask map                          Layer
+                     tokens                                                                      Tracking Head
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                             A
+                                                                                                                                                                                                                                                                                                                                                                                         0 0 1 0 1 ···
+                                                                                                                                                                                                                                                                                                                                                                                                                     shared weights
+     ＋               Addition
+
+
+
+
+                                                                                                                                                                                                                 box info.
+                                                                                                                                                                                                Template
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                         Maskimg
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                       Masked
+                                                                                                                                                                                                                                                                                                                                                                                                                        Transformer
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                       tokens
+     × Multiplication
+                                                                                                                                                                                                                                                                                                                                                                                                                           Layer
+      C Concatenation                                                                                                                                                                                                                                                                               probability function: Eq. (8)
+                                                t-2                                             t-1                                             t
+
+                                                                                      (a) Framework Overview                                                                                                                                                   (c) Target-aware Appearance Matching (TAM)
+Figure 2. The overall architecture of EvoTrack includes the Event-based Motion Autoregression (EMA) module and the Target-aware
+Appearance Matching (TAM) module. The EMA module predicts target positions during occlusions by leveraging both local transient
+motion from events and the global historical trajectory from frames. The TAM module extracts occlusion-robust, invariant features using
+a Gaussian-based masking strategy. Finally, a gated adaptive fusion mechanism is employed to integrate motion and appearance features.
+
+
+Event-based Visual Object Tracking. Event cameras [15,                                                                                                                                                           modeling the occlusion process in a data-driven manner.
+16], with their superior properties such as high temporal                                                                                                                                                        DOCPF [28] and MTOA [40] maintain a template library
+resolution and high dynamic range, have greatly advanced                                                                                                                                                         to adaptively select reliable representations under different
+the development of event-based VOT methods. Existing                                                                                                                                                             occlusion conditions. More recently, ORTrack [50] intro-
+event-based works can be divided into event-only and                                                                                                                                                             duces random masking operations [36, 60] to enhance target
+frame–event fusion methods. Event-only methods [4, 6,                                                                                                                                                            representations under frequent occlusions. Nevertheless,
+14, 46, 56, 64] mainly focus on designing effective event                                                                                                                                                        most approaches still rely on spatial appearance cues, which
+representations tailored for tracking. For instance, spiking                                                                                                                                                     are impaired under severe or complete occlusions, making
+or graph neural networks [56, 64] are adopted to process                                                                                                                                                         tracking difficult. Building on autoregressive tracking, we
+asynchronous event streams. However, constrained by the                                                                                                                                                          move beyond appearance modeling toward temporal motion
+sparsity of events, such methods often achieve limited track-                                                                                                                                                    prediction, leveraging transient motion cues from event
+ing accuracy. In contrast, frame–event fusion methods [21,                                                                                                                                                       streams to enhance robustness against occlusion.
+23, 39, 51, 55, 57, 58, 62, 65] have been more extensively
+explored, primarily due to the complementary advantages                                                                                                                                                          3. Unified Motion-Appearance Network
+of images and events in terms of appearance texture and
+dynamic range. Although existing event-based methods                                                                                                                                                             3.1. Overall Architecture
+have achieved landmark progress in challenging high-speed
+and high dynamic scenarios, they largely overlook the long-                                                                                                                                                      Visual object tracking under severe occlusion suffers from
+standing challenge of occlusion. In this work, we leverage                                                                                                                                                       significant spatial appearance deprivation and temporal
+events to capture inter-frame transient motion, mitigating                                                                                                                                                       trajectory fragmentation. To address this, we leverage
+spatial appearance degradation caused by occlusion.                                                                                                                                                              temporal motion cues to compensate for damaged spatial
+                                                                                                                                                                                                                 information, which requires precise modeling of complex
+Occlusion Scene Object Tracking. Occlusion remains a                                                                                                                                                             nonlinear motion. We introduce event cameras to recover
+major challenge in computer vision [17, 33, 41, 47], as                                                                                                                                                          transient inter-frame dynamics missed by conventional
+it suppresses the discriminative appearance of targets and                                                                                                                                                       cameras and propose an occlusion-robust autoregressive
+leads to significant performance degradation. Early tradi-                                                                                                                                                       tracking framework in Fig. 2, including event-based mo-
+tional trackers attempted to address this issue by dynami-                                                                                                                                                       tion autoregression and target-aware appearance matching.
+cally updating templates [31, 32] or constructing occlusion-                                                                                                                                                     The motion autoregression module constructs time-surface
+aware templates using spatial masks [35]. With the rise                                                                                                                                                          representations from events and trajectory tokens from
+of deep learning-based approaches, several methods [5, 28,                                                                                                                                                       historical coordinates to locate the target under occlusion. A
+37, 40, 50] have explored temporal modeling to mitigate                                                                                                                                                          bidirectional time-surface motion consistency supervision
+occlusion degradation. LTOP [5] leverages recurrent neural                                                                                                                                                       enforces physical constraints for accurate motion learning.
+networks to propagate target appearance features over time,                                                                                                                                                      The appearance matching module builds a Gaussian-based
+
+
+
+                                                                                                                                                                                             29528
+

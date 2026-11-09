@@ -1,0 +1,220 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                                  On the Role of Temporal Granularity
+                             in the Robustness of Spiking Neural Networks
+
+   Mengting Xu1,2 , Shi Gu1,2 , Peng Lin1,2 , De Ma1,2 , Huajin Tang1,2 , Qian Zheng1,2 *, Gang Pan1,2 *
+             1
+               The State Key Lab of Brain-Machine Intelligence, Zhejiang University
+                2
+                  College of Computer Science and Technology, Zhejiang University
+ {xumengting, gus, penglin, made, htang, qianzheng, gpan}@zju.edu.cn
+
+
+                            Abstract                               of neural networks, Spiking Neural Networks (SNNs) are
+                                                                   widely utilized in various tasks due to their inherent tem-
+As the third generation of neural networks, Spiking Neural         poral characteristics, such as spatio-temporal pattern recog-
+Networks (SNNs) have demonstrated remarkable potential             nition [4, 15, 26, 37], efficient temporal image classifica-
+across diverse applications owing to their unique tempo-           tion [7, 33], and temporal spiking early-exit neural net-
+ral dynamics. In recent years, analyzing the robustness of         works [23], among others. Additionally, investigating the
+SNNs from a temporal perspective has become an emerg-              robustness of SNNs through temporal characteristics has in-
+ing research focus. However, most existing works examine           creasingly garnered attention from researchers.
+only the overall temporal behavior of SNNs, typically ap-              Among various implementation strategies for SNNs, sur-
+plying adversarial attacks that rely on time-averaged gra-         rogate gradient-based direct training methods have emerged
+dients. In this study, we revisit SNN robustness through           as the mainstream approach [38]. Nevertheless, recent find-
+the lens of temporal granularity, emphasizing the distinct         ings suggest that SNNs with direct encoding method tend to
+behaviors that occur at individual time steps. We first in-        be less robust than their rate-encoded counterparts [32, 36].
+troduce a Temporal Granularity Attack (TG-Attack), which           These observations highlight the need for a deeper investi-
+selectively perturbs gradients at specific time steps. This        gation into the robustness of direct trained SNNs with di-
+approach enables a finer-grained evaluation of SNN robust-         rect encoding. Therefore, this work specifically focuses on
+ness across time and demonstrates higher attack success            the robustness of SNNs under direct encoding and surrogate
+rates than traditional gradient-averaging methods. Fur-            gradient-based direct training method. From the perspective
+thermore, we theoretically show that the robustness of SNNs        of temporal characteristics, current approaches to studying
+at a given time step is determined by the Hessian of the in-       the robustness of SNNs can be broadly divided into two cat-
+put–output gradient at that step, which we define as Tem-          egories: The first category investigates robustness by com-
+poral Sensitivity (TS). By calculating the Temporal Sensi-         bining the temporal and spatial characteristics of SNNs, as
+tivity Value (TSV) for each time step, robustness can be           shown in Figure 1(a). It includes investigating how unique
+effectively estimated without generating adversarial exam-         SNN parameters (e.g., leak factors [35], thresholds [12],
+ples. Finally, we propose a Temporal Granularity Regu-             encoding [30]) influence robustness. It also encompasses
+larization (TG-Reg) term that constrains the TSV across all        improved training strategies like parameter regularization
+time steps, thereby improving the model’s overall robust-          (e.g., RAT [8]), adversarial training (e.g., AT [20]), and
+ness. Experimental evaluations confirm that our framework          stochastic gating regularization [11]. The second category
+consistently outperforms existing state-of-the-art methods.        leverages the temporal dynamics of SNNs (e.g., spike tim-
+Code is available at https://github.com/zju-                       ing coding [9], temporal frequency coding [40], and ran-
+bmi-lab/TG-SNN-code.                                               dom smoothing coding [36] ) to analyze robustness, as de-
+                                                                   picted in Figure 1(b). Currently, these methods primarily
+                                                                   concentrate on the overall temporal characteristics of SNNs,
+1. Introduction                                                    with robustness test conducted by constructing adversarial
+                                                                   attacks based on the average gradient over time, as illus-
+Recent studies have demonstrated that the intelligence of
+                                                                   trated in the attack strategies shown in Figure 1(a)(b).
+organisms is closely linked to their temporal processing
+                                                                       However, existing research indicates that the temporal
+mechanisms [13, 39, 41, 42]. As the third generation
+                                                                   learning ability of SNNs varies across time steps [7, 33],
+  * Corresponding author.                                          and the gradients of SNNs differ at each time step [18, 37].
+
+
+
+                                                             27946
+                𝑥   Input image              𝑠!          𝑠# Direct coding sequence                              Network output                   Spatial transmission
+
+                    Spiking neuron           𝑠!          𝑠# Temporal dynamic coding                             Adversarial noise                Temporal transmission
+
+
+
+
+                                                                                                                        Layer
+                                                                 Layer
+        Layer
+
+
+
+                         𝜖 ⋅ sign∇)𝑥 ℒ( 𝒀𝒎𝒆𝒂𝒏 )                                  𝜖 ⋅ sign∇)𝑥 ℒ( 𝒀𝒎𝒆𝒂𝒏 )                                 𝜖 ⋅ sign∇)𝑠# ℒ(        𝑌#     )
+
+                                           𝟏                                                       𝟏
+                     𝒀𝒎𝒆𝒂𝒏 = 𝒇 𝑥      =
+                                           𝑻
+                                             & 𝑦%                             𝒀𝒎𝒆𝒂𝒏 = 𝒇 𝑥     =
+                                                                                                   𝑻
+                                                                                                     & 𝑦%                                 𝑌( = 𝑓(     𝑠#   )
+                                             𝒕                                                       𝒕
+
+
+
+                    𝑦-      𝑦,        𝑦%          𝑦*+,                      𝑦-      𝑦,        𝑦%         𝑦*+,                      𝑦-      𝑦,        𝑦%        𝑦*+,
+                                                         noise                                                  noise                                                  noise
+
+
+
+                    𝑠!     𝑠"         𝑠#          𝑠$%"                      𝑠!     𝑠"         𝑠#         𝑠$%"                      𝑠!      𝑠"        𝑠#        𝑠$%"
+
+
+                                                  Time                                                   Time                                                   Time
+                                  𝑥                                                       𝑥                                                      𝑥
+
+            (a) Attack based on average gradient                         (b) Attack based on average gradient                   (c) Attack based on temporal granularity
+         (Combine temporal and spatial characteristics)                       (Temporal dynamic coding)                                          (Ours)
+
+Figure 1. Strategies used by attack methods to handle temporal characteristics. (a) Perturbation-generation pipeline based on direct en-
+coding and the average temporal gradient. (b) Perturbation-generation pipeline based on temporal encoding and the average temporal
+gradient. (c) TG-attack: perturbations constructed from the temporal gradient at each time step, applicable with either direct encoding
+or the temporal encoding.
+
+
+Therefore, it is also crucial to investigate the impact of gra-                                      ity (TS). By calculating the Temporal Sensitivity Values
+dients at temporal granularity (i.e., at individual time steps)                                      (TSV) at different time steps, we can assess the robust-
+on the robustness of SNNs. In this paper, first, different                                           ness of SNNs without the need to generate adversarial
+from traditional adversarial attacks based on the average                                            examples for robustness test.
+gradient of temporal characteristics [8, 11, 35], we gen-                                          • We propose a temporal granularity robustness regulariza-
+erate adversarial attacks targeting the gradients at tempo-                                          tion term (TG-Reg) that enhances the robustness of SNNs
+ral granularity of SNNs (as shown in Figure 1(c)). Our                                               by constraining their TSV at each time step. Experi-
+findings reveal that robustness of SNNs differs across time                                          mental results demonstrate that our approach outperforms
+steps, and adversarial attacks generated at each time step                                           state-of-the-art methods.
+are more effective than those generated based on average
+gradients. Then, building on this experimental observation,                                        2. Related Work
+we theoretically analyze the robustness of SNNs at tempo-
+ral granularity. We derive that robustness at a specific time                                      From the perspective of temporal characteristics, current ap-
+step is constrained by Hessian matrix of input-output gradi-                                       proaches to studying the robustness of SNNs can be broadly
+ent at that time step, which we defined as Temporal Sensi-                                         categorized into two groups.
+tivity (TS). Furthermore, based on this theoretical analysis,                                          Combining the temporal and spatial characteristics.
+we introduce a temporal granularity robustness regulariza-                                         The first group includes investigations into how specific
+tion term (TG-Reg) that constrains the Temporal Sensitivity                                        SNN parameters [28, 31] influence robustness. For in-
+Value (TSV) at each time step, thereby effectively enhanc-                                         stance, El-Allami et al. demonstrate that the inherent ro-
+ing overall robustness of SNNs. Our main contributions are:                                        bustness of SNNs is highly dependent on time windows and
+                                                                                                   firing voltage thresholds [12]. Sharmin et al. further con-
+• We propose a temporal granularity attack (TG-attack) tar-                                        firm that the leak factor provides an additional mechanism
+  geting the gradients of SNNs at individual time steps.                                           to control adversarial perturbations [32]. The StoG model
+  This method not only reflects the robustness of SNNs                                             [11] introduces stochasticity to effectively enhance robust-
+  across different time steps but also demonstrates superior                                       ness. Additionally, this group involves the development of
+  attack efficacy compared to traditional approaches.                                              improved training strategies. Kundu et al. introduce HIRE-
+• We provide a theoretical analysis showing that the robust-                                       SNN to improve the efficiency of adversarial training in
+  ness of SNNs at temporal granularity is constrained by the                                       SNNs [20]. Ding et al. propose SNN-RAT, which applies
+  Hessian matrix of the input-output gradients at that spe-                                        a regularized adversarial training scheme with low compu-
+  cific time step, which we refer to as Temporal Sensitiv-                                         tational overhead [8]. Liu et al. suggest minimizing the
+
+
+
+                                                                                         27947
+performance gap between an SNN subjected to adversarial               where f (·) is output probability, ||·||p denotes the Lp -norm.
+perturbations and random perturbations, thereby improving             In this work, we utilize L∞ -norm, and ϵ constrains the per-
+its overall robustness [25].                                          turbation strength.
+    Temporal dynamic based on different coding. The                      Gradient-based adversarial attack methods are currently
+second group focuses on leveraging the temporal dynamics              the most prevalent and effective. These methods perturb
+of SNNs. Recent work systematically explores the timing               the original data x along the direction of the gradient sign
+mechanisms of spike coding in SNNs [9], suggesting that               of the loss function, either in one or multiple steps, to in-
+spike timing coding can enhance robustness against attacks.           crease the perturbed linear output and deceive the network.
+FEEL-SNN [40] leverages the temporal dynamic character-               Notable gradient-based attack methods include FGSM [14],
+istics of SNNs by designing a novel coding method that                PGD [27], and BIM [21]. For instance, the one-step adver-
+enables SNNs to learn frequency information at different              sarial attack FGSM is defined as:
+time steps, significantly improving robustness. RSC-SNN
+proposes randomized smoothing coding method which adds                            x̂ = x + ϵsign(∇x L(f (x), ytrue )),           (4)
+noise on every time step to improve model robustness [36].
+                                                                      where sign(·) is a function that extracts the sign of a real
+    However, existing methods explore the relationship be-
+                                                                      number. L(·) is the loss function.
+tween model robustness and temporal characteristics typi-
+                                                                         In SNNs, the non-differentiability of spike firing (Equa-
+cally focus on overall temporal characteristics of SNNs. In
+                                                                      tion (2)) necessitates the use of surrogate gradients [7], en-
+contrast, this work approaches the analysis of SNN robust-
+                                                                      abling the successful implementation of gradient-based at-
+ness from the perspective of temporal granularity. More re-
+                                                                      tack methods. To launch an attack on images, as illustrated
+lated work of adversarial attacks are presented in Appendix.
+                                                                      in Figure 1(a), the first step is to encode the images into
+                                                                      sequences ς(x) = s =< s0 , s1 , . . . , sT −1 >, where ς :
+3. Preliminaries
+                                                                      RC×H×W → RT ×C×H×W , and T denotes the number of
+3.1. Spike Neuron Dynamics in SNNs                                    timesteps. Here, C, H, W represent the number of channel,
+                                                                      height, and width, respectively. The most common encod-
+Leaky Integrate-and-Fire (LIF) neurons [7, 34, 35] are ex-
+                                                                      ing method involves replicating x across the temporal di-
+tensively employed in SNNs to emulate the information
+                                                                      mension [17]. Referring to the gradient ∇x L(f (x), ytrue )
+transmission mechanisms of the human brain. LIF neurons
+                                                                      in Equation (4), the gradient with respect to x can be com-
+convey information through spikes, with their dynamics di-
+                                                                      puted from the gradient with respect to s as follows:
+vided into three stages: membrane potential accumulation,
+spike generation, and membrane potential reset. These dy-                                               ∂L    1 X ∂L
+namics are described by the following equations:                               ∇x L(f (x), ytrue ) =       :=         .          (5)
+                                                                                                        ∂x    T t ∂st
+            ult = τ (ult−1 − Vth slt−1 ) + Wl slt−1 ,       (1)
+                                                                       4. Methods
+                     slt = H(ult − Vth ),                   (2)
+                                                                       4.1. Temporal Granularity Adversarial Attack
+where ult and slt represent the membrane potential and out-
+put spike of neurons in layer l at time t, respectively. Wl            Let X ⊆ RC×H×W denote input space, let Y =
+denotes the linear connections between layers l − 1 and l,             {1, . . . , K} be a finite set of K possible class labels. A
+τ is membrane potential leak factor, and Vth is threshold.             classifier fw with parameter w predicts the probability of
+Equation (1) describes both the accumulation of membrane               an input sample x ∈ X belonging to class label y ∈ Y,
+potential and the reset process, where the membrane poten-             expressed as
+tial is reset to zero after firing, for simplicity. Equation (2)                 fw (y|x) = py (x, w) =
+describes the spike generation process, where a spike slt is                                        K
+produced if the membrane potential ult exceeds the thresh-                                          X                            (6)
+                                                                                  exp(zy (x, w))/            exp(zy′ (x, w)),
+old Vth , as determined by the Heaviside step function H(·).
+                                                                                                    y ′ =1
+3.2. Gradient-based Adversarial Attack
+                                                                      where zy (x, w) is the logit output corresponding to class y,
+Consider a classification model f with dataset (x, ytrue ),           and py (x, w) represents the probability that x belonging to
+where x is the clean image and ytrue is the corresponding             class y. For simplicity, we use f to denote fw in our paper.
+label. The goal of an adversarial attack is to generate an               Analysis of traditional attacks based on an average
+adversarial example x̂ that satisfies:                                gradient at the temporal characteristic. By combining
+                                                                      Equations (4) and (5), we observe that this method gener-
+arg max f (y|x̂) ̸= arg max f (y|x) s.t.        ||x̂ − x||p ≤ ϵ,
+    y                    y                                                          P ∂L based on the average gradient over the
+                                                                      ates the perturbation
+                                                            (3)       time (i.e., T1 t ∂s t
+                                                                                            ), which is then added to the original,
+
+
+
+                                                                  27948
+

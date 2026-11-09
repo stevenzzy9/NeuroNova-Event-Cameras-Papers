@@ -1,0 +1,223 @@
+                      This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                   Except for this watermark, it is identical to the accepted version;
+                             the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+      SpikeTrack: High-performance and Energy-efﬁcient Event-Based Object
+                     Tracking with Spiking Neural Network
+
+                  Yang Wang1       Jiqing Zhang2 * Chuanyu Sun1       Qianhui Liu3
+                                        4            1*            1*
+                              Huilin Ge      Ziqi Wei     Xin Yang
+  1
+    Key Laboratory of Social Computing and Cognitive Intelligence, Dalian University of Technology
+ 2
+    Dalian Maritime University 3 Shandong University 4 Jiangsu University of Science and Technology
+
+
+                              Abstract                                        40
+                                                                                       Ours
+                                                                              38
+Event cameras have attracted considerable attention for ob-                                                HDETrack
+ject tracking due to their microsecond-level temporal res-                    36        SNNTrack
+olution and wide dynamic range, yet effectively harness-
+                                                                              34       STARK-S                                HIPTrack
+ing spiking neural networks (SNNs) in this domain re-                SR (%)
+mains challenging. In this paper, we introduce Spike-                         32                OSTrack
+Track, a purely spike-driven framework for single-object
+                                                                              30                            ARTrack
+tracking that addresses the shortcomings of RGB-based                                                                            ODTrack
+approaches in fast-motion or target appearance change.                        28
+Central to SpikeTrack is the Multi-Search-sequence-and-                                                                       SeqTrack
+                                                                              26
+Single-Template (MSST) training paradigm, which cap-
+                                                                                   25M
+                                                                                    25 85M      145M     205M
+tures rich temporal dependencies, alongside a Dynamic                         24        85       145      205
+
+Integer Leaky Integrate-and-Fire (DI-LIF) neuron that                              0       50      100     150   200    250     300      350
+adaptively predicts integer-valued activations based on the                                                Power (mJ)
+input features during training and converts them into spikes
+                                                                     Figure 1. Comparison of SpikeTrack with other trackers on Vi-
+during inference. Our design preserves the intrinsic spar-           sEvent in SR, energy consumption and model size.
+sity and ﬁne-grained spatiotemporal acuity of event data,
+resulting in efﬁcient energy consumption without sacriﬁcing          resolution and offer a substantially broader dynamic range
+performance. Extensive evaluations on FE108, FELT, and               (e.g., 140 dB vs. 60 dB), enabling them to perceive rapid
+VisEvent demonstrate that SpikeTrack exceeds the perfor-             motion cues and extreme lighting variations that traditional
+mance of state-of-the-art trackers in both accuracy and efﬁ-         sensors might overlook. Consequently, event-based sensors
+ciency. Furthermore, ablation studies validate each mod-             offer signiﬁcant opportunities for advancing tracking, espe-
+ule’s contribution, highlighting the practical potential of          cially under challenging conditions.
+spike-driven architectures for future vision applications.               While certain event-based trackers [22, 32] have effec-
+                                                                     tively utilized insights from RGB tracking approaches, like
+                                                                     correlation ﬁlters and Siamese networks, these approaches
+1. Introduction                                                      often overlook the signiﬁcant temporal cues inherent in
+                                                                     events. The temporal information is essential in tracking as
+Object tracking is a foundational task in computer vision,
+                                                                     it conveys the state transitions of targets between frames.
+underpinning a variety of applications ranging from surveil-
+                                                                     Recent studies [33, 34] have therefore incorporated tem-
+lance to autonomous navigation and robotics. While recent
+                                                                     poral processing mechanisms, including Long Short-Term
+RGB-based methods have achieved noteworthy progress
+                                                                     Memory networks (LSTMs) and Spiking Neural Networks
+across numerous tracking benchmarks [4, 5, 19, 25, 28, 35,
+                                                                     (SNNs). Among them, the potential accumulation, decay,
+36], they often exhibit limitations in high-speed or high-
+                                                                     and resting process in SNNs render it a natural temporal fea-
+dynamic-range environments, thereby impeding their relia-
+                                                                     ture extractor. Moreover, the discrete pulse-based commu-
+bility in real-world deployments. By contrast, event cam-
+                                                                     nication between neurons in SNNs offers low energy con-
+eras capture scene changes at microsecond-level temporal
+                                                                     sumption and aligns well with the sparsity and asynchrony
+   ∗ Corresponding authors.                                          of event data, thus presenting great potential for event-based
+
+                                                               926
+tracking. For example, STNet [33] introduces a three-layer           • We propose a novel pure spike-SNN architecture with
+SNN module featuring a dynamic spiking threshold to im-                MSST training paradigm for event-based object tracking,
+prove the extraction of temporal cues. SNNTrack [34] fo-               allowing us to effectively capture the historical temporal
+cuses on the impact of the adaptive membrane time constant             cues of the target motion and appearance changes.
+in SNN on tracking performance. Despite these methods                • We propose a DI-LIF neuron integrated into the Trans-
+demonstrate effectiveness, they typically employ a CNN-                former module, which adaptively adjusts the maximum
+SNN hybrid architecture, which relies heavily on the feature           emitted integer value of SNNs based on input features,
+extraction capabilities of CNN and does not fully leverage             enabling sample-adaptive quantization and efﬁcient tem-
+the low energy consumption beneﬁts of SNN. While pure                  poral feature encoding.
+SNN architectures have been extensively studied in clas-             • Extensively experimental results validate that our ap-
+siﬁcation tasks, their effectiveness in event-based tracking           proach outperforms state-of-the-art methods. Our abla-
+remains under-researched.                                              tion study evidences the effectiveness of each key com-
+    Recently, Spiking Transformer architectures have shown             ponent of the proposed SpikeTrack.
+promising progress but still struggle to match the perfor-
+mance of ANNs [37]. To address this, Luo et al. [14] pro-            2. Background and Related Work
+posed activating integer values during training and main-
+taining spike-driven processing at inference by extending            2.1. I-LIF Spiking Neuron
+the virtual time steps. However, this approach adopts a              One recent development in SNNs is the introduction of the
+ﬁxed maximum spike count across all scenarios, lacking               I-LIF neuron model, which augments the traditional LIF
+adaptability and thus limiting its effectiveness in handling         mechanism and thereby broadens the representational ca-
+the dynamic motion and appearance variations inherent in             pacity of SNNs [14, 24, 27]. By incorporating an intrin-
+object tracking tasks.                                               sic parameterization, I-LIF can deliver performance rival-
+    This paper presents a novel pure spike-SNN architec-             ing that of standard artiﬁcial neural networks (ANNs) while
+ture designed for event-based object tracking tasks. Our             retaining a fundamentally spike-driven paradigm.
+method adopts the popular Spiking Transformer [14, 27]                  In training, the I-LIF neuron typically encodes informa-
+as the backbone network. To enhance adaptation to the                tion through a ﬁring-rate representation:
+tracking task, we propose two essential components: (i)
+the ﬁrst framework that leverages SNNs’ inherent tempo-                                     1               
+                                                                                     s =     · clip x , 0, D ,                (1)
+ral dynamics to model inter-frame sequential evolution of                                   D
+target trajectories through a Multi-Search-sequence-and-
+                                                                     where x is the input current at the -th layer, D is the max-
+Single-Template (MSST) training paradigm, eliminating
+                                                                     imum emitted integer value, and clip(·) restricts values to
+the need for auxiliary temporal processing modules in ob-
+                                                                     the interval [0, D]. · denotes the ﬂoor operation. During
+ject tracking tasks; (ii) We propose a Dynamic Integer
+                                                                     inference, the neuron’s ﬁring rate s is decomposed into D
+Leaky Integrate-and-Fire (DI-LIF) neuron that adaptively
+                                                                     binary events:
+predicts integer activations based on input features during
+                                                                                                 1  
+                                                                                                    D
+training and converts them into spikes during inference. Un-                               s =         s [t],                  (2)
+der dense event input, it increases the maximum emitted in-                                      D t=1
+teger value to enhance responsiveness to informative cues,
+while under sparse input, it reduces the value to suppress           where each s [t] is a discrete spike (0 or 1). Subsequent lay-
+redundancy. This strategy effectively mitigates quantiza-            ers receive these spikes either through linear or elementwise
+tion error of the conversion between membrane potential              (Hadamard) operations, formulated as
+and spikes while preserving the discrete nature of SNNs.
+    Extensive experiments on the FE108 [31], FELT [21],                                          
+                                                                                                 D
+                                                                                        x+1 =         w ⊗ s [t],             (3)
+and VisEvent [20] datasets validate the effectiveness of the                                     t=1
+proposed SpikeTrack. Figure 1 illustrates that our approach
+attains the optimal trade-off among parameter count, en-             where w is the weight parameter at layer , and ⊗ denotes
+ergy consumption, and accuracy. Ablation experiments ev-             multiplication (e.g., matrix multiply or convolution). This
+idence the importance of each key component of Spike-                architectural choice maintains the core spike-based princi-
+Track. It is worth noting that our method is the ﬁrst work           ple of SNNs while enabling multiply-accumulate (MAC)
+to present a pure SNN architecture to event-based object             operations to be replaced with more efﬁcient accumulative
+tracking, which fully exploits the low energy consumption            (AC) operations, leading to reductions in model size and
+and spatiotemporal modeling capabilities of SNN.                     computational overhead—an attractive property for edge-
+    In summary, we make the following contributions:                 level or resource-constrained deployments.
+
+                                                               927
+2.2. Event-based Object Tracking                                     ities. To strengthen the temporal coherence modeling of the
+                                                                     tracker, we design a sequential input pipeline where mul-
+Multiple studies [3, 22, 32] suggest that traditional RGB-
+                                                                     tiple search frames (captured at consecutive timesteps) and
+based single-object tracking (SOT) methods often perform
+                                                                     the template frame are jointly processed by the I-LIF based
+poorly when confronted with event data, largely due to the
+                                                                     SNN Conv Module as temporally ordered spike trains. In
+scarcity of texture cues essential for conventional track-
+                                                                     addition, the membrane potential U of the spiking neurons
+ers. In contrast, SNNs exhibit a spike-driven operating
+                                                                     is updated between time intervals. Next, the features are in-
+mechanism aligned with the asynchronous nature of event
+                                                                     put into our DI-LIF based SNN Transformer Module. Our
+camera outputs, pointing to an intrinsic compatibility be-
+                                                                     DI-LIF can dynamically and adaptively adjust the maxi-
+tween SNNs and event streams. This connection has mo-
+                                                                     mum emitted integer value D according to the input fea-
+tivated several works [10, 33, 34] to leverage SNNs for
+                                                                     tures. Finally, the cross-correlation features between tem-
+event-based tracking or for deploying tracking algorithms
+                                                                     plate and search features are fed into the I-LIF based SNN
+on resource-constrained edge devices. Early SNN-based ef-
+                                                                     Tracking prediction head to locate the targets.
+forts, such as STNet [33] and SNNTrack [34], demonstrate
+promising results by extracting temporal features, yet they          3.1. Events Representation and MSST Training
+generally integrate hybrid SNN-ANN designs and do not
+exploit self-attention for more robust template-search in-           Event cameras asynchronously trigger pixel-wise events
+teraction. Consequently, the potential for energy-efﬁcient           when logarithmic brightness changes exceed a contrast
+yet high-performing solutions inherent in SNNs remains               threshold C, governed by the inequality L(x, y, t) −
+underutilized. To address these limitations, we introduce            L(x, y, t − Δt) ≥ p · C, where p ∈ {−1, +1} encodes the
+a pure spike-SNN architecture designed for event-based               polarity of brightness variation. Following [30, 33], to pro-
+object tracking, effectively leveraging the low-power and            cess asynchronous event streams E = {(xk , yk , tk , pk )}N
+                                                                                                                               k=1
+spike-driven processing beneﬁts of SNNs.                             with SNNs, we aggregate events into spatiotemporal repre-
+                                                                     sentations through a polarity-aware encoding strategy. Posi-
+2.3. Historical Temporal Tracking                                    tive and negative events are accumulated into separate chan-
+                                                                     nels via spatial-temporal Dirac delta mapping:
+Leveraging historical cues signiﬁcantly enhances single-
+object tracking by capturing temporal target evolution and                             
+improving robustness to fast motion, occlusion, and de-              E ± (x, y, t) =       δ(x−xk , y −yk )·δ(t−tk )·I(pk = ±1),
+                                                                                       k
+formation. Existing methods typically fall into two cat-                                                                        (4)
+egories. The ﬁrst utilizes single search frames with dy-             where I(·) ﬁlters events by polarity. These polarity-speciﬁc
+namic kernels or update branches to adapt to appearance              channels are concatenated into a dual-channel tensor It ∈
+changes [1, 7, 9, 18], but often depends on hand-crafted             RH×W ×2 , forming the uniﬁed input of our tracking net-
+rules, limiting generalization. The second employs multi-            work. All baseline methods utilize identical event encoding
+ple search frames in Transformer-based architectures to ex-          to ensure fair benchmarking.
+plicitly model temporal dynamics [17, 36], yet incurs high
+                                                                         In typical tracking architectures, the input consists of a
+computational cost and limited long-range performance. In
+                                                                     template frame and a single search frame, which limits the
+contrast, we leverage the inherent timing characteristics of
+                                                                     ability to model temporal information. To address this, we
+SNNs and propose a MSST training scheme. By distribut-
+                                                                     adopt a MSST training paradigm. This scheme aligns well
+ing search frames across time while sharing a single ref-
+                                                                     with the strengths of SNNs, which naturally encode spa-
+erence template, our method naturally captures inter-frame
+                                                                     tiotemporal patterns through membrane potential accumu-
+dynamics and handles signiﬁcant appearance changes. Fur-
+                                                                     lation over time. Additionally, object tracking inherently re-
+thermore, the sparse and memory-efﬁcient nature of SNNs
+                                                                     lies on temporal continuity and motion consistency. There-
+enables robust tracking over extended sequences without
+                                                                     fore, using multiple search frames provides richer tempo-
+manual update mechanisms or large recurrent modules.
+                                                                     ral context, enabling more robust and accurate localization
+                                                                     across dynamic scenes.
+3. SpikeTrack
+                                                                     3.2. I-LIF Based SNN Conv Module
+The overall architecture of our proposed SpikeTrack is il-
+lustrated in Figure 2, which is an end-to-end tracker and            Convolutional SNN architectures based on I-LIF neurons
+does not require any data augmentation or post-processing.           have been effectively applied to enhance object detection
+We ﬁrst divide the given event stream into a n-bin voxel             performance by extending the virtual time steps to suppress
+grid over a period of time. For each bin, an event frame can         quantization errors and convert them into effective spikes
+be aggregated by accumulating events over time, and each             during inference. Inspired by [27], as illustrated in Fig-
+frame contains two channels of positive and negative polar-          ure 2(b), we cascade four I-LIF-based SNN convolutional
+
+                                                               928
+

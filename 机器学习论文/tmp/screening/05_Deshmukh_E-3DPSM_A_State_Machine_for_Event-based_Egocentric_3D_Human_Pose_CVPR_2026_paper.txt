@@ -1,0 +1,218 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                     E-3DPSM: A State Machine for Event-Based Egocentric
+                                3D Human Pose Estimation
+
+ Mayur Deshmukh1,2            Hiroyasu Akada1           Helge Rhodin1,3                                       Christian Theobalt1                         Vladislav Golyanik1
+                1                                   2                                                                            3
+                    MPI for Informatics, SIC            Saarland University, SIC                                                     Bielefeld University
+
+
+                         Abstract
+
+Event cameras offer multiple advantages in monocular ego-
+
+
+
+
+                                                                     Spatiotemporal Modelling
+                                                                                                               𝐿෨ 𝑡−1
+                                                                                                Frame Buffer
+centric 3D human pose estimation from head-mounted de-                                            𝐶𝑡                                                     Spatial Features
+                                                                                                               𝐿෠ 𝑡       𝐿෠ 𝑡
+vices, such as millisecond temporal resolution, high dy-                                         Confidence                                                                   Update latent
+                                                                                                    Map                Spatial                                                  state 𝑍𝑡
+namic range, and negligible motion blur. Existing methods                                                                                                    SSM
+                                                                                                                      Features
+effectively leverage these properties, but suffer from low 3D                                      Body                                                (Temporal Features)
+                                                                                                Segmentation
+estimation accuracy, insufficient in many applications (e.g.,
+immersive VR/AR). This is due to the design not being fully                                                                                     3D Delta Pose         3D Direct Pose
+                                                                                                          2D Heatmaps
+tailored towards event streams (e.g., their asynchronous
+                                                                  Pose Regression Module
+
+
+
+
+and continuous nature), leading to high sensitivity to self-
+occlusions and temporal jitter in the estimates. This pa-
+                                                                                                                                                             Pose Fusion
+per rethinks the setting and introduces E-3DPSM, an event-                                                                                Update                                      Refine
+driven continuous pose state machine for event-based ego-                                                                               state 𝑋𝑡−1                                   state 𝑋𝑡
+                                                                                                          Heatmap to
+centric 3D human pose estimation. E-3DPSM aligns con-                                                      3D Lifting
+tinuous human motion with fine-grained event dynamics; it                                                                                            Pose state 𝑋𝑡−1 Pose state 𝑋𝑡
+evolves latent states and predicts continuous changes in 3D
+                                                                                                       Predicted 3D Pose                                  Predicted 3D Pose
+joint positions associated with observed events, which are
+                                                                                                    (a) Previous works                                        (b) Ours
+fused with direct 3D human pose predictions, leading to sta-
+ble and drift-free final 3D pose reconstructions. E-3DPSM         Figure 1. Rethinking event-based egocentric 3D human pose
+                                                                  estimation. (a) Previous methods [25, 26] capture temporal in-
+runs in real-time at 80 Hz on a single workstation and sets
+                                                                  formation only through a single previous event frame stored in
+a new state of the art in experiments on two benchmarks,          the frame buffer leading to jitter and drift. (b) Our E-3DPSM
+improving accuracy by up to 19% (MPJPE) and temporal              approach models motion as a continuous event-driven state evo-
+stability by up to 2.7×. The source code and trained models       lution, fusing delta and direct 3D human pose updates, thereby
+are available on our project page1 .                              achieving real-time and temporally stable 3D reconstruction and
+                                                                  significantly outperforming prior approaches in the 3D accuracy.
+
+1. Introduction                                                   47] achieve accurate results in controlled, well-lit environ-
+                                                                  ments, but struggle under real-world conditions. Low light
+Egocentric 3D human pose estimation from head-mounted
+                                                                  causes underexposure and sensor noise, rapid head motion
+devices (HMDs) is a key capability for immersive VR/AR
+                                                                  leads to blur, and continuous streaming of high-resolution
+applications such as real-time avatar control, fitness track-
+                                                                  video imposes heavy bandwidth and power demands on
+ing, telepresence, and hands-free interfaces. By capturing
+                                                                  wearable devices. As a viable alternative in challenging
+motion directly from the wearer’s perspective, it removes
+                                                                  conditions, event cameras offer millisecond-level temporal
+the need for external cameras and constrained capture en-
+                                                                  resolution and high dynamic range.
+vironments. Yet, fast camera motion and frequent self-
+                                                                     The recently introduced EventEgo3D [25, 26] is the first
+occlusions also add new algorithmic challenges.
+                                                                  method for egocentric and real-time 3D human pose esti-
+   Recent RGB-based egocentric 3D pose estimation meth-
+                                                                  mation from a single head-mounted event camera. Com-
+ods [1–3, 14, 16, 17, 23, 24, 27, 29, 35, 36, 38–40, 44, 45,
+                                                                  pared to third-person captures [41], humans remain cen-
+  1 https://4dqv.mpi-inf.mpg.de/E-3DPSM/                          tred and scale-consistent across input frames in egocentric
+
+
+
+                                                             14017
+views. These properties reduce background variability and         introduce a learnable Kalman-filter-inspired fusion module
+make egocentric event streams particularly suitable for con-      that adaptively integrates global and delta predictions. In
+tinuous 3D reconstruction of fast human motions. While            the absence of events, the latent state retains the last esti-
+EventEgo3D can capture 3D human poses at high temporal            mate, eliminating the need for explicit caching mechanisms
+resolutions, its overall accuracy is considered low in many       used in the previous approaches [25, 26]. In summary, the
+practical scenarios. We believe the reasons are in its archi-     technical contributions of this paper are as follows:
+tecture (Fig. 1-(a)): First, EventEgo3D predicts direct 3D        • E-3DPSM, the first state machine architecture that main-
+poses, models temporal information using only the previous          tains a continuous 3D human pose state aligned with the
+event frame stored in the frame buffer through short-term           asynchronous dynamics of event streams, enabling real-
+feature propagation across event frames and, hence, does            time tracking at 80Hz on our hardware (Sec. 4);
+not fully exploit the asynchronous, continuous, and change-       • A spatiotemporal pose encoder that fuses spatial motion
+driven nature of event data. This often leads to jitter, drift,     cues with long-range temporal dependencies, leveraging
+and substantial 3D errors under self-occlusions. Moreover,          deformable attention and bidirectional state-space mod-
+the reliance on 2D heatmaps introduces quantisation errors          elling to remain robust under occlusion and rapid motion;
+[46], and segmentation masks that need to be predicted at         • A learnable neural module that dynamically balances di-
+test time can serve as an additional source of inaccuracies.        rect and delta predictions, mitigating drift and ensuring
+    This paper fundamentally rethinks egocentric event-             smooth trajectories even under sparse and noisy events.
+based 3D human pose estimation with the overarching goal             E-3DPSM achieves state-of-the-art results on two ego-
+of improving the 3D estimation accuracy. Our key insights         centric event benchmarks, reducing MPJPE and PA-MPJPE
+are threefold: 1) Since events inherently encode changes in       by ∼19%, and jitter by up to 2.7× compared to the previous
+the 2D observation space, they should correspond to and           state of the art [25, 26] (Sec. 5).
+induce changes in the 3D space. The changes in the rel-
+ative 3D joint locations, which we refer to as delta poses,       2. Related Work
+are accumulated into smooth and robust 3D trajectories and        Egocentric 3D Human Pose Estimation. Egocentric 3D
+fused with direct 3D predictions. This principle is visu-         human pose estimation has gained traction with the rise
+alised in Fig. 1-(b) and can be compared with the simulta-        of VR/AR applications requiring full-body 3D motion re-
+neous prediction of 3D locations and sparse 3D scene flow.        covery from head-mounted cameras. Early works such
+2) Second—as events observe changes in the 2D space con-          as EgoCap [29] used a stereo fisheye capture setup and
+tinuously (in the sense that their temporal resolution is sub-    global pose estimation using off-the-shelf SLAM, while
+stantially higher than what is required to capture the fastest    xR-EgoPose [35] and SelfPose [36] handled monocular set-
+human motions)—we formulate the prediction task as a              tings. Later methods addressed calibration and improved
+continuous process, where 3D motion continuously evolves          3D global pose estimation from HMD views [38, 39] as
+in response to asynchronous events. We demonstrate that           well as whole-body pose refinement with diffusion mod-
+state space modelling [9, 50] is naturally suitable for con-      els [40]. To study a variety of settings with challeng-
+tinuous prediction of 3D human poses using event streams.         ing human poses and self-occlusions, UnrealEgo [1] and
+3) Additional supervision with object-background segmen-          UnrealEgo2 [2] projects introduced large-scale synthetic
+tation masks and intermediate 2D heatmaps inherited from          datasets and stereo architectures, with algorithmic improve-
+RGB-based vision [25, 26] can be avoided. A neural archi-         ments shown by Ego3DPose [17] (a two-path network) and
+tecture can learn to extract all intermediate features and rep-   EgoTap [16] (a grid ViT). Further works explored rear-
+resentations necessary for 3D human pose estimation with          mounted cameras [3], fisheye-based self-supervision [23],
+a reduced set of pre-defined design choices.                      motion priors, reinforcement learning, and spatio-temporal
+   All these insights are reflected in our new approach,          transformers [14, 24, 27, 45, 47]. Despite this progress,
+Event-based 3D Pose State Machine (E-3DPSM), which                RGB-based methods remain reliant on frame-based pro-
+treats egocentric event-based 3D human pose estimation as         cessing and often suffer from issues such as blur, low-light
+a continuous temporal process. E-3DPSM maintains a la-            sensitivity, and high bandwidth demands. In contrast, event
+tent state that evolves with the observed motion. Each in-        cameras offer high temporal resolution and robustness in
+coming set of events (LNES [31]) updates this internal state,     challenging observation conditions, but require fundamen-
+which encodes the current pose, its uncertainty, and the          tally different (and often new) neural architecture designs.
+learned spatiotemporal context. Predicted 3D delta changes        Event-Based 3D Human Pose Estimation. The first event-
+correspond to event-level variations and (along with the          based methods for 3D human pose estimation used exocen-
+evolving latent state, accumulating motion cues over time)        tric views. EventCap [43] demonstrated high-speed monoc-
+produce temporally consistent 3D poses. To further mit-           ular 3D motion capture by tracking a 3D human body tem-
+igate drift and temporally stabilise 3D reconstruction, we        plate using a monocular event stream in a series of optimi-
+
+
+
+                                                              14018
+sation problems, and EventHPE [49] jointly estimated 3D            tion and temporal freshness of events, yielding a dense 2D
+poses and shapes from events using a two-stage neural net-         grid compatible with standard neural architectures.
+work trained on the DHP19 dataset [5]. EventEgo3D [25]             State-Space Models (SSMs) provide a structured way to
+and EventEgo3D++ [26] introduced egocentric event-based            model long-range temporal dependencies in sequential data.
+3D human pose estimation. Their architecture includes              An SSM maintains a latent state Zt ∈ Rd that evolves over
+two branches, i.e., 1) an encoder-decoder to convert events        time according to a linear recurrence, while mapping inputs
+into 2D heat maps and lift them to 3D poses, and 2) an             to outputs via learnable projections:
+event stream segmentation module to filter out background
+events. This method predominantly adopts components                               Zt+1 = AZt + Bxt ,        Yt = CZt ,           (3)
+from RGB-based methods (i.e., not specifically tailored to            where xt is the input at timestep t, Yt is the output, and
+event streams) and does not reach the accuracy required in            A, B, C are learned matrices. Unlike recurrent networks,
+many applications with HMDs (suffers from temporal jit-               SSMs use an equivalent convolutional form that enables ef-
+ter). In contrast, we rethink the problem and tailor all design       ficient parallel training while preserving the ability to run
+choices to the egocentric event-based setting.                        causally at inference. Recent variants such as S4 [10] and
+    The works by Gehrig et al. [8] and Zubic et al. [50] pro-         S5 [34] layers stabilise training through spectral or band-
+posed a recurrent ViT and a state-space model (SSM) for               limiting constraints, making them particularly effective for
+event-based object detection, while PRE-Mamba [30] intro-             long-sequence modelling tasks. We use event-specific S5
+duced an SSM for event stream deraining. Lang et al. [21]             layers, similar to Zubic et al. [50], to capture long-term tem-
+used a Mamba-type SSM for context-aware fusion of RGB                 poral context in event streams as a 3D reconstruction cue.
+and event features in 3D human pose estimation. SSMs are
+also widely used in problems with RGB and point cloud                 4. The E-3DPSM Approach
+inputs [22]. Inspired by all these insights, we bring SSMs
+to the realm of event-based dynamic 3D vision and formu-              E-3DPSM estimates temporally consistent 3D human poses
+late egocentric 3D human pose estimation as a continuous              from a monocular egocentric event camera equipped with a
+dynamic process. By adopting a neural SSM, we explic-                 fisheye lens in three stages; see Fig. 2. First, the incoming
+itly model temporal evolution and inter-frame pose differ-            raw event stream is converted into N LNES frames {Lt }N   t=1
+ences, leading to substantially improved accuracy and tem-            of length T ms. Next, the Spatiotemporal Pose Encoder
+poral consistency over prior event-based methods. This al-            Module (SPEM, Sec. 4.1) extracts temporally aware, joint-
+lows us to avoid event segmentation masks and intermediate            specific features by combining a multi-stage convolutional
+2D heatmaps [25, 26] as potential sources of inaccuracies.            pyramid, per-stage deformable attention for spatial reason-
+                                                                      ing, and event-specialised SSM (S5) layers for temporal
+3. Preliminaries                                                      modelling, followed by a joint-query transformer decoder
+                                                                      that reads the deepest-stage tokens. Finally, the Pose Re-
+Event Cameras. Event cameras are bio-inspired sensors                 gression Module (PRM, Sec. 4.2) predicts a direct 3D pose
+that record per-pixel brightness changes asynchronously in-           PD t ∈R
+                                                                               J×3
+                                                                                    and a delta pose P∆t ∈R
+                                                                                                              J×3
+                                                                                                                  , with the number
+stead of capturing full image frames at fixed rates. A pixel          of joints J=16. A lightweight learned fusion module com-
+(x, y) generates an event e = (x, y, t, p) whenever the               bines Pt−1 and P∆                      D
+                                                                                           t , while using Pt as a global anchor,
+change in log intensity I exceeds a threshold C, with po-             yielding the final temporally consistent 3D joints Pt .
+larity p ∈ {−1, 1} denoting the sign of the change:
+                                                                      4.1. Spatiotemporal Pose Encoder Module (SPEM)
+   ∆I(x, y, t) = |I(x, y, t) − I(x, y, t − ∆t)| ≥ C.       (1)
+                                                                   SPEM transforms LNES event frames into rich, temporally-
+This results in sparse and high-temporal-resolution data,          aware and joint-specific representations. It is composed
+which is well-suited for fast motion and dynamic scenes.           of a multi-stage convolutional encoder, spatially adaptive
+LNES Representation. Given a set of events ei =                    deformable attention blocks, state-space model blocks for
+(xi , yi , ti , pi ) collected within a time window of T ms, we    long-term temporal reasoning, and a joint-query trans-
+construct a Locally Normalised Event Surface (LNES) [31]           former decoder. Fig. 3 provides details.
+L ∈ R192×256×2 , with two separate channels for positive           Convolutional Feature Encoding. Each input LNES
+and negative polarities. Each event is normalised relative to      frame Lt ∈ R192×256×2 is first passed through a strided
+the start time t0 of the temporal window, i.e.,                    convolution, producing F0t ∈ R96×128×16 . The encoder
+                                                                   then processes the features through four hierarchical stages.
+                                       ti − t0
+                  L(xi , yi , pi ) =           ,           (2)     At stages s ∈ {1, . . . , 4}, we apply two residual blocks and
+                                          T                        a downsampling convolution, and obtain
+so that recent events map to values close to 1.0 and older                                                             
+ones decay toward 0.0. This encodes both the spatial loca-            Fst = Conv ResBlock(2)     s  ResBlock(1)
+                                                                                                             s (Ft
+                                                                                                                   s−1
+                                                                                                                       ) , (4)
+
+
+
+                                                              14019
+

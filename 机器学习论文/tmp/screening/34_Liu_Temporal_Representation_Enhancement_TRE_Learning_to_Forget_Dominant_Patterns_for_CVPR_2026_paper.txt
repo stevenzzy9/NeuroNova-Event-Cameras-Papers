@@ -1,0 +1,214 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+  Temporal Representation Enhancement (TRE): Learning to Forget Dominant
+              Patterns for Enhanced Temporal Spiking Features
+
+                 Wei Liu1 , Li Yang1 , Yufei Wang1 , Han Xiao1 , Boyu Cai1,2 , Weiming Hu1,2,3†
+                               1
+                                   State Key Laboratory of Multimodal Artificial Intelligence Systems (MAIS),
+                             Beijing Key Laboratory of Super Intelligent Security of Multi-Modal Information,
+                                          Institute of Automation, Chinese Academy of Sciences (CASIA)
+                                   2
+                                       School of Information Science and Technology, ShanghaiTech University
+                               3
+                                   School of Artificial Intelligence, University of Chinese Academy of Sciences
+
+
+
+                                                                               Image                         T=1                       T=2                       T=3                       T=4
+                             Abstract
+                                                                                                 2
+
+
+
+
+                                                                                       Density
+Spiking Neural Networks (SNNs) naturally process visual                                          1
+
+inputs across multiple timesteps, offering rich temporal dy-                                     0
+                                                                                                     0             2           0             2           0             2           0             2
+namics and energy-efficient computation. However, the                                                        T=1                       T=2                       T=3                       T=4
+temporally invariant supervision commonly used in train-
+                                                                                                 2
+ing tends to reinforce the same dominant response patterns                             Density
+across timesteps, leading to redundant representations and                                       1
+
+
+limiting temporal discriminability. To overcome this limita-                                     0
+                                                                                                         0             2           0             2           0             2           0             2
+tion, we introduce Temporal Representation Enhancement                                                       T=1                       T=2                       T=3                       T=4
+(TRE), a novel learning-to-forget paradigm that encourages                                       2                         2                         2                         2
+
+more diverse and complementary temporal representations.
+                                                                                       Density
+
+
+
+
+                                                                                                 1                         1                         1                         1
+TRE identifies high-contribution semantic patterns through
+class-specific contribution estimation and temporal accu-                                        0
+                                                                                                         0         2
+                                                                                                                           0
+                                                                                                                                   0         2
+                                                                                                                                                     0
+                                                                                                                                                             0         2
+                                                                                                                                                                               0
+                                                                                                                                                                                       0         2
+mulation, and selectively suppresses them using a dynamic
+modulation strategy. By redirecting the model’s atten-                     Figure 1. Channel contribution density distributions of SNNs
+tion toward alternative yet informative semantic cues, TRE                 across timesteps (T =1–4) on ImageNet samples. The narrow and
+promotes the learning of complementary features across                     highly peaked curves indicate strong activation dominance and
+timesteps. This approach not only strengthens the temporal                 low temporal diversity in conventional SNNs representations.
+discriminative capacity of SNNs but also enables more ef-
+fective multi-timestep learning by leveraging richer seman-
+tic information. Extensive experiments on both static image                namic firing behavior of biological neurons [42, 65]. This
+datasets and dynamic neuromorphic datasets demonstrate                     event-driven mechanism allows SNNs to naturally capture
+that TRE consistently improves classification accuracy and                 temporal dependencies and sequential information, closely
+feature diversity across different SNN backbones.                          resembling the dynamic nature of human perception and
+                                                                           cognition. Moreover, SNNs are inherently low-power, mak-
+                                                                           ing them highly attractive for energy-efficient and neuro-
+                                                                           morphic applications [7, 18, 46, 48, 56, 61].
+1. Introduction                                                               Despite substantial advances, effectively exploiting the
+Spiking Neural Networks (SNNs) have emerged as a                           rich temporal dynamics embedded in multi-timestep spik-
+promising class of biologically inspired models that bridge                ing activity remains a fundamental challenge. Most di-
+neuroscience and artificial intelligence [34, 50, 52, 64]. Un-             rectly trained SNNs [54, 55, 62, 63] adopt surrogate-
+like conventional Artificial Neural Networks (ANNs) that                   gradient backpropagation with identical supervision across
+operate with continuous and static activations, SNNs com-                  timesteps. While this design stabilizes optimization, it en-
+municate through discrete spike events, emulating the dy-                  forces uniform gradient dynamics that cause features from
+                                                                           different timesteps to converge toward similar representa-
+   † Corresponding author.                                                 tional subspaces. As a result, the network repeatedly ac-
+
+
+
+                                                                      34480
+tivates overlapping high-response channels (Fig. 1), lead-        ulating the reuse of dominant patterns during training, TRE
+ing to narrow, sharply peaked channel-contribution distri-        enables SNNs to acquire richer, more complementary, and
+butions (T =1–4) that reveal strong activation dominance          temporally discriminative representations.
+and limited temporal diversity—evidence that conventional            To summarize, our contributions are threefold:
+SNNs struggle to exploit complementary temporal repre-            • We provide a principled analysis revealing that tempo-
+sentations.                                                         rally invariant supervision in conventional SNNs leads
+    To enhance temporal representation learning, a series of        to temporal redundancy—where identical supervision
+direct-training strategies have been explored. Early work           across timesteps induces convergence of channel activa-
+such as Spatio-Temporal Backpropagation (STBP) [58] ex-             tions, causing gradient homogenization and diminishing
+ploited the leaky-integrate-and-fire (LIF) model to jointly         temporal discriminability.
+utilize spatial and temporal dependencies, achieving strong       • We propose a novel Temporal Representation Enhance-
+results on shallow networks. Later studies improved stabil-         ment (TRE) framework that redefines temporal learning
+ity and convergence in deeper SNNs through normalization            as a learning-to-forget process. TRE dynamically sup-
+methods analogous to batch normalization (BN) in ANNs,              presses high-contribution semantic features through a hy-
+including threshold-dependent BN (tdBN) [68], tempo-                brid modulation strategy, encouraging each timestep to
+ral BN (BNTT) [32], postsynaptic-potential BN (PSP-                 explore complementary representations.
+BN) [30], and time-effective BN (TEBN) [12]. From an              • Extensive experiments on both static and dynamic bench-
+architectural perspective, SEW-ResNet [13] refined resid-           marks demonstrate that TRE consistently improves clas-
+ual connections via spike-element-wise identity mapping,            sification accuracy and temporal diversity across various
+whereas neuron-level optimizations such as ReL-PSP [63]             SNN backbones, validating its effectiveness and general-
+and PLIF [14] adjusted membrane dynamics to improve                 ity.
+flexibility. From a gradient-optimization viewpoint, Tem-
+poral Efficient Training (TET) [11] leveraged temporal sur-       2. Related Work
+rogate gradients to mitigate momentum loss, while Spatial         ANN-to-SNN Conversion. One prominent research di-
+Learning Through Time (SLTT) [45] showed that discard-            rection for improving the representational ability of SNNs
+ing temporal gradients can further boost efficiency. Al-          is the conversion of pre-trained Artificial Neural Net-
+though these efforts have advanced directly trained SNNs,         works (ANNs) into spiking counterparts [3, 4, 29, 44,
+they still rely on identical timestep supervision, which          51]. By transferring the discriminative features learned
+ultimately drives representations to collapse into similar        through large-scale ANN training and advanced optimiza-
+subspaces and restricts temporal diversity. Meanwhile,            tion, these conversion pipelines allow SNNs to inherit
+masking-based visual recognition methods [27, 57] have            strong feature expressiveness with minimal additional su-
+shown that suppressing dominant spatial regions can re-           pervision [1, 2, 17, 28, 39, 43, 53, 67]. Typical conversion
+veal alternative cues, yet such techniques remain confined        techniques—including rate coding [3, 4, 29, 44, 51] and
+to static domains and fail to address the temporal redun-         weight rescaling[3]—map continuous ANN activations into
+dancy inherent to spike-based learning.                           spike-based responses compatible with SNN firing dynam-
+    To overcome these challenges, we propose the Tempo-           ics [4, 9]. Despite their effectiveness, ANN-to-SNN con-
+ral Representation Enhancement (TRE) framework, which             version often relies on long simulation windows to approxi-
+reformulates temporal learning as a learning-to-forget pro-       mate ANN behavior, leading to considerable computational
+cess. Instead of repeatedly reinforcing dominant fea-             overhead and increased inference latency. Motivated by
+tures across timesteps, TRE dynamically suppresses high-          these limitations, we focus on directly trained SNNs, which
+contribution semantic channels while promoting the discov-        naturally exploit temporal dynamics while maintaining low
+ery of complementary representations. Specifically, TRE           latency and reduced energy consumption.
+employs a class-specific contribution estimation mechanism
+to measure each channel’s relevance to the classification ob-     Temporal Learning and Supervision in SNNs. A sec-
+jective and applies a hybrid modulation strategy combin-          ond line of work examines how SNNs learn and ex-
+ing fixed and adaptive thresholds. This targeted suppres-         ploit information over multiple timesteps. SNNs inher-
+sion adaptively attenuates over-dominant features, guiding        ently generate a sequence of temporally evolving spike-
+subsequent timesteps to explore underutilized semantic sub-       based representations, yet most training paradigms employ
+spaces and enhancing temporal discriminability.                   uniform supervision across timesteps through surrogate-
+    Unlike prior methods that stabilize or align timestep fea-    gradient backpropagation [47, 60]. Although effective for
+tures through auxiliary consistency constraints, TRE ex-          optimization, such temporally invariant supervision encour-
+plicitly diversifies temporal learning without architectural      ages timestep representations to converge toward similar
+modifications or inference overhead. By progressively reg-        subspaces, yielding highly correlated gradients and limited
+
+
+
+                                                             34481
+temporal discriminability. To alleviate this issue, recent ap-     decay toward a stable equilibrium:
+proaches leverage deeper architectures, multi-timestep cali-
+bration strategies, or consistency-enhanced temporal objec-                at+1
+                                                                            c   = (1 − λ)atc + λāc ,            0 < λ < 1,      (1)
+tives [12, 13, 15]. However, these methods mainly aim              where āc represents the steady-state response determined by
+to stabilize or align temporal features rather than explic-        the shared classifier and uniform supervision. This conver-
+itly diversify them. The persistent tendency toward tem-           gence behavior causes later timesteps to reproduce nearly
+poral redundancy motivates our work: instead of enforcing          identical activation distributions, thereby diminishing tem-
+uniform supervision, we promote timestep-specific repre-           poral discrimination.
+sentation exploration through a learning-to-forget paradigm           From a representational standpoint, such repetitive dy-
+that adaptively modulates decision-relevant patterns across        namics imply that the mutual dependence between succes-
+timesteps.                                                         sive features increases:
+
+                                                                             I(f t ; f t−1 ) ↑,   I(f t ; y) − I(f t−1 ; y) ↓,   (2)
+Masking and Feature Modulation Mechanisms.
+Masking-based mechanisms have been used in CNNs to                 meaning that new timesteps contribute less novel in-
+suppress dominant spatial responses and reveal alternative         formation about the target class. This phenomenon,
+discriminative regions [36, 57, 66]. Related ideas appear in       termed temporal redundancy, reflects a fundamental inef-
+attention dropout [41], dropblock [19], and feature masking        ficiency—SNNs reuse past semantic responses instead of
+strategies [20]. In the context of SNNs, spatial erasing           exploring complementary temporal cues.
+approaches such as temporal self-erasing have been shown               To overcome this limitation, we introduce a mecha-
+to alleviate spatial redundancy [40, 59]. However, existing        nism that adaptively suppresses persistently dominant se-
+erasing or modulation mechanisms operate primarily in the          mantic channels, facilitating complementary feature learn-
+spatial domain and do not target temporal redundancy. Our          ing across timesteps—the core principle of our proposed
+approach differs fundamentally by applying a temporally            Temporal Representation Enhancement (TRE) framework.
+guided modulation strategy driven by class-specific con-
+tribution estimation, enabling timestep-wise enhancement           3.2. Temporal Representation Enhancement
+through targeted suppression of high-contribution semantic         Building on the above analysis, we argue that timestep su-
+patterns.                                                          pervision should be differentiated rather than uniform, en-
+                                                                   abling SNNs to learn temporally diverse and complemen-
+3. Method                                                          tary representations instead of repeatedly activating domi-
+                                                                   nant patterns. From a cognitive neuroscience view [5], the
+In this section, we first analyze the temporal redundancy
+                                                                   brain refines perception through predictive coding—each
+problem in conventional SNNs and discuss how it lim-
+                                                                   cycle suppressing already-explained signals and emphasiz-
+its feature diversity across timesteps. We then introduce
+                                                                   ing novel residual information.
+the proposed Temporal Representation Enhancement (TRE)
+                                                                       While SNNs inherently process information across mul-
+framework, which aims to promote complementary and dis-
+                                                                   tiple timesteps, conventional training still drives them to fo-
+criminative temporal learning in SNNs, as illustrated in
+                                                                   cus on similar high-response channels throughout the se-
+Fig. 2.
+                                                                   quence. To address this, we propose a Temporal Repre-
+3.1. Temporal Redundancy in Conventional SNNs                      sentation Enhancement (TRE) mechanism that dynamically
+                                                                   suppresses over-dominant semantic channels and guides
+During spiking neural computation, each timestep t gener-          later timesteps to explore alternative discriminative cues, as
+ates a feature tensor Ft ∈ RH×W ×C , forming a temporal            shown in Fig. 2. Specifically, we denote the feature tensor
+sequence of activations {F1 , . . . , FT }. Ideally, these fea-    at timestep t as Ft ∈ RH×W ×C , where C is the number
+ture maps should encode complementary information over             of channels. Global average pooling (GAP) produces the
+time—early spikes capturing coarse semantics and later             channel descriptor:
+spikes refining fine-grained details. However, empirical ob-
+servations reveal that SNNs often exhibit temporal inertia:                                 f t = GAP (Ft ).                     (3)
+the same high-response channels remain persistently active
+across timesteps, while weaker semantic pathways fail to          Temporal accumulation. To capture temporal evolution,
+emerge (as illustrated in Fig. 1).                                we accumulate the averaged channel descriptors and logits
+    To formalize this, we consider the temporal activation        from previous timesteps:
+trajectory of channel c, measured by its average activation                               t−1                         t−1
+magnitude atc = mean(|Ft:,:,c |). Without explicit tempo-                             1 X i                       1 X i
+                                                                           f̂ t =             f ,       Ŝt =             S,     (4)
+ral modulation, the evolution of atc follows an exponential                         t − 1 i=1                   t − 1 i=1
+
+
+
+                                                              34482
+

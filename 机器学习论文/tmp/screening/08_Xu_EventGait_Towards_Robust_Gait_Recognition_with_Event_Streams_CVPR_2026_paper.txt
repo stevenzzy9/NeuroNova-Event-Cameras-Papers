@@ -1,0 +1,206 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+            EventGait: Towards Robust Gait Recognition with Event Streams
+
+ Senyan Xu1,∗ , Shuai Chen1, *, Chuanfu Shen2 , Kean Liu1 , Zhijing Sun1 , Chengzhi Cao1 , Xueyang Fu1,†
+                            1
+                              University of Science and Technology of China
+                      2
+                        University of Electronic Science and Technology of China
+           {syxu,shuaic}@mail.ustc.edu.cn, chuanfu.shen@uestc.edu.cn, {xyfu}@ustc.edu.cn
+
+
+
+                            Abstract
+
+Gait recognition enables non-intrusive, privacy-preserving
+identification but suffers in uncontrolled environments due
+to illumination and motion sensitivity of conventional cam-
+eras. In this work, we explore gait recognition using
+event cameras, which offer microsecond temporal resolu-
+tion and high dynamic range, naturally capturing robust
+dynamic cues and suppressing static noise. Existing event-
+based approaches typically aggregate event streams into
+event images over long time windows, thereby discard-
+ing fine-grained motion dynamics critical for gait recog-
+nition. Therefore, we propose EventGait, an end-to-end
+dual-stream framework that separately models motion and
+shape while preserving the advantages of events. Our
+dynamic stream leverages a Mixture of Spiking Experts
+(MoSE) with diverse neuron constants for robust dynamic            Figure 1. Comparison of RGB and event cameras under day and
+perception across complex motion and illumination scenes,          night conditions. RGB cameras fail to capture usable gait rep-
+while the static stream learns dense shape representations         resentations in low-light conditions. While event cameras are ro-
+via Cross-modal Structure Alignment (CroSA) with large vi-         bust to illumination changes and capture extremely high-temporal-
+sion foundation models. To address the absence of large-           resolution data, preserving spatiotemporal cues in all lighting.
+scale event-based gait datasets, we introduce a synthesis
+                                                                   lizing their walking pattern, gait recognition offers the ad-
+pipeline and release two new benchmarks: SUSTech1K-
+                                                                   vantage of operating from a distance, making it valuable
+E and CCGR-Mini-E. Extensive experiments have shown
+                                                                   for surveillance [56], healthcare [78], and forensics [49].
+that event-based gait recognition not only achieves results
+                                                                   However, conventional RGB-based gait recognition [32, 70]
+comparable to camera-based gait recognition under nor-
+                                                                   suffers from unconstrained environments. The illumination
+mal conditions but also significantly outperforms it in low-
+                                                                   changes, occlusions, and motion blur often corrupt visual
+light scenarios. Our approach sets a new state of the art
+                                                                   cues, leading to unreliable performance. Recent LiDAR-
+on both synthesized and real-world event-based gait bench-
+                                                                   based gait recognition [54, 57] has achieved greater robust-
+marks, highlighting the robustness and potential of event-
+                                                                   ness, but its high cost and energy consumption hinder de-
+driven gait analysis. The code and datasets are released at
+                                                                   ployment at scale.
+https://github.com/QUEAHREN/EventGait.
+                                                                       Event cameras, or Dynamic Vision Sensors (DVS) [1,
+                                                                   13, 58], are bio-inspired sensors that asynchronously record
+                                                                   per-pixel brightness changes, providing higher temporal
+1. Introduction                                                    resolution (< 3µs) and an extraordinary dynamic range
+Gait has emerged as a promising biometric for non-                 (> 120 dB). While conventional cameras have limited tem-
+intrusive, privacy-preserving human identification. By uti-        poral resolution (≈ 30 ms) and dynamic range (< 80 dB).
+                                                                   Event cameras naturally capture rich dynamic motion [16]
+  * Equal contribution.                                            while discarding irrelevant cues such as clothing textures
+  † Corresponding author.                                          and color. These strengths enable robust perception across
+
+
+
+                                                             22323
+challenging lighting conditions, making them suitable for            power event representations.
+gait recognition.                                                  • We establish an event synthesis pipeline and con-
+    With these advantages, the first event-based gait recog-         struct two large-scale synthetic event gait datasets,
+nition method [65] has shown the feasibility of using                SUSTech1K-E and CCGR-Mini-E, to facilitate large-
+event camera for robust gait recognition. However, prior             scale event-based gait analysis.
+work [65, 66] has not fully exploited the potential of event       Extensive experiments show that EventGait achieves a
+data, integrating events over long time windows into grid-         state-of-the-art performance compared to previous camera-
+based event images. Although these event images can be             based and event-based methods, across synthesized and
+encoded using standard CNNs [65] or GNNs [66], this tem-           real-world benchmarks.
+poral voxelization produces sparse representations with low
+temporal precision. This paradigm is suboptimal for two            2. Related Work
+key reasons: i) it collapses fine temporal resolution, de-
+stroying the high-frequency dynamic cues crucial for gait          2.1. Gait Recognition
+recognition; and ii) it produces overly sparse spatial rep-        Gait recognition has been extensively researched for
+resentations, which conventional deep networks struggle            decades [19, 35, 42, 43, 53, 72], aiming to identify indi-
+to interpret into dense and discriminative appearance fea-         viduals by leveraging both static shape cues and dynamic
+tures [2], as shown in Figure 1.                                   motion patterns across diverse modalities, such as silhou-
+    In this paper, we revisit event-based gait recognition         ettes [22, 24–26, 61–63, 68, 71, 82], skeletons [11, 14, 31,
+from a new perspective: robust event-based gait recognition        41, 46, 47], parsings [67, 80, 81, 83], RGB imagery [28,
+should not just encode spatially static body shape. More im-       39, 69, 75, 76, 79], point clouds [18, 20, 55, 57, 64],
+portantly, detailed dynamics should be retained from high-         and event streams [65, 66]. Traditionally, binary silhou-
+temporal-resolution events as well. Building upon this in-         ettes have been the dominant modality, effectively retain-
+sight, we propose EventGait, an event-based dual-stream            ing body shape while filtering out irrelevant background
+gait recognition framework that separately models motion           texture. Similarly, skeleton-based methods have been ex-
+and shape while preserving the advantages of events. The           plored for their explicit structural information, which of-
+Dynamic Motion stream employs spiking dynamics as ba-              fers inherent robustness to viewpoint variations. However,
+sic neurons to model high-frequency motion features di-            both representations are intermediate and heavily depen-
+rectly. We further implement a Mixture of Spiking Ex-              dent on the estimation quality of upstream tasks (i.e., hu-
+perts (MoSE), which combines these spiking experts with            man segmentation and pose estimation). To address this,
+diverse membrane time constants, enabling robust dynamic           recent research [15, 34, 37, 75] has shifted toward end-
+perception across complex motion and illumination scenes.          to-end RGB-based methods, achieving state-of-the-art re-
+The Static Shape stream enhances the spatial density of            sults in both controlled and in-the-wild settings. Neverthe-
+structure features through Cross-modal Structure Align-            less, RGB imagery remains susceptible to visual ambiguity
+ment (CroSA) from a pre-trained vision foundation model            arising from poor illumination and complex outdoor back-
+(VFM). The VFM, as a teacher, forces the static encoder to         grounds. Consequently, recent studies have adopted 3D
+learn to obtain dense structural priors from event modality.       sensors to represent gait via point clouds, ensuring robust
+    Due to a lack of large-scale datasets for evaluating event-    performance immune to illumination changes. Image-based
+based gait recognition, we establish a synthetic dataset           methods are illumination-sensitive [6–8], and 3D sensors
+pipeline to simulate event streams from RGB gait videos            are cost-prohibitive [54]. This trade-off motivates our ex-
+under different light conditions. With the proposed event          ploration of event-based representations. Event streams are
+synthetic pipeline, we construct two large-scale event-based       illumination-robust, offer exceptional dynamic range and
+gait datasets, SUSTech1K-E and CCGR-Mini-E, which en-              high temporal resolution, and are increasingly affordable,
+rich the diversity of training samples and also serve as           making them promising for capturing gait features.
+strong new benchmarks for evaluation. Our main contri-
+butions are summarized as follows:                                 2.2. Event-based Vision
+• We present EventGait, a dual-stream framework that sep-          Event cameras, or Dynamic Vision Sensors (DVS) [1, 13,
+   arately models static shape and dynamic motion for ro-          58], are bio-inspired sensors that operate fundamentally
+   bust event-based gait recognition.                              differently from traditional cameras. Instead of captur-
+• We propose a Mixture of Spiking Experts (MoSE), where            ing frames at a fixed rate, event cameras capture indepen-
+   experts with distinct spiking neuron time constants enable      dent pixels that asynchronously trigger events in response
+   adaptive motion perception under varying illumination.          to a change in logarithmic brightness. Event streams of-
+• We design a Cross-modal Structure Alignment (CroSA)              fer significant advantages, including high dynamic range,
+   that transfers structural priors from a VFM teacher to em-      low latency, and a strong suppression of motion blur, mak-
+
+
+
+                                                              22324
+                                                                                                     𝐄𝐝
+       Short-term Slices 𝐄𝐝
+                         …                                                   ……                             Dynamic
+                                                                                                            Motion
+                              Δ𝑇                                                                           Stream
+                                                                                                                    Fusion
+                                                                                                                     &
+                                                                                              𝐈𝐜                 Decoder
+       Event Streams
+                   …                                                     …                                         &
+                                                                                                               Classifier
+                                                                                                  Static
+                                   𝑇                     𝑇                                      Shape
+                                                                                               Stream
+                                                                                        𝐄𝐬
+        Long-term Slices 𝐄𝐬
+             …                                                       …
+                                                                                                                      Only for training
+
+
+Figure 2. The workflow of our EventGait. The detailed architecture of the Dynamic Motion Stream is shown in Figure 3, while the Static
+Shape Stream is illustrated in Figure 4.
+
+ing such sensors ideal for several computer vision tasks,                tion at a pixel exceeds a threshold c:
+from low-level vision (e.g., deblurring [29, 30] and en-                                                  
+hancement [38, 40]) to high-level vision (e.g., tracking [33,                             L(xi , yi , ti )           L(xi , yi , ti )
+                                                                            pi = sg log                ′     , | log                   | > c, (1)
+48], segmentation [5], and recognition [2, 84]). Event                                    L(xi , yi , ti )           L(xi , yi , t′i )
+data is typically encoded either by grouping events into
+grid-like tensors for CNNs or by processing them asyn-                       where sg(·) denotes the sign function.To interface this
+chronously with point-based networks [4] or Spiking Neu-                 asynchronous stream with deep networks, we aggregate
+ral Networks (SNNs) [17]. While event-based gait recog-                  events within an exposure window T into a temporal event
+nition [65, 66] has proven effective in poor illumination,               slice. The interval T is uniformly divided into K bins:
+existing research [65, 66] has two key limitations: (1) it                                       X        
+                                                                                                                  |ti − tk |
+                                                                                                                             
+neglects fine-grained temporal dynamics, relying on aggre-                       Ep (x, y, k) =       max 0, 1 −               , (2)
+                                                                                                                     ∆T
+gated event images across long time windows; (2) it was                                            ei ∈Ep
+only validated on small-scale datasets (∼100 identities). We
+address these gaps by proposing a dual-stream network to                 where ∆T = T /K denotes the temporal interval of each
+encode spatiotemporal information and validating our ap-                 bin, E ∈ R2×K×H×W represents the voxelized event repre-
+proach on larger scale datasets (∼2000 identities).                      sentation slices, which encodes positive and negative polar-
+                                                                         ities in separate channels, retaining sub-bin temporal preci-
+                                                                         sion and motion continuity.
+                                                                         Two-scale temporal design for dual-stream framework.
+3. EventGait
+                                                                         Within each long exposure window T , our event repre-
+                                                                         sentation provides K short temporal event slices of width
+In this section, we revisit the event representation and in-
+                                                                         ∆T = T /K. We exploit this hierarchy through a dual-
+troduce a two-scale temporal design that decomposes the
+                                                                         stream design. As shown in Figure 2, the Dynamic Stream
+event stream into short- and long-term voxels. Then, we
+                                                                         processes short-term event slices Ed with small ∆T to pre-
+detail the Dynamic Motion Stream based on the Mixture
+                                                                         serve fine-grained temporal fidelity, while the Static Stream
+of Spiking Experts (MoSE) for motion modeling, and the
+                                                                         aggregates events over the entire window T into a long-term
+Static Shape Stream trained with Cross-modal Structure
+                                                                         event slice Es , capturing stable spatial shape.
+Alignment (CroSA) for dense shape learning. Finally, we
+describe the overall architectural and training objectives.              3.2. Mixture of Spiking Experts
+                                                                         The dynamic motion stream operates on high temporal fre-
+3.1. Event Representation                                                quency, and spatially sparse event slices Ed with high tem-
+                                                                         poral resolution. Such signals differ from dense frames.
+An event camera asynchronously records per-pixel bright-                 Traditional CNNs/RNNs-based methods struggle to capture
+ness changes as tuples ei = (xi , yi , ti , pi ), where (xi , yi )       precise motion features and are incompatible with the inher-
+are spatial coordinates, ti is the timestamp, and pi ∈                   ent sparsity of events.
+{+1, −1} denotes the polarity of the logarithmic intensity               Modeling as spiking dynamics. The Spiking Neural Net-
+change. An event is triggered when the log-intensity varia-              works (SNNs) [17] integrate sparse spikes over time to up-
+
+
+
+                                                                 22325
+

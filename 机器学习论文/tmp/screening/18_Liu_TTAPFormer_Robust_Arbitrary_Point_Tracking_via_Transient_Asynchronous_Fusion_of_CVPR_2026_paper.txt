@@ -1,0 +1,202 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+    TAPFormer: Robust Arbitrary Point Tracking via Transient Asynchronous
+                       Fusion of Frames and Events
+
+            Jiaxiong Liu1          Zhen Tan1        Jinpu Zhang1    Yi Zhou2       Hui Shen1
+                                                       1             1*
+                                       Xieyuanli Chen        Dewen Hu
+                     1                                                2
+                       National University of Defense Technology        Hunan University
+
+
+                          Abstract
+
+
+
+
+                                                                    (b) Event-only (a) Image-only
+                                                                                                                                    10
+Tracking any point (TAP) is a fundamental yet challenging
+task in computer vision, requiring high precision and long-
+
+
+
+
+                                                                                                                                 Tracking Error (pixel)
+term motion reasoning. Recent attempts to combine RGB
+frames and event streams have shown promise, yet they typ-
+ically rely on synchronous or non-adaptive fusion, leading
+to temporal misalignment and severe degradation when one
+modality fails. We introduce TAPFormer, a transformer-
+based framework that performs asynchronous temporal-
+                                                                    (c) Fusion
+
+
+
+consistent fusion of frames and events for robust and high-
+frequency arbitrary point tracking. Our key innovation is
+a Transient Asynchronous Fusion (TAF) mechanism, which
+                                                                                                                                       0
+explicitly models the temporal evolution between discrete
+frames through continuous event updates, bridging the gap
+                                                                 Figure 1. A qualitative comparison of tracking performance in
+between low-rate frames and high-rate events. In addition,
+                                                                 our dataset shows that (a) frame-based tracking suffers from in-
+a Cross-modal Locally Weighted Fusion (CLWF) module              sufficient temporal information, and (b) event-based tracking fails
+adaptively adjusts spatial attention according to modality       to capture fine spatial details. In contrast, our (c) fusion approach
+reliability, yielding stable and discriminative features even    can recover long-term, high-accuracy point trajectories. The right-
+under blur or low light. To evaluate our approach under          most color bar visualizes the per-point tracking error (in pixels).
+realistic conditions, we construct a novel real-world frame-
+event TAP dataset under diverse illumination and motion          often experience severe degradation under challenging con-
+conditions. Our method outperforms existing point track-         ditions, due to motion blur, overexposure, or limited frame
+ers, achieving a 28.2% improvement in average pixel er-          rates that fail to capture rapid dynamics [6, 16, 22, 42].
+ror within threshold. Moreover, on standard point tracking           Event cameras, in contrast, asynchronously record per-
+benchmarks, our tracker consistently achieves the best per-      pixel brightness changes with microsecond temporal preci-
+formance. Project website: tapformer.github.io                   sion, offering wide dynamic range. These properties make
+                                                                 them suitable for high-speed or high-contrast environments.
+                                                                 However, event data are inherently coupled with motion,
+1. Introduction                                                  meaning the generated event stream depends on both the
+                                                                 scene and the camera motion. Even the same scene can
+Tracking any point (TAP), which estimates the motion tra-        produce drastically different event patterns under varying
+jectory of any point in a video, is a fundamental task in        motions, making it difficult to form consistent feature maps
+computer vision. A robust tracker capable of maintaining         across motion conditions. Moreover, in slow-motion or
+accurate trajectories under diverse conditions, from bright      static scenes, the event stream becomes sparse, and the lack
+daylight to low-light nighttime scenes and from slow to fast     of texture and color further limits tracking performance.
+motions, is important for applications such as augmented
+                                                                     These complementary strengths and weaknesses natu-
+reality and autonomous systems [5, 38]. However, exist-
+                                                                 rally motivate fusion-based approaches [30, 41]. In biologi-
+ing methods relying on conventional frame-based cameras
+                                                                 cal vision, robust perception is achieved through the cooper-
+  * Corresponding author: dwhu@nudt.edu.cn                       ation of parallel visual pathways. The ventral visual stream
+
+
+
+                                                            37053
+mainly processes static attributes such as color and texture,     conducted on both TAP and feature point tracking tasks.
+while the dorsal stream encodes motion and spatial relation-      Across all benchmarks, our method consistently achieves
+ships [45]. Analogously, RGB and event cameras provide            the best performance among frame-based, event-based, and
+complementary visual information. The former excels at            fusion-based trackers, demonstrating its strong generaliza-
+capturing detailed spatial structure, while the latter encodes    tion and robustness under diverse real-world conditions.
+fine-grained temporal dynamics. Inspired by this analogy,         The contribution of our work consist of:
+we develop a unified fusion framework that integrates both        • We propose a unified framework that fully exploits
+modalities to achieve stable, high-precision arbitrary point         the complementary strengths of RGB frames and event
+tracking across diverse real-world conditions.                       streams, enabling robust arbitrary point tracking under di-
+    To achieve this goal, two major challenges should be             verse challenging real-world conditions.
+addressed. The first challenge lies in the frequency mis-         • The first real-world TAP benchmark covering challenging
+match between image frames and event data. Directly fus-             conditions with synchronized frame–event data.
+ing asynchronous event streams with the most recent im-           • State-of-the-art performance across multiple datasets in
+age frame can result in severe spatial misalignment due to           TAP and feature point tracking tasks, demonstrating the
+the time lag between the two modalities. Existing fusion             effectiveness and generality of our approach.
+methods [28, 37] often circumvent this problem by down-               By shifting frame–event fusion from synchronous aggre-
+sampling event data to match frame rates, sacrificing tem-        gation to asynchronous temporal modeling, TAPFormer of-
+poral fidelity and limiting potential gains. Although asyn-       fers a new perspective for building continuous, event-driven
+chronous fusion techniques have been explored in related          perception systems.
+tasks [9, 47], they are not well suited for TAP, as it re-
+quires pixel-level precision, long-term consistency, and ro-         2. Related Work
+bust handling of fine-grained features. To address this, we
+introduce a Transient Asynchronous Fusion (TAF) mecha-               2.1. Frame-Based Point Tracking Methods
+nism. Instead of aligning event streams to discrete frames,          TAP task has been revisited and reformulated as a particle
+TAF treats the scene as a temporally continuous latent rep-          video problem by querying trajectories across the entire im-
+resentation. Each time a frame arrives, the fusion state             age sequence [15], which handles occlusions by leverag-
+is initialized by combining frame and recent events; be-             ing temporal context. TAP-Vid [7] further provides both
+tween frames, this representation is continuously updated            synthetic training data and standardized evaluation bench-
+by incoming events through a lightweight cross-attention             marks. PointOdyssey [48] also provides a large-scale syn-
+updater. This formulation explicitly models the temporal             thetic dataset for long-term TAP. CoTracker [21] models the
+evolution of visual information, enabling high-frequency             spatial correlations among target points by leveraging their
+feature updates far beyond the frame rate.                           physical coherence and jointly tracks them within a slid-
+    The second challenge lies in constructing robust cross-          ing temporal window. Inspired by DETR [4], TAPTR [25]
+modal feature representations under challenging conditions.          employs a transformer-based architecture as an iterative
+In realistic scenes, the reliability of image and event modal-       optimizer and achieves strong performance on benchmark
+ities fluctuates spatially and temporally. Cross-modal Lo-           datasets. CoTracker3 [22] further simplifies the architec-
+cally Weighted Fusion (CLWF) module introduces an adap-              ture by removing redundant components, achieving higher
+tive local attention mechanism where event tokens query              efficiency with minimal accuracy loss. Chrono [23] intro-
+spatial neighborhoods of frame tokens, learning to empha-            duces temporal adapters between the transformer blocks of
+size the modality that is currently more informative. This           DINOv2 [33], demonstrating that temporal coherence plays
+results in robust, spatially coherent features even when one         a key role in feature extraction.
+modality degrades due to motion blur or sparsity. More-                  Another related line of research is optical flow estima-
+over, once frame and event inputs are tokenized and fused,           tion [20, 36], which focuses on dense correspondence esti-
+both scale and temporal information can be naturally incor-          mation between consecutive frames. However, such meth-
+porated into our architecture. In this way, these modules es-        ods often suffer from drift in long-term tracking. Despite re-
+tablish a temporally consistent, modality-adaptive represen-         cent advances in frame-based tracking, the inherent limita-
+tation that bridges the temporal gap between asynchronous            tions of standard cameras, such as fixed frame rates and lim-
+sensors while maintaining fine spatial precision.                    ited dynamic range, restrict their applicability under fast-
+    Beyond algorithmic contributions, we also introduce two          motion or low-light conditions.
+datasets to systematically study multimodal TAP. We built
+                                                                     2.2. Event-Based Point Tracking Methods
+a new multimodal tracking benchmark that includes a syn-
+thetic frame-event training dataset and manually annotated           Early event-based tracking approaches relied on geometric
+real-world test sequences. Comprehensive experiments are             or optimization-based models[1, 2, 49]. For instance, Zhu et
+
+
+
+                                                             37054
+al. [49] treat event streams as point clouds and estimate tra-        them at a local scale, enhancing robustness under motion
+jectories using ICP algorithms. HASTE [2] tracks features             blur, occlusion, and illumination changes. Together, these
+at the event level by hypothesizing multiple motion patterns          designs yield a stable and temporally coherent representa-
+and selecting the best match through template comparison.             tion that enables precise and robust arbitrary point tracking
+To enhance the performance and robustness of trackers,                under diverse real-world conditions.
+data-driven approaches have been proposed [3, 14, 19, 31].
+However, these methods are limited to predefined feature              3. Method
+points and cannot generalize to arbitrary point tracking.
+    More recently, ETAP [13] adapted trajectory optimiza-
+                                                                      3.1. Problem Definition
+tion networks from the TAP task to the event domain and              Our TAP framework fuses RGB and event data. Event cam-
+proposed an event-based TAP synthetic training dataset.              eras asynchronously record pixel-wise brightness changes,
+MATE [14] introduces a motion-augmented approach that                triggering an event whenever the logarithmic intensity vari-
+significantly enhances the temporal consistency and robust-          ation exceeds a threshold c\in \mathbb {R}^+  . Each event
+ness of event-based point tracking.                                               includes pixel location  \boldsymbol {x}_k=(x_k, y_k) , a mi-
+                                                                                  e_k \doteq (\boldsymbol {x}_k, t_k, p_k) 
+    Despite these advances, event-based tracking often fails         crosecond timestamp  t_k  , and polarity  p_k \in \{-1, +1\}  for
+in low-motion or static scenes due to sparse event genera-           the sign of brightness change. The event-triggering condi-
+tion. Moreover, the lack of color and texture detail limits the      tion can thus be formally expressed as:
+tracking precision of event-only methods, making them less
+reliable than frame-based approaches in most scenarios.                     \Delta L(\boldsymbol {x}_k, t_k) = L(\boldsymbol {x}_k, t_k) - L(\boldsymbol {x}_k, t_k - \Delta t_k) = p_k c,  (1)
+
+2.3. Multimodal Fusion for Events and Frames                          where  L = \log (I)  denotes the logarithmic intensity of im-
+                                                                      age  I \in \mathbb {R}^{H \times W \times 3} . \Delta t_k denotes the short interval between
+To achieve more robust point tracking, several studies have           two consecutive events at the same pixel. Consequently, the
+explored the integration of frame and event data to lever-            pixel intensity at time  t_k  can be recovered from its previous
+age their complementary strengths: rich textures and stable           intensity using the event polarity and threshold:
+appearance from images, and high temporal resolution and
+dynamic range from events [10, 27, 30, 39, 43]. For ex-                                     I(\boldsymbol {x}_k, t_k) = \exp (p_k c) \cdot I(\boldsymbol {x}_k, t_k - \Delta t_k). \label {eq:generation model}    (2)
+ample, EKLT [10] uses grayscale images as templates and
+matches them with brightness increment images generated                        Next, we define the TAP task that fuses image and event
+from event streams to perform feature point tracking. Other           data. For simplicity, we represent the entire target pro-
+works adopt data-driven approaches, significantly improv-             cess using a single query point here. Given a time inter-
+ing performance under challenging conditions. The recent              val \tau = [\tau _s, \tau _e]\in \mathbb {R}\  , \ \tau _s \le \tau _e , we observe a sequence
+FETAP [27] introduces the first TAP model to fuse images              of events \protect \mathcal  {E} = \{e_k \mid t_k \in \tau \} and a sequence of images
+and events, achieving substantial performance gains. How-             \protect \mathcal  {I} = \{I_t\}_{t=0}^{N^i} , where N^i \in \mathbb {N^+} is the number of image
+ever, since it is trained on optical-flow data, it lacks the abil-    frames. We aim to track a query point \protect \mathbf  {q} = (t_q, x, y) \in \mathbb {R}^3 ,
+ity to explicitly model point occlusions.                             initialized at time t_q \in {\tau } , and estimate its trajectory
+                                                                                                                     \protect \boldsymbol  {x}_{\tau _t} = (x_{\tau _t}, y_{\tau _t}) \in \mathbb {R}^2
+    Fusion frames and events have also been investigated in                                                            and visibility {v}_{\tau _t} \in \{0,1\} over discrete
+other vision tasks such as object tracking [9, 24, 29, 47], line      time steps \ifmmode \lbrace \else \textbraceleft \fi \tau _t\}_{t=0}^{N^e-1} \subset \tau  , where N^e \in \mathbb {N^+} denotes the
+segment detection [46], and depth estimation [11]. How-               number of event frames, and 1 indicates visibility while 0
+ever, most existing methods are either constrained by frame           denotes occlusion.
+rates or suffer from degradation when one modality is unre-                    For efficiency and noise robustness, the tracker operates
+liable [37]. Moreover, these approaches are not directly ap-          at all discrete query times  \{\tau _t\}_{t=0}^{N^e-1}  , whose update fre-
+plicable to TAP, which demands pixel-level precision, long-           quency  f_e = \frac {N^e}{\tau _e-\tau _s}  (typically 100–200 Hz) is much higher
+term consistency, and robust per-point feature representa-            than the image frame rate  f_i = \frac {N^i}{\tau _e-\tau _s}  (20–30 Hz). In prin-
+tions that remain stable under irregular motion.                      ciple, using our transient asynchronous fusion mechanism,
+    To address these limitations, we propose a unified asyn-          the tracker can estimate the query point location at arbitrary
+chronous fusion framework featuring two key modules.                  query times τt . At each discrete step \tau _t , the set of events in
+First, a transient feature update mechanism integrates im-            the corresponding time bin is collected:
+age and event information to construct a temporally consis-
+tent representation when an image arrives and continuously                                            E_t = \{e_k \mid \tau _{t-1} < t_k \le \tau _t\} \subset \mathcal {E},                                       (3)
+updates it with incoming events between frames, enabling
+high-frequency tracking beyond standard frame rates. Sec-             and convert them to event representations
+                                                                                 I^{ev}_t = \mathcal {F}(E_t) \in \mathbb {R}^{H \times W \times B} 
+ond, a cross-modal locally weighted fusion module adap-                         . B is the channel number. \protect \mathcal  {F} is a maximal times-
+tively selects reliable regions from each modality and fuses          tamp version of Stacking Based on Time (SBT) [40].
+
+
+
+                                                                 37055
+

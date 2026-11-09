@@ -1,0 +1,188 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+   Event Structural Valley: A Unified Theoretical and Practical Framework for
+                            Event Camera Autofocus
+
+                   Xijie Xiang1 Lin Zhu2 * Wei Zhang3 Yonghong Tian1 *
+                       1
+            Peking University 2 Beijing Normal University 3 Pengcheng Laboratory
+ {xiangxj,yhtian}@pku.edu.cn         linzhu@bnu.edu.cn         zhangwei1213052@126.com
+
+
+                           Abstract
+
+Autofocus in dynamic environments remains challenging for
+conventional frame-based sensors, which often fail under
+fast motion, low light, or high dynamic range conditions.
+Event cameras, with microsecond temporal resolution and
+asynchronous brightness detection, offer a promising alter-
+native. However, typical event-based autofocus methods
+assume that the sharpest focus corresponds to the maxi-
+mum event rate. In this paper, we reveal a counterintu-
+itive yet consistent phenomenon: the true focus actually
+corresponds to a local minimum in the event-rate curve.
+We theoretically derive this behavior from the physics of
+event generation and show that as defocus blur increases,
+the event rate first rises and then declines, forming a dual-
+peak-valley structure across focal distances. Based on this
+insight, we propose an Event Structural Valley-based Auto-
+focus (ESVA) framework that identifies the valley between
+two dominant peaks as the true focal position. ESVA in-               Figure 1. Event-based Autofocus. The goal of event-based
+tegrates structural smoothing, consistency filtering, and a           autofocus is to determine the optimal focus position from asyn-
+dual-peak constraint to robustly recover the valley under             chronous event streams acquired at different focal depths. Dur-
+noise and motion disturbances. Extensive experiments on               ing a continuous focus sweep (top), the event camera generates
+multiple synthetic and real-world datasets demonstrate that           ON/OFF events in response to brightness changes along scene
+ESVA delivers accurate and stable focus estimation, consis-           edges. The middle rows show accumulated event maps and corre-
+                                                                      sponding intensity images across focal settings. Bottom left: pre-
+tently outperforming existing event-based autofocus meth-
+                                                                      vious Maximum Event Rate (MER) methods [21, 22] select the
+ods without requiring image reconstruction or supervision.            focus with maximum event activity, often yielding approximate
+                                                                      results at slightly defocused states; bottom right: our structural
+1. Introduction                                                       valley-based approach locates the inter-peak valley to achieve a
+                                                                      more accurate focus estimate.
+Fast and accurate autofocus [15, 38, 43] is essential for dy-
+namic vision systems such as robotics [23, 42], autonomous            visual odometry and SLAM [24, 31, 35], image reconstruc-
+driving [1, 41], and microscopic imaging [8, 16, 28]. How-            tion [33, 40, 46] and motion deblurring [25] demonstrates
+ever, conventional frame-based autofocus algorithms often             the potential of event-based sensing in challenging environ-
+fail under fast motion, low illumination, or high dynamic             ments. This motivates the exploration of event-based auto-
+range conditions [10, 12, 44]. Event cameras [5, 10, 20],             focus as a principled and promising solution for achieving
+with microsecond temporal resolution, low latency, and                fast and reliable focus control.
+high dynamic range, inherently overcome these limitations                As illustrated in Figure 1, event-based autofocus aims
+by asynchronously capturing per-pixel brightness changes.             to estimate the focal distance that yields the sharpest scene
+Their proven effectiveness in 3D reconstruction [9, 32, 45],          by relying solely on asynchronous events captured during
+  * Corresponding author: Yonghong Tian, Lin zhu.                     a continuous focus sweep. During this process, a motor-
+
+
+
+                                                                936
+ized lens controller synchronously adjusts the focal plane              2. Related Work
+while the event camera records brightness changes, form-
+ing a continuous spatiotemporal event volume.                           Event-based Autofocus Methods. Event cameras have
+    Representative prior works [21, 22] assume that the                 recently been adopted for autofocus to enable real-time,
+sharpest focus corresponds to the maximum event rate (bot-              low-latency focus estimation under challenging conditions
+tom left of Figure 1), following the intuition that clear focus         such as high-speed motion and extreme lighting variations.
+produces more events. However, both theoretical analysis                Lin et al. [21] first employed the event rate peak as a fo-
+and experimental evidence revealed a counterintuitive ob-               cus metric combined with a golden-section search strategy,
+servation: the true in-focus position corresponds to an inter-          assuming that an in-focus scene trigger more events. How-
+peak minimum in the event-rate curve. As shown in Fig-                  ever, both our analysis and empirical evidence show that
+ure 1, our approach identifies this structural valley, which            this assumption fails at perfect focus, where edges are spa-
+consistently aligns with the physically sharpest focus.                 tially compact and thus produce fewer events.
+    This inverse trend arises from the physics of event gener-              To improve robustness, subsequent works refined event-
+ation: at perfect focus, edges are spatially compact, so fewer          driven metrics. Bao et al. [2] introduced polarity symmetry
+pixels cross the contrast threshold and fewer events are trig-          as a focus cue, observing that well-focused scenes exhibit
+gered [9, 19]. When slightly defocused, blur broadens the               balanced positive and negative events. Ge et al. [11] further
+transition zone, activating more pixels and increasing the              identified a symmetric polarity distribution around the fo-
+event rate [9, 20]. As defocus increases further, gradients             cal plane in microscopic imaging. Qu et al. [29] extended
+weaken and the event rate decreases, forming a character-               this idea to a more robust autofocus framework for micro-
+istic dual-peak–valley structure over the focal range. This             scopes, reinforcing the potential of neuromorphic sensing
+structure consistently indicates that the sharpest focus lies           for precise axial focusing. In parallel, Su et al. [36] devel-
+at the valley between two dominant peaks.                               oped an illumination-robust autofocus metric tailored for
+    Recent studies [2, 11] reported polarity inversion and              spike camera [6], demonstrating strong adaptability under
+symmetry of event activity near focus, providing empirical              varying light conditions.
+insights into event behavior around the focal plane. How-                   Unlike these empirical or modality-specific approaches,
+ever, these observations were obtained under constrained                our method is grounded in the physics of event genera-
+setups (e.g. microscopic autofocus) and interpreted through             tion. By analytically modeling the relationship between
+heuristic cues such as polarity balance, without uncovering             event rate and defocus blur, we reveal the non-monotonic
+the physical origin of the valley itself. In contrast, we de-           behavior of the event-rate curve and establish a physically
+velop a unified analytical model that derives this behavior             interpretable foundation for event-based focusing.
+directly from the event generation process and analytically                 Overall, event-based autofocus represents a promising
+shows that the inter-peak minimum of the event-rate curve               direction for next-generation adaptive vision systems that
+inherently corresponds to the true focus.                               require high-speed, low-latency perception and dynamic
+    Building on this insight, we propose a simple yet robust            optical control.
+Event Structural Valley-based Autofocus (ESVA) frame-
+work. Our method detects two dominant peaks in the event-               Event Focus Applications. Beyond autofocus, event
+rate curve and locates the valley between them as the op-               cameras have shown strong focus-sensitive properties
+timal focus estimate. It operates fully in the event domain             across diverse vision tasks. Lou et al. [22] and Teng et
+without any image reconstruction or supervision, and per-               al. [37] exploited event focal stacks to reconstruct all-in-
+forms consistently across real and synthetic datasets. More-            focus images under complex illumination, while Zhu et
+over, it provides a unified physical and computational foun-            al. [47] introduced a self-supervised framework that di-
+dation for event-based focusing.                                        rectly restores sharp images from defocused event streams.
+Our main contributions are:                                             Jiang et al. [17] further leveraged focus variation to infer
+• We establish a theoretical model that explains why the                monocular depth, revealing that defocus cues in event se-
+  event rate exhibits a dual-peak valley structure during fo-           quences encode rich spatial geometry. At the theoretical
+  cal scanning and analytically show that its valley corre-             level, Haessig et al. [14] modeled depth-from-defocus com-
+  sponds to the true focus.                                             putation using spiking neural networks, highlighting the
+• We propose a structural, valley-based autofocus algo-                 neuromorphic potential of asynchronous vision.
+  rithm integrating smoothing, consistency, and dual-peak                  Although these studies are not designed for explicit aut-
+  modules for robust and accurate focus estimation.                     ofocus control, they implicitly leverage the relationship be-
+• Extensive experiments demonstrating superior accuracy                 tween event activity and image sharpness, further confirm-
+  and generalization over prior event autofocus methods in              ing the intrinsic connection between event dynamics, depth,
+  multiple datasets, without any image-based supervision.               and focal clarity.
+
+
+
+                                                                  937
+3. Method
+3.1. Principle of Event Cameras and Defocus Be-
+      havior
+Event cameras asynchronously respond to local brightness
+changes [5, 20], outputting an event whenever the loga-
+rithmic intensity logI variation exceeds a preset contrast
+threshold C:
+      \Delta L(x,y,t) = L(x,y,t) - L(x,y,t-\delta t) \ge C, \label {eq:event}  (1)
+
+where L = log I and δt denotes the elapsed time since
+the last event at pixel (x, y). Each event is represented as
+(x, y, t, p), with polarity p ∈ {+1, −1} indicating the sign
+of the intensity change.
+   During a focus sweep, defocus blur modifies how in-
+tensity transitions distribute spatially around edges and tex-
+tured structures. When the scene is in perfect focus, sharp
+transitions are spatially compact and only a small set of pix-
+els can cross the temporal threshold [9, 26]. As the lens                                                                                          Figure 2. Structural characterization of the event-rate curve.
+moves slightly away from focus, blur enlarges the transi-                                                                                          Top: spatiotemporal event stream. Middle: during a one-way fo-
+tion zones, allowing more pixels to accumulate sufficient                                                                                          cus sweep, the event rate R(f ) exhibits a dual-peak–valley profile
+                                                                                                                                                   with two dominant peaks (P1 , P2 ) and a valley corresponding to
+contrast change and trigger events [25]. When defocus be-
+                                                                                                                                                   the optimal focus f ⋆ . Bottom: accumulated event maps at repre-
+comes severe, local contrast changes weaken and fewer pix-                                                                                         sentative blur levels; smaller central circles denote higher focusing
+els can exceed the threshold [10]. This rise then fall behav-                                                                                      accuracy.
+ior induces a characteristic non-monotonic dependence of
+event activity on defocus, which we formalize next.                                                                                                assume that the dominant source of intensity variation is the
+                                                                                                                                                   blur-scale change ∆σ induced by the lens motion. Then, for
+3.2. Event-Rate Modeling and Problem Formula-                                                                                                      each pixel,
+      tion                                                                                                                                                                                                   \Delta L(\mathbf {x};\sigma ) \approx \frac {\partial L_\sigma (\mathbf {x})}{\partial \sigma }\,\Delta \sigma . \label {eq:chain_rule}       (3)
+As illustrated in Figure 2, we analyze the event-rate curve
+                                                                                                                                                   Substituting Eq. (3) into the event condition Eq. (1):
+R(f ) obtained during a one-way focus sweep and use its
+                                                                                                                                                   |∆L| ≥ C yields
+dual-peak–valley structure to estimate the best focus posi-                                                                                                    \left |\frac {\partial L_\sigma (\mathbf {x})}{\partial \sigma }\right | \ge \theta (C), \qquad \theta (C)\coloneqq \frac {C}{|\Delta \sigma |}. \label {eq:theta_def} 
+tion f ⋆ . We adopt a locally Gaussian approximation of de-
+                                                                                                                                                                                                                                                                                                                                       (4)
+focus blur, which captures the essential spatial spreading
+behavior and is widely used for analytical tractability. We
+                                                                                                                                                   The quantity θ(C) is an effective threshold that is constant
+discuss its implications in Appendix A.
+                                                                                                                                                   within the counting window for a fixed sweep speed. It
+   Let E = {(xn , yn , tn , pn )}Mn=1 denote the event stream
+                                                                                                                                                   is not a new sensor parameter, but an equivalent form of
+and {fi }N i=1 the discrete focal positions (or sampled motor
+                                                                                                                                                   the same temporal threshold C once the short-window lens-
+steps). Within a temporal window ∆t, the raw event rate at
+                                                                                                                                                   induced blur change |∆σ| is taken into account.
+position fi is computed as
+                                                                                                                                                      Define the blur-dependent activation region
+
+                    R_i = \sum _{n=1}^{M} \mathbf {1}\!\left (|t_n - t(f_i)| \le \tfrac {\Delta t}{2}\right ), \label {eq:rate_def}    (2)                                               \Omega (\sigma )\coloneqq \Big \{\mathbf {x}:\Big |\frac {\partial L_\sigma (\mathbf {x})}{\partial \sigma }\Big |\ge \theta (C)\Big \}. \label {eq:Omega_def}    (5)
+
+                                                                                                                                                   Then the event rate in a window is proportional to the num-
+representing the total number of events accumulated around                                                                                         ber of activated pixels, hence
+a particular focal distance.
+                                                                                                                                                                                                                       R(\sigma )\propto \mathrm {meas}\big (\Omega (\sigma )\big ), \label {eq:R_meas}                                                    (6)
+
+From temporal threshold to a blur-dependent activation                                                                                             where meas(·) denotes spatial measure (pixel count in dis-
+region. To connect the temporal triggering rule in Eq. (1)                                                                                         crete form).
+with blur-dependent spatial activation, we adopt a standard
+short-window approximation during a focus sweep. Let                                                                                               Key theoretical facts. The following facts formalize the
+Lσ (x) denote the log-intensity image under defocus blur of                                                                                        rise–peak–fall behavior and its consequence in a one-way
+scale σ ≥ 0, where x = (x, y). Within a short window ∆t,                                                                                           sweep.
+
+
+
+                                                                                                                                             938
+

@@ -1,0 +1,209 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+           Robust Spiking Neural Networks by Temporal Mutual Information
+
+   Mengting Xu1,2 , Shi Gu1,2 , Peng Lin1,2 , De Ma1,2 , Huajin Tang1,2 , Qian Zheng1,2 *, Gang Pan1,2
+             1
+               The State Key Lab of Brain-Machine Intelligence, Zhejiang University
+                2
+                  College of Computer Science and Technology, Zhejiang University
+ {xumengting, gus, penglin, made, htang, qianzheng, gpan}@zju.edu.cn
+
+
+                            Abstract                               requiring temporal information integration and low-latency
+                                                                   responses, making them a compelling alternative for next-
+   Spiking Neural Networks (SNNs) have attracted increas-          generation intelligent systems.
+ing attention for their biologically inspired temporal dy-             With the expanding adoption of SNNs, concerns
+namics. As their applications expand, understanding their          about their robustness, particularly in adversarial perturba-
+robustness has become an important research focus. How-            tions [30], have drawn significant attention [34, 35]. Exist-
+ever, little is known about how the intrinsic temporal char-       ing efforts to enhance SNN robustness can be broadly cat-
+acteristics of SNNs affect robustness. In this work, we revisit    egorized into two directions. The first line of work focuses
+SNN robustness from an information-theoretic perspective           on the spatial features of SNNs, drawing heavily from estab-
+and reveal the pivotal role of temporal characteristics. We        lished ANN techniques such as adversarial training [23], in-
+establish a theoretical link between robustness error and the      put perturbation [14], and weight regularization [12]. How-
+mutual information (MI) between inputs and latent repre-           ever, these methods often overlook the distinctive temporal
+sentations along the temporal dimension, grounded in the           characteristics of SNNs, treating them as static and thereby
+information bottleneck principle. Through an analysis of           limiting their effectiveness. The second direction leverages
+spike-based information transmission, we show that tempo-          the temporal dynamics inherent in SNNs, exploring tech-
+ral characteristics inherently compress MI, thereby tighten-       niques like temporal frequency-based encoding [44], and
+ing the robustness error bound. Building on this insight, we       temporal-based gradient computation [27] to better exploit
+propose a Temporal Mutual Information (TMI) regularizer            temporal information. While these approaches improve
+that explicitly exploits temporal characteristics to enhance       temporal information modeling, they rarely examine how
+robustness. Extensive experiments on CIFAR-10, CIFAR-              or why temporal characteristics influence SNN robustness.
+100, DVS-CIFAR10, Tiny-ImageNet, and ImageNet demon-                   In this work, we demonstrate that incorporating tempo-
+strate that our method consistently improves SNN robust-           ral characteristics into the training of spiking neural net-
+ness across various architectures and attack settings. Code        works (SNNs) significantly improves robustness compared
+is available at https://github.com/zju- bmi-                       to methods that rely solely on spatial features. We first es-
+lab/SNN_TMI_code.                                                  tablish a theoretical connection between model robustness
+                                                                   error and the mutual information between inputs and inter-
+                                                                   nal representations along the temporal dimension, grounded
+1. Introduction                                                    in the information bottleneck principle [39]. We then show
+                                                                   that temporal characteristics inherently reduce mutual infor-
+Spiking neural networks (SNNs) have garnered increasing
+                                                                   mation by analyzing spike-based information transmission
+attention in recent years due to their unique temporal dy-
+                                                                   mechanisms unique to SNNs [43], i.e., the cumulative firing
+namics and energy-efficient computing mechanisms [5, 18–
+                                                                   mechanism and spike temporal dependency, thereby yield-
+20, 28, 45]. By mimicking the sparse and event-driven
+                                                                   ing tighter bounds on robustness error. Building on this
+nature of biological neurons, SNNs have shown promis-
+                                                                   insight, we propose a temporal mutual information (TMI)
+ing performance in a wide range of tasks, particularly in
+                                                                   regularization that complements conventional spatial loss
+the neuromorphic computing [36], low-power edge appli-
+                                                                   functions by explicitly minimizing mutual information in
+cations [7, 46], and real-time sensory processing [29, 47].
+                                                                   the temporal domain. This joint regularization improves the
+These distinctive properties allow SNNs to outperform the
+                                                                   robustness of SNNs against adversarial perturbations. Our
+traditional artificial neural networks (ANNs) in scenarios
+                                                                   main contributions are:
+  * Corresponding author.                                          • We theoretically show that the upper bound of the robust-
+
+
+
+                                                              20711
+  ness error in deep neural networks is governed by mutual         more compact upper bound on model robustness error and
+  information between the input and the latent representa-         enhancing overall robustness. Additional related work on
+  tion, following the information bottleneck principle.            the information bottleneck principle and mutual informa-
+• By analyzing the spike-based information transmission            tion in the context of adversarial attacks is provided in the
+  mechanisms unique to SNNs, we show that temporal                 Appendix.
+  characteristics inherently induce lower mutual informa-
+  tion compared to spatial features alone, thereby enabling        3. Preliminary
+  a more compact upper bound on model robustness error
+                                                                   3.1. Spike Neuron
+  and enhancing overall robustness.
+• We introduce a mutual information estimation method              The membrane potential U of the Leakly-and-Fire (LIF)
+  on temporal characteristics and a temporal mutual infor-         neuron in SNN updated as [43]:
+  mation (TMI) regularizer tailored for SNNs. Extensive
+                                                                                      U (t + 1) = τ U (t) + I(t),              (1)
+  experiments on CIFAR-10, CIFAR-100, DVS-CIFAR10,
+  Tiny-ImageNet and ImageNet demonstrate that tempo-               where τ is the constant leaky factor, U (t) is the membrane
+  ral characteristics are critical to improving SNN robust-        potential at time t, and I(t) denotes the pre-synaptic cur-
+  ness, and TMI regularizer achieves state-of-the-art per-         rent input, which is the product of synaptic weight W and
+  formance under various noisy conditions.                         spiking input S(t). The firing function and hard reset mech-
+                                                                   anism of LIF are described as follows
+2. Related Work
+                                                                                   S(t + 1) = H(U (t + 1) − Vth ),             (2)
+Existing efforts to enhance the robustness of spiking neural                   U (t + 1) = U (t + 1) · (1 − S(t + 1)),         (3)
+networks (SNNs) can be broadly categorized into two di-
+rections. The first focuses on the spatial features of SNNs,      where H(·) represents the Heaviside step function. The
+often adapting techniques from artificial neural networks         neuron fires a spike S(t) at time t if and only if U (t) ex-
+(ANNs). One of the most widely used empirical defenses            ceeds the threshold Vth , and then the membrane potential
+is adversarial training (AT) [38], which demonstrates that        U (t) reset to 0. The output spike S(t + 1) will become the
+incorporating adversarial examples into the training set can      post synaptic spike and propagate to the next layer.
+improve model robustness against attacks. HIRE-SNN im-
+                                                                  3.2. Information Bottleneck Principle
+proves the efficiency of adversarial training in SNNs by par-
+titioning the total training time steps T into N equal-length     The Information Bottleneck (IB) [39, 40], presents a sys-
+intervals [23]. SNN-RAT introduces a regularized adversar-        tematic approach for discovering a latent representation Z
+ial training scheme with low computational overhead [12],         that encapsulates the information inherent in the input vari-
+while MPPD integrates membrane potential perturbation             able X to the output Y . The mutual information of X and
+dynamics into training [14]. However, the use of surrogate        Z can be written as I(X; Z). I(X; Z) = DKL (PXZ ||PX ⊗
+gradients in SNNs reduces the effectiveness of adversarial        PZ ), where DKL is the Kullback-Leibler divergence [41],
+training compared to its application in ANNs [23]. More           PXZ is the joint distribution and PX ⊗ PZ is the product
+critically, adversarial training does not provide intrinsic ro-   of the marginal distributions of input variables X, Z, re-
+bustness, as it depends on external adversarial examples and      spectively. In essence, the Information Bottleneck princi-
+can increase the model’s vulnerability to other types of at-      ple not only quantifies the extent to which Z compresses
+tacks [37]. In addition, these methods largely neglect the        information from X through I(X; Z) but also gauges how
+temporal characteristics of SNNs, limiting their effective-       effectively Z predicts Y through I(Z; Y ). In practice, the
+ness in enhancing robustness. The second direction lever-         IB principle is realized by minimizing the following IB La-
+ages the temporal dynamics inherent to SNNs. FEEL-SNN             grangian:
+proposes a frequency-based encoding scheme in the tempo-
+                                                                                    min{I(X; Z) − β · I(Z; Y )},               (4)
+ral domain to better exploit temporal information [44]. Gra-
+dient sparsity regularization addresses optimization along            where β represents a positive parameter, used to control the
+the temporal dimension [14], and [13] shows that spike tim-           trade-off between compression and prediction.
+ing coding can enhance robustness against adversarial at-
+tacks. Although these methods improve temporal informa-               4. Method
+tion modeling, they seldom investigate how or why tempo-
+ral properties influence SNN robustness.                              4.1. Upper Bound of Robustness Error
+    In contrast to prior work, this paper shows that tempo-           The neural networks can be considered as a Markov chain
+ral characteristics inherently induce lower mutual informa-           of successive representations of the input where informa-
+tion compared to spatial features alone, thereby enabling a           tion flows obeying the structure [2]: X → Z → Y , where
+
+
+
+                                                              20712
+X is the input data, Z is the latent representation, and Y is      ϵ′ ; Y ) and I(Z; Y )), and the mutual information I(X; Z),
+the output. And by the data processing inequality [8], we          where we can obtain that the upper bound of the robustness
+have I(X; Z) ≥ I(X; Y ), where I(X; Z) represents the              error for a deep neural network is determined by mutual
+mutual information between X and Z. For a trained model,           information between the input feature X and its latent rep-
+the I(Z; Y ) term can be used to measure the performance           resentation Z.
+of the model in a supervised learning setting. Then the gen-
+eralization error can be presented as, following the bound         4.2. Temporal Characteristics in SNNs Facilitate
+derived in Theorem 4 of Shamir et al. [33] :                             Obtaining a Compact Upper Bound
+                                                                   According to Eq. (7), to better constrain the robust error of
+               ˆ Y )| ≤ C(c1 log(m) |Z|I(X; Z)
+                                          p
+   |I(Z; Y )−I(Z;                                                  the model, we need to calculate more compact mutual infor-
+                        3           1
+                                                         , (5)
+                                          ˆ
+               + c2 |Z| 4 I(X; Z) 4 + c3 I(X;     Z))              mation between the input X and the latent representation Z
+                                                                   as much as possible. And the mutual information I(X; Z)
+             q
+                                                                   can be formulated as [2, 8]:
+where C = c log(|Y|/δ)
+                     m     , δ is a confidence parameter with
+δ ∈ (0, 1), c is a small constant, and c1 , c2 , c3 depend only                  I(X; Z) = H(X) − H(X|Z),                    (8)
+on marginal probability distributions p(x) and p(y). m is
+the sample size drawn from p(x, y). And Z is the space of         where H(·) is the Shannon entropy, H(X|Z) is the condi-
+     ˆ Y ) is the empirical estimates of I(Z; Y ), I(X;
+Z. I(Z;                                                ˆ    Z)    tional entropy, which represents the uncertainty of X when
+is the empirical estimates of I(X; Z).                            given Z [48]. Therefore, given X, i.e., the value of H(X)
+    Derive the mutual information as upper bound of the           is fixed, we can measure the compact of mutual information
+robustness error. To establish the relationship between           by the uncertainty H(X|Z). Based on this analysis, in the
+model robustness and mutual information, in this part, we         next, we show that mutual information based on temporal
+analyze the impact of adversarial examples. We denote             characteristics increases the uncertainty of H(X|Z) com-
+X + ϵ as the adversarial example with perturbation ϵ, and         pared to spatial features alone, thus facilitating obtaining a
+Z + ϵ′ as the corresponding latent representation. When in        compact mutual information upper bound.
+the ideal state of the robust model, based on the informa-            Mutual information calculation only based on spa-
+tion flow, compared with Z, Z + ϵ′ can be regarded as a           tial feature. On the one hand, since mutual information
+lower-dimensional representation of the network for it con-       measures the correlation between two distributions, calcu-
+tains more redundant noise [48]. Then the information flow        lating mutual information in high dimensions on the spatial
+can be written as X + ϵ → Z + ϵ′ → Z → Y . According              feature of a single image in ANN is challenging. There-
+to [8, 48], H(Y |Z) represents the uncertainty of random          fore, many researches focus on estimating the mutual in-
+variable Y when given Z, where H(·) is the Shannon en-            formation by converting a single image into a distribution
+tropy [8, 26]. In the inference phase, the model parameters       by sampling from batches or adding random noises [4, 32].
+θ are fixed, and there is no uncertainty of Y when we know        However, these methods destroy the specificity of the im-
+Z or Z + ϵ′ in the inference phase. Therefore, Ĥ(Y |Z) = 0       age since the labels of the samples in the batch are different
+and Ĥ(Y |Z + ϵ′ ) = 0. After combining all of these to-          and will lead to a decrease in the accuracy of downstream
+gether, we have                                                   tasks. On the other hand, when considering the mutual in-
+                                                                  formation calculation only based on spatial features, we as-
+    ˆ + ϵ′ ; Y ) = Ĥ(Y ) − Ĥ(Y |Z + ϵ′ ) = Ĥ(Y )
+    I(Z                                                           sume that the input spatial feature X S and the latent spatial
+                  = Ĥ(Y ) − Ĥ(Y |Z)                      (6)    feature Z S take values in the distributions X S and Y S re-
+                                                                  spectively, then the mutual information I(X S ; Z S ) based
+                    ˆ Y ),
+                  = I(Z;                                          on spatial feature can be represented as:
+
+where I(Z ˆ + ϵ′ ; Y ) is the empirical estimates of I(Z +                   I(X S ; Z S ) = H(X S ) − H(X S |Z S ),         (9)
+ϵ′ ; Y ), Ĥ(Y |Z) is the empirical estimates of H(Y |Z).
+Therefore, based on Eq. (5), the robustness error of the           where H(X S |Z S ) is the conditional entropy, which repre-
+model can be formulated as                                         sents the uncertainty of X S when given Z S . In the infer-
+                                                                   ence phase of ANNs, according to [2], the one-to-one map-
+                                         ˆ Y )|
+             ˆ + ϵ′ ; Y )| = |I(Z; Y ) − I(Z;
+   |I(Z; Y )−I(Z                                                   ping of the former feature to the latter feature (as shown in
+                                                                   Fig. 1(a)) can be described as:
+                            p
+              ≤ C(c1 log(m) |Z|I(X; Z)                     (7)
+                         3         1
+                         4            ˆ
+                + c2 |Z| I(X; Z) + c3 I(X;
+                                   4       Z)).                                  Z S = g(X S ) = σ(W X S + b),              (10)
+
+The Eq. (7) illustrates the relationship between the robust-       where g(·) is the mapping function, W is the weight of
+ness error (as embodied in the difference between I(Z ˆ +          the model, b is the bias, and σ(·) is the activation function.
+
+
+
+                                                              20713
+

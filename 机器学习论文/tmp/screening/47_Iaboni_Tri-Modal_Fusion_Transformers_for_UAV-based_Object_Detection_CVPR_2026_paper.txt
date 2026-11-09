@@ -1,0 +1,157 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+            Tri-Modal Fusion Transformers for UAV-based Object Detection
+
+                         Craig Iaboni                                         Pramod Abichandani
+               New Jersey Institute of Technology                       New Jersey Institute of Technology
+                            csi3@njit.edu                                           pva23@njit.edu
+
+
+
+                        Abstract                                       question unresolved: how should three heterogeneous sens-
+                                                                       ing modalities interact inside a modern detector so that each
+Reliable UAV object detection requires robustness to illu-             compensates for the others’ failure modes? UAVs expe-
+mination changes, motion blur, and scene dynamics that                 rience independent failure modes: illumination collapse,
+suppress RGB cues. Thermal long-wave infrared (LWIR)                   platform blur, fast scene motion, atmospheric effects, and
+sensing preserves contrast in low light, and event cameras             thermal clutter [31]. RGB, thermal, and event sensors each
+retain microsecond-level temporal edges, but integrating all           address only a subset of these conditions, and no modality
+three modalities in a unified detector has not been systemat-          pair remains reliable across all of them [24]. This moti-
+ically studied. We present a tri-modal framework that pro-             vates a detector that can selectively rely on the modality that
+cesses RGB, thermal, and event data with a dual-stream hi-             remains informative as conditions vary within and across
+erarchical vision transformer. At selected encoder depths,             frames.
+a Modality-Aware Gated Exchange (MAGE) applies inter-
+sensor channel and spatial gating, and a Bidirectional To-                 Tri-modal fusion is challenging for reasons that go be-
+ken Exchange (BiTE) module performs bidirectional token-               yond simply stacking channels. LWIR imagery reflects ra-
+level attention with depthwise–pointwise refinement, pro-              diometric contrast rather than texture; event streams encode
+ducing resolution-preserving fused maps for a standard fea-            asynchronous temporal changes with no absolute intensi-
+ture pyramid and two-stage detector.                                   ties; and RGB provides high-resolution structure but col-
+   We introduce a 10,489-frame UAV dataset with syn-                   lapses under illumination shifts [11, 23]. These modali-
+chronized and pre-aligned RGB–thermal–event streams and                ties differ in noise characteristics, spatial alignment sensi-
+24,223 annotated vehicles across day and night flights.                tivity, temporal density, and semantic reliability across con-
+Through 61 controlled ablations, we evaluate fusion place-             ditions. Conventional early-fusion approaches ignore these
+ment, mechanism (baseline MAGE+BiTE, CSSA, GAFF),                      differences, while late-fusion pipelines forfeit the ability
+modality subsets, and backbone capacity. Tri-modal fusion              to shape intermediate representations jointly [33]. Trans-
+improves over all dual-modal baselines, with fusion depth              former backbones offer natural interfaces for cross-modal
+having a significant effect and a lightweight CSSA vari-               exchange, but how and at which resolutions fusion should
+ant recovering most of the benefit at minimal cost. This               occur has not been systematically explored.
+work provides the first systematic benchmark and modular
+backbone for tri-modal UAV-based object detection. Code
+and dataset are available at https://github.com/                          The present work treats tri-modal fusion as an architec-
+radlab-sketch/trimodal-uav-det.                                        tural design space rather than a feature-level add-on. Our
+                                                                       backbone maintains separate streams where doing so pre-
+1. Introduction                                                        serves modality-specific structure and couples them only
+                                                                       at chosen intermediate stages, enabling controlled study of
+UAV perception systems increasingly operate in conditions              when, where, and how fusion is effective. This framework
+where no single sensor is reliable: visible-spectrum cam-              supports quantitative comparison of fusion operators, fusion
+eras lose discriminative structure under low light and mo-             depth, modality combinations, and backbone capacity, di-
+tion, thermal sensors saturate or blur during rapid plat-              mensions that prior work on multimodal detection has not
+form dynamics, and event cameras provide sparse but noisy              evaluated under a single, controlled setting. Existing RGB-
+evidence of motion [10]. Despite these complementary                   thermal and RGB–event datasets do not provide synchro-
+strengths and weaknesses, existing detection pipelines are             nized tri-modal frames or resolution-aligned annotations,
+overwhelmingly built around RGB or, at best, dual-modal                making controlled tri-modal fusion studies impossible with-
+pairings [15]. This has left a fundamental architectural               out constructing a dedicated dataset.
+
+
+
+                                                                4373
+Figure 1. Example tri-modal UAV dataset samples. Each scene shows synchronized RGB, thermal (LWIR), and event projections with
+annotated vehicles. Left: daytime samples illustrating illumination variation and viewpoint diversity. Right: nighttime samples highlighting
+the limitations of RGB and the complementary value of thermal and event cues for robust detection.
+
+
+2. Related Work                                                           cal taxonomies distinguish early, late, and intermediate fu-
+                                                                          sion [2], but most multimodal detectors employ either sim-
+Multi-Modal Fusion for Object Detection: Single-                          ple channel concatenation at the input [28] or high-level
+modality detectors built on RGB imagery [14, 25] degrade                  feature merging near the output [17]. Intermediate fusion,
+sharply under low illumination, motion blur, and adverse                  where modalities exchange information within the back-
+environmental conditions [16]. This has motivated exten-                  bone, has shown stronger performance [8], but the design
+sive work on pairing RGB with complementary sensing                       space remains largely unexplored, especially for more than
+modalities. RGB–thermal methods [5, 20, 27, 29, 39, 43]                   two modalities.
+leverage LWIR contrast to recover targets when visible cues                  A wide range of operators have been proposed for cross-
+collapse. RGB–event approaches [12, 19, 32, 45] exploit                   modal feature interaction. Channel gating mechanisms such
+microsecond-level temporal changes to stabilize detection                 as squeeze–excitation (SE) [1, 44] and efficient channel at-
+under rapid motion. Thermal–event fusion has also been                    tention (ECA) [37] modulate activations based on global
+explored [13], using the temporal sparsity of events to re-               responses, while spatial attention modules guide fusion to
+fine low-light thermal signatures.                                        locations where modalities agree [18]. Several architec-
+   Despite extensive dual-modal work, nearly all prior ef-                tures combine these ideas: GAFF [41] uses spatial guid-
+forts restrict fusion to two modalities tailored to specific              ance masks to fuse RGB–thermal features; CGFNet [36]
+operating regimes (e.g., night-time RGB–thermal or high-                  alternates guided and cross-guided fusion blocks across
+speed RGB–event detection). To the best of our knowledge,                 scales; CMAFF [35] introduces uncertainty-aware weight-
+no existing detector integrates RGB, thermal, and event                   ing; and CSSA [3] replaces low-salience channels with their
+sensing within a unified architecture, and there is no tri-               cross-modal counterparts before spatial selection. Other ap-
+modal UAV benchmark for systematically studying how the                   proaches perform iterative or multi-stage refinement, such
+three modalities should interact. This paper addresses this               as cyclic fuse-and-refine blocks [40] or repeated cross-
+gap by providing both a tri-modal dataset and a controlled                attention with weight sharing [26].
+fusion framework for evaluating modality combinations and                    Most existing operators therefore address only
+fusion behavior under realistic UAV conditions.                           RGB–thermal or RGB–event fusion, and little is known
+   Fusion Mechanisms and Attention Operators: A core                      about their behavior when extended to tri-modal inputs or to
+challenge in multimodal detection is determining where and                hierarchical transformer backbones. In contrast, our study
+how heterogeneous sensor streams should interact. Classi-                 embeds multiple fusion families (including channel/spatial
+
+
+
+                                                                   4374
+                                                                           baselines and approximately parallel optical axes to en-
+                                                                           sure stable overlap across fields of view (Fig. 2). The
+                                                                           RGB stream is captured by a Logitech HD camera at
+                                                                           1920×1080 and 30 FPS. Thermal imagery is provided by
+                                                                           a FLIR Duo operating in the 7.5–13.5 µm LWIR band at
+                                                                           640×512 and 30 FPS. Event data is recorded by a Prophe-
+                                                                           see VGA contrast-sensing sensor (640×480 pixels, 15 µm
+                                                                           pitch, > 120 dB dynamic range).
+Figure 2. Tri-modal UAV payload showing the underside-mounted                  All three sensors are rigidly integrated in the housing
+sensor pod (left) and the co-aligned RGB, event, and thermal cam-          and time-stamped by an on-board NVIDIA Jetson Xavier,
+eras in the custom housing (right).                                        which handles acquisition and storage. The payload is pow-
+                                                                           ered by a dedicated battery pack and flown on a DJI M300
+                                                                           platform [6]. The housing geometry is chosen to maintain
+gating (GAFF, CSSA) and cross-attention-style interac-                     balanced weight distribution and to avoid obstructing the
+tions) into a unified transformer framework, enabling                      M300 airframe and ventilation. Intrinsic and extrinsic cali-
+controlled comparisons of fusion depth and mechanism                       bration was performed once per flight session, and reprojec-
+under identical architectural and detection settings. Unlike               tion error was maintained below 1.5 pixels across modali-
+CSSA-style hard channel replacement or GAFF-style                          ties.
+guided residual merging, our baseline block combines
+joint-conditioned cross-residual gating with token-level                   3.2. Dataset
+exchange while preserving stage stride and width, making                   We evaluate fusion strategies on a tri-modal dataset ac-
+it directly pluggable at different depths of the hierarchical              quired with the platform in Sec. 3.1. Each sample con-
+backbone.                                                                  sists of a pre-aligned, five-channel image tensor and YOLO-
+    Hierarchical Backbones for Multimodal Vision: Mul-                     format labels. Arrays X ∈ RH×W ×5 are stored in .npy
+timodal detectors commonly use separate backbone streams                   format, with channels 0–2 as RGB, channel 3 as ther-
+because modality-specific low-level structure limits full pa-              mal, and channel 4 as an event frame; labels are per-
+rameter sharing [3, 44]. Hierarchical transformers are                     image YOLO text files. The corpus contains 10,489 im-
+particularly well suited to this setting because they pro-                 ages with 24,223 bounding boxes for a single class (vehi-
+vide multi-scale token representations and natural interfaces              cle). We focus on a single vehicle class to establish a con-
+for intermediate cross-modal interaction [4, 7, 22]. Mix-                  trolled tri-modal benchmark with high-quality cross-modal
+Transformer (MiT) encoders [38] are especially attractive                  annotations. All modalities are pre-warped to a common
+for stage-wise fusion due to their overlapping patch em-                   plane and resolution, and most images are standardized to
+beddings and multi-resolution feature hierarchy, and have                  301×391 pixels. Streams are synchronized via Jetson hard-
+already been adopted in dual-encoder multimodal frame-                     ware timestamps.
+works such as CMX [42]. For event-based vision, prior                          Data was collected over multiple UAV flights over an
+work has also emphasized that fusion mechanisms must re-                   urban university campus under varied traffic and illumina-
+spect the sparse and asynchronous statistics of event data                 tion conditions. The dataset spans varied time-of-day, with
+[10].                                                                      6,412 day images and 4,077 night images (61.1% day /
+    Existing multimodal backbones primarily target two-                    38.9% night). The night portion is used to stress RGB-only
+modality fusion and do not expose a systematic design                      detectors and to highlight the contribution of thermal and
+space for studying fusion depth or fusion operators in                     event cues.
+the transformer hierarchy. In contrast, our framework                          A semi-automatic labeling protocol was used. For day-
+adopts MiT-style hierarchical encoders for separate RGB                    time sequences, a pretrained YOLO detector generated only
+and auxiliary streams and inserts fusion modules at explicit,              initial candidate boxes on RGB frames. These candidates
+resolution-aligned stages, enabling controlled comparison                  were projected into the common image plane using the
+of multimodal backbones and fusion behavior under tri-                     cross-modal calibration and then exhaustively reviewed by
+modal inputs.                                                              human annotators, who added missed objects, removed
+                                                                           false positives, and corrected box extents. For night-time
+3. System Setup                                                            sequences, RGB proposals were unreliable, so all images
+                                                                           were labeled manually in the thermal plane before projec-
+3.1. Hardware
+                                                                           tion and then underwent a second-pass quality check. Fi-
+The tri-modal payload comprises three synchronized cam-                    nal labels are therefore human-validated annotations in the
+eras mounted in a custom 3D-printed housing with fixed                     shared image plane rather than direct outputs of the proposal
+
+
+
+                                                                    4375
+

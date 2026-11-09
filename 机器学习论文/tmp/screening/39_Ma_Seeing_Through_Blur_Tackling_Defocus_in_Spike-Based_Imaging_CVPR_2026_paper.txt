@@ -1,0 +1,207 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+              Seeing Through Blur: Tackling Defocus in Spike-Based Imaging
+
+                   Xiantao Ma2, * Siwei Dong3, * Lin Zhu1,2,† Lizhi Wang1 Hua Huang1
+            1
+              Beijing Normal University 2 Beijing Institute of Technology 3 Peking University
+
+
+                           Abstract                               mic brightness at each pixel with microsecond-level reso-
+                                                                  lution [6], offering high temporal fidelity and robustness
+Spike cameras are a novel class of neuromorphic vision            to motion blur [7]. In contrast, spike cameras adopt an
+sensors that capture scene dynamics with ultra-high tem-          integrate-and-fire mechanism that directly encodes absolute
+poral resolution via spike planes. While recent methods           intensity changes as temporal spike trains, enabling not only
+have addressed motion blur and noise in spike-based re-           extreme temporal resolution (up to 40,000 Hz) but also the
+construction, defocus blur caused by shallow depth of field       ability to capture fine-grained intensity details under chal-
+or lens adjustment delays remains a critical yet underex-         lenging lighting and motion conditions [37].
+plored issue in real-world applications such as autonomous            While both sensors share neuromorphic properties, spike
+driving. In this work, we present DeSpike, the first end-         cameras differ fundamentally by emitting spike planes
+to-end defocus removal framework specifically designed for        that encode absolute scene intensity across time, provid-
+spike cameras. Our method begins by explicitly model-             ing rich spatiotemporal cues for downstream vision tasks.
+ing the defocus formation process using a physics-inspired        These characteristics make spike cameras particularly at-
+thin-lens approximation to simulate spike responses under         tractive for high-speed, low-latency applications such as au-
+optical blur. Guided by this formulation, DeSpike em-             tonomous driving, robotics, and dynamic scene reconstruc-
+ploys multi-temporal-scale integrate-and-fire (IF) neurons        tion [13, 17].
+to compensate for FPN and extract defocus-aware features
+                                                                      However, effectively reconstructing images from spike
+from spike streams. These features are then processed
+                                                                  streams remains a core challenge. Prior research has pri-
+by a physics-informed deblurring module constructed from
+                                                                  marily focused on mitigating motion blur [35] and suppress-
+learnable discrete PSF priors. To address spatially vari-
+                                                                  ing sensor noise [40]. Yet, a critical degradation, defocus
+ant blur, we introduce a Transformer-based fusion mecha-
+                                                                  blur, remains largely unaddressed. In real-world scenar-
+nism that adaptively weighs multi-scale deblurring results
+                                                                  ios, defocus arises from lens refocusing delays or shallow
+through attention across defocus levels. Finally, a coarse-
+                                                                  depth-of-field effects under dynamic conditions [32]. Un-
+to-fine iterative refinement stage combines spike features
+                                                                  like motion blur, which is a temporal distortion often alle-
+and PSF priors for progressive restoration. Extensive ex-
+                                                                  viated by the high sampling rate of spike sensors, defocus
+periments on both synthetic and real-world defocused spike
+                                                                  blur originates from optical dispersion at the sensor level,
+datasets demonstrate that our method achieves superior
+                                                                  fundamentally altering the spatial distribution of incoming
+performance over state-of-the-art deblurring approaches in
+                                                                  photons and thus the resulting spiking behavior. This makes
+terms of structural fidelity, perceptual sharpness, and con-
+                                                                  defocus particularly damaging and difficult to recover using
+trast, setting a new benchmark for defocus-aware spike-
+                                                                  conventional temporal-domain techniques.
+based image reconstruction.
+                                                                      Although several autofocus methods [22, 26] have re-
+                                                                  cently been developed for spike cameras, they typically rely
+1. Introduction                                                   on hand-crafted metrics or iterative optimization, which
+                                                                  are significantly more complex and less generalizable com-
+Neuromorphic vision sensors have emerged as a promis-             pared to mature autofocus techniques in traditional frame-
+ing alternative to traditional frame-based cameras, inspired      based cameras. Moreover, these methods cannot correct or
+by the efficiency and adaptability of biological visual sys-      recover information from already-defocused spike streams,
+tems. Among them, event cameras [12, 14, 18] and spike            limiting their applicability in practical downstream tasks
+cameras [2, 3, 8] represent two complementary paradigms.          such as reconstruction or perception.
+Event cameras asynchronously record changes in logarith-              To fill this gap, we propose DeSpike, the first end-to-end
+  * Equal contribution.                                           defocus removal framework specifically designed for spike
+  † Corresponding author: Lin Zhu (linzhu@bnu.edu.cn).            cameras (see Fig. 1). Our approach begins by modeling
+
+
+
+                                                            19676
+                                                          The accumulated
+                                                              intensity
+
+                                        Threshold φ
+
+
+
+                                                                                                    Time
+                                          Output
+                                                      0 0 0 0 0 0 1 0 1 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0
+                                          spike                                                                                       Our Model
+
+
+
+
+                       Defocus scene                             Spike sampling                                Defocus spike stream               Our Reconstruction
+
+Figure 1. Illustration of our motivation. A defocused scene leads to spatially blurred intensity, which alters the spike sampling behavior
+by reducing local photon density and delaying spike emission. This results in a distorted defocus spike stream. Our model is the first to
+reconstruct a sharp intensity image from such defocused spike data by leveraging temporal integration and defocus-aware deblurring.
+
+the spike generation process under defocus using a physics-                                                and subsequent restoration [5, 9, 16, 34]. Recent advances
+inspired thin-lens approximation, revealing how optical blur                                               demonstrate the superiority of deep learning over conven-
+affects the spike emission at the sensor level. Build-                                                     tional methods. Abuolaim et al. [1] pioneers the end-to-end
+ing on this insight, DeSpike employs multi-temporal-scale                                                  DPDNet for defocus deblurring. Son et al. [25] enhances
+integrate-and-fire (IF) neurons to extract defocus-aware rep-                                              spatial-variant kernel adaptability through kernel-sharing
+resentations from spike streams. These features are then                                                   parallel atrous convolutions, while Lee et al. [10] propose
+processed through a physics-informed deblurring module                                                     iterative filter adaptation networks. Quan et al. introduce
+composed of learnable discrete PSF priors, enabling coarse-                                                GKMNet [20], which physically models defocus blur us-
+to-fine recovery across varying degrees of blur. To han-                                                   ing predefined Gaussian kernels of discrete sizes and learns
+dle spatially non-uniform defocus patterns, we further in-                                                 mixing coefficients through scale-recurrent attention mod-
+troduce a Transformer-based fusion mechanism [4, 29] that                                                  ules. Their subsequent work further improves efficiency
+adaptively aggregates multi-scale deblurring results guided                                                by representing 2D symmetric kernels through 1D dictio-
+by attention over defocus levels. Finally, an iterative refine-                                            nary learning and replacing deconvolution with truncated
+ment stage consolidates multi-scale predictions into high-                                                 Neumann series approximation [21]. Tang et al. [28] en-
+fidelity reconstructions. Extensive experiments on both syn-                                               hance the fitting capability of the deblurring network by
+thetic and real-world defocused spike datasets demonstrate                                                 decomposing blur kernels into regular and irregular com-
+that DeSpike significantly outperforms state-of-the-art de-                                                ponents. However, existing deep learning-based defocus
+blurring methods in terms of fidelity, contrast, and percep-                                               removal methods exclusively target traditional frame-based
+tual quality.                                                                                              cameras, while research on defocus removal for spike cam-
+    In summary, our contributions are three-fold:                                                          eras remains unexplored.
+    1) We present DeSpike, an end-to-end framework that
+explicitly addresses defocus blur in spike-based imaging.                                                  Spike-based Reconstruction. Image reconstruction has
+To the best of our knowledge, this is the first work to model                                              long been a focal research topic in spike camera-based vi-
+and remove defocus artifacts caused by shallow depth-of-                                                   sion tasks. Early approaches leveraged the physical charac-
+field and focus delay in spike camera data.                                                                teristics of spike streams to achieve image restoration. Zhu
+    2) We propose a physics-informed architecture that inte-                                               et al. [37] propose the TFP method, which estimates light
+grates multi-temporal-scale neurons with discrete PSF pri-                                                 intensity by counting spike occurrences within a fixed time
+ors and multi-spatial-scale iterative refinement. This design                                              window. To address its motion artifacts in dynamic sce-
+enables spatially adaptive defocus removal through coarse-                                                 narios, they further developed the TFI method [37], which
+to-fine refinement guided by learned priors and attention.                                                 calculates the reciprocal of inter-spike intervals to repre-
+    3) We conduct extensive evaluations on both synthetic                                                  sent scene brightness, thereby adapting to dynamic environ-
+and real-world defocused spike datasets, demonstrating su-                                                 ments. Inspired by the structure of the human retina, they
+perior performance over existing spike- and frame-based                                                    further proposed a foveated spike reconstruction architec-
+deblurring methods. Our model sets a new benchmark for                                                     ture for image restoration [38]. To meet the reconstruction
+defocus-aware spike reconstruction in terms of structural fi-                                              demands of complex dynamic scenes, Zhao et al. [35] intro-
+delity, perceptual sharpness, and contrast.                                                                duce the first end-to-end neural network, Spk2Imgnet. Zhu
+                                                                                                           et al. [39] propose NeuSpike-Net, which enhances recon-
+2. Related Work                                                                                            struction quality by fusing complementary DVS and Spike
+                                                                                                           camera data. Zhang et al. [31] propose WGSE, which lever-
+Traditional Image Defocus Deblur. Existing research on                                                     ages wavelet transforms to extract robust representations
+defocus deblurring can be categorized into two technical                                                   from spike streams. Zhao’s BSF et al. [36] enhance recon-
+pathways. Early approaches typically adopted a two-stage                                                   struction performance in high dynamic range (HDR) sce-
+method [5, 9, 19, 24, 34] involving defocus map estimation                                                 narios by block-to-pixel alignment through multi-order dif-
+
+
+
+                                                                                              19677
+ferencing and multi-granularity matching. Zhu et al. [40]                     However, the sampling is sparse in time and subject to en-
+propose RSIR through comprehensive modeling of multi-                         vironmental distortions, including defocus.
+ple noise types in spike cameras, significantly mitigating                       When the lens is not perfectly focused, photons from a
+the impact of noise on spike-based image reconstruction                       scene point are no longer tightly concentrated at a single
+quality. However, while these methods effectively suppress                    pixel but dispersed across a region. This results in a lower
+factors such as motion blur and sensor noise, they fail to                    rate of intensity accumulation at any single pixel, delay-
+achieve high-quality reconstruction in defocus scenarios.                     ing or even suppressing spike firing. The consequence is
+Spike Camera Autofocus. Several methods [22, 26] have                         distorted spike streams that no longer faithfully reflect the
+recently explored autofocus for spike cameras, typically by                   original scene structure, especially in regions with shallow
+optimizing predefined sharpness metrics across spike planes                   depth-of-field. Therefore, a physically meaningful model of
+or regions. For example, some approaches compute spike-                       how defocus affects spike sampling is critical for effective
+based focus scores to guide lens adjustment in real time.                     reconstruction.
+While promising, these methods are often limited by com-
+putational complexity and lack the generality and speed of                    3.2. Physics-based Defocus Modeling in Spike Cam-
+autofocus systems in conventional cameras. More impor-                              eras
+tantly, they are fundamentally preventive: they aim to avoid               Defocus blur arises when a scene point deviates from the
+defocus during acquisition but cannot restore already defo-                focal plane, forming a blurred circle on the sensor, known
+cus spike streams. Consequently, they are unsuitable for                   as the circle of confusion (CoC) [11, 23]. According to the
+post-hoc reconstruction or downstream vision tasks when                    thin-lens equation f1 = u1 + v1 , where f is the focal length,
+defocus has already occurred.                                              u the object distance, and v the image distance, the CoC
+                                                                           radius can be expressed as r = D         ∆v
+                                                                                                               2 · v , with D denoting
+3. Physics-based Spike Defocus Imaging Model                               the aperture diameter and ∆v the deviation from the focal
+                                                                           plane.
+3.1. Spike Sampling in Neuromorphic Cameras                                    The spatial blur effect is typically approximated by a 2D
+Spike cameras are neuromorphic vision sensors that mimic                   Gaussian kernel with standard deviation σ, forming 2a point  
+                                                                                                                                       2
+biological visual systems by continuously integrating in-                  spread function (PSF): G(x, y; σ) = 2πσ2 exp −x2σ−y
+                                                                                                                       1
+                                                                                                                                    2      .
+coming light at each pixel and emitting discrete spikes once               The resulting defocused image intensity is modeled as
+a threshold is reached. Unlike frame-based cameras that                    the convolution of the sharp image I(x, y) with the PSF:
+sample the entire scene at fixed intervals, or event cam-                  Iblur (x, y) = I(x, y) ∗ G(x, y; σ).
+eras that capture changes in brightness, spike cameras pro-                    In spike cameras, this blurred signal is temporally inte-
+vide flexible intensity measurements with ultra-high tempo-                grated by an integrate-and-fire (IF) mechanism. The spike
+ral resolution (e.g., up to 40,000 frames per second) and fine             emission at pixel (x, y) and time t follows:
+spatial granularity.                                                                       (        Rt
+    Each pixel in a spike camera contains a photodiode and                                   1, if tn η · (I ∗ G)(x, y, τ ) dτ ≥ θ
+an integrate-and-fire circuit (as shown in Fig. 2) [27]. When                S(x, y, t) =                                            , (2)
+                                                                                             0, otherwise
+exposed to light, the photodiode generates photocurrent
+proportional to the instantaneous light intensity. This cur-                  where η is the photoelectric conversion efficiency, tn the
+rent is integrated over time until the voltage on a capacitor                 last firing time, and θ the firing threshold. This formula-
+exceeds a predefined firing threshold. When this happens, a                   tion reveals that defocus reduces the effective intensity re-
+spike is emitted and the pixel is reset. Mathematically, the                  ceived by each pixel, slowing its integration process and
+accumulation process is represented as:                                       potentially delaying spike emission. Accurate modeling of
+                                Z t                                          this degradation is essential for defocus-aware spike-based
+                   1,      if         η · I(x, y, τ ) dτ ≥ θ                 image reconstruction.
+    S(x, y, t) =                  tn                            ,   (1)
+                   
+                       0,   otherwise                                         3.3. Spatiotemporal Characteristics of Defocus
+                                                                                   Spike Stream
+where I(x, y, t) is the light intensity at position (x, y) at                 Based on the spike sampling principle and the defocus for-
+time t, η is the conversion efficiency from light to voltage,                 mation process introduced in the previous sections, we now
+θ is the spike firing threshold, and tn is the last firing time.              examine how defocus fundamentally alters the spatiotempo-
+    This results in a stream of spike planes where each spike                 ral characteristics of the emitted spike stream(see Fig. 3). In
+represents a quantized amount of light received over time.                    ideal focused conditions, the light from a scene point con-
+Due to its asynchronous, pixel-level sampling, spike camera                   verges onto a single pixel, allowing the pixel to reach its
+is naturally robust to motion blur and illumination variation.                threshold quickly and emit spikes at a high frequency. This
+
+
+
+                                                                      19678
+

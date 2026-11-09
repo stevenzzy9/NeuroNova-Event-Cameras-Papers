@@ -1,0 +1,712 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+       MER-Tracker: Towards High-Speed 3D Point Tracking via Multi-View
+                        Event-RGB Hybrid Cameras
+
+     Yiqian Chang1,2 Qinghong Ye3 Haoran Xu2,4 Jianing Li5 Dongyang Ma5 Xuan Wang1 *
+                              Wei Zhang2 Yonghong Tian2,3,5 Peixi Peng2,3 *
+          1
+            Harbin Institute of Technology, Shenzhen, China 2 Peng Cheng Laboratory, China
+ 3
+   School of Electronic and Computer Engineering, Shenzhen Graduate School, Peking University, China
+                            4
+                              Shenzhen Campus of Sun Yat-sen University, China
+                          5
+                            School of Computer Science, Peking University, China
+
+
+                              Abstract                              RGB
+                                                                     1#
+
+This paper proposes the first task for high-speed 3D point
+                                                                                                                      Camera
+tracking using multi-view Event-RGB hybrid cameras. We              RGB                                                Pose
+                                                                     2#
+design a cuboid observation device comprising 4 RGB
+cameras (30fps) and 2 Event cameras to synchronously                                                                   MER-Tracker
+capture high-speed motions, and propose MER-Tracker, a              RGB
+                                                                     3#
+high–frame-rate 3D point-tracking network that fuses the
+complementary strengths of dual modalities. We first re-                  ...
+
+spectively extract 2D motion-change features from the RGB                       t1    t2       t3       t4
+                                                                    DVS
+and Event modalities, then apply linear interpolation and            1#
+
+anchor sampling to fuse the discrete RGB 3D features and
+                                                                          ...
+                                                                                                                        High-speed
+continuous Event 3D features after 3D lifting, and finally                                                             Point Tracking
+employ a LoRA-tuned Transformer based on temporal cor-
+relationship to predict the high-frame-rate 3D point tra-         Figure 1. We propose MER-Tracker, a high-speed 3D point track-
+jectories over fast motions, accomplishing high-speed 3D          ing method that predicts accurate high-frame-rate 3D trajectories
+point tracking. To verify the effectiveness of our method, we     using six different views of information, including four low-frame-
+                                                                  rate, blurry RGB images and two continuous event streams.
+construct both real-world and simulated high-speed motion
+datasets. Experiments on our datasets show that we achieve
+accurate high-speed 3D point tracking at high-frame-rate
+                                                                  using a single moving camera, while multi-view methods
+(150fps), outperforming state-of-the-art methods.
+                                                                  such as MVTracker[34] leverage multiple fixed viewpoints
+                                                                  to capture trajectories with more complete coverage and
+                                                                  fewer occlusions. However, most successes remain lim-
+1. Introduction                                                   ited to ordinary low-speed motion. Faithfully recovering
+3D point tracking [39] refers to the estimation of continu-       3D point trajectories in truly high-speed phenomena (e.g.
+ous, temporally coherent trajectories of arbitrary points in      a running man, insect wingbeats, or a spinning rotator) re-
+three-dimensional space from visual observations. Com-            mains challenging. Accurately reconstructing such motions
+pared with 2D point tracking [3, 5–7, 14, 20], 3D point           could illuminate physical processes and enable new experi-
+tracking records motion details from a more comprehensive         mental observations, offering substantial scientific value.
+spatial perspective, and therefore holds greater promise for         A key bottleneck lies in sensing. Current 3D point track-
+applications in robotics[8, 11] and 3D reconstruction[19],        ing typically relies on optical RGB cameras to provide
+etc. Recently, as 3D vision has evolved, 3D point track-          frames for building spatiotemporal models. However, com-
+ing has seen remarkable gains. Monocular methods like             modity RGB sensors operate at relatively low frame rates
+SpatialTracker[46, 47] could recover 3D point trajectories        (≈ 30fps), which leads to motion blur and large inter-frame
+                                                                  gaps that miss crucial dynamics in fast motion. On the other
+   * Corresponding authors.                                       hand, simply increasing frame rate with high-speed RGB
+
+
+
+                                                            37032
+cameras incurs substantial storage and bandwidth costs and       • Method. We propose MER-Tracker, featuring a dual-
+demands strong illumination, imposing overly stringent ex-         modal 2D feature extractor, a heterogeneous 3D feature
+perimental conditions.                                             fusion, and a temporal correlation Transformer that re-
+    Neuromorphic sensing offers a promising complement.            covers dense, high-frame-rate 3D point trajectories.
+Event cameras, also known as DVS (Dynamic Vision                 • Benchmarks & Evaluation. We provide a real and a
+Sensor), are inspired by biological vision, providing              simulated dataset, along with evaluation metrics and a re-
+microsecond-level temporal resolution and a vast dynamic           producible experimental framework, establishing a foun-
+range by asynchronously reporting brightness changes.              dation for future work.
+Prior work has used event streams to mitigate camera-shake
+blur in static-scene reconstruction[33, 50]. However, be-        2. Related Work
+cause events encode temporal derivatives rather than abso-
+lute intensities, they capture edges and motion onsets well      2.1. Event-based Stereo Vision
+but lack dense textures and are largely insensitive to sta-      Traditional RGB-based stereo vision has been extensively
+tionary regions. This raises a natural question: Can we fuse     studied for decades, with major applications including
+the texture fidelity of RGB with the temporal acuity of event    novel view synthesis [1, 2, 10, 22, 27, 31, 37, 44, 51], point
+data to recover high–frame-rate 3D point trajectories for        tracking [20, 42, 46, 52], etc. However, these frame-based
+high-speed motions?                                              methods often suffer from motion blur and limited temporal
+    We answer this question with MER-Tracker (Multi-             resolution in high-speed dynamic environments. Dynamic
+view Event–RGB Tracker), a capturing system and learning         Vision Sensors (DVS, also called event cameras) operate
+method for high-speed 3D point tracking from multi-view          asynchronously and output events triggered by pixel inten-
+RGB and event streams, as shown in Fig.1. Our design             sity changes. These sensors offer microsecond latency, high
+is driven by three challenges: (1) Building an Event–RGB         dynamic range, and low power consumption. Those advan-
+fusion device that achieves multi-view, multi-modal spa-         tages make them suitable for high-speed Stereo Vision tasks
+tiotemporal synchronization. (2) Extracting complementary        where conventional cameras fail [24].
+3D motion-dynamics features from two modalities and fus-             Event cameras have achieved numerous innovative
+ing them to yield a precise high-frame-rate 3D spatiotempo-      works in the field of 3D reconstruction. E2NeRF [33],
+ral representation. (3) Establishing a temporally continuous     EventNeRF [36], Ev-NeRF [18], and other works have ex-
+association between the high-frame-rate 3D spatiotempo-          plored the reconstruction of a 3D representation from a
+ral representation and each query point, guiding the Trans-      rapidly moving event camera. More recently, Evagaus-
+former to learn a generalizable 3D high-speed trajectory.        sians [50] and Eadeblur-gs [43] have fused event data and
+    To this end, we first construct a cuboid capturing setup     blurry frames to reconstruct high-quality images. However,
+with 4 RGB and 2 event cameras that are tightly synchro-         these methods are primarily limited to static or quasi-static
+nized in time and calibrated in space. On top of this hard-      scenes, which restricts their applicability in dynamic envi-
+ware, MER-Tracker introduces a dual-modal 2D feature ex-         ronments. So E-4DGS [9] achieves dynamic reconstruction
+tractor that firstly derives motion-change cues from RGB         from multi-view event cameras, enabling more general and
+and DVS streams at their native rates, a heterogeneous 3D        practical applications in dynamic 3D scene understanding
+feature fusion that performs temporal interpolation and an-      and motion analysis. Dynamic 3D reconstruction results in-
+chor sampling to aggregate these multi-view, multi-modal         herently rely on accurate point-level correspondences over
+3D motion features into compact spatiotemporal descrip-          time, as they depend on consistent point tracking through-
+tors after 3D lifting, and a LoRA-tuned Transformer based        out the scene. This close relationship motivates the use of
+on temporal correlations to effectively learn 3D point tra-      point tracking techniques in event-based stereo vision.
+jectories at high frame rates. Extensive experiments on both
+simulated and real datasets demonstrate that MER-Tracker         2.2. 3D Point Tracking via Stereo Vision
+produces accurate, temporally stable 3D point trajectories       While stereo vision aims to recover varying geometry,
+for high-speed motions. To our knowledge, we are the first       3D point tracking addresses the complementary problem
+to propose the systematic high-speed 3D point tracking task.     of maintaining consistent correspondences of scene points
+We contribute datasets, methods, and a complete evaluation       over time. Accurate point tracking is crucial for under-
+protocol to facilitate future research on this emerging task.    standing complex motion patterns. This field has seen re-
+    In summary, the main contributions of this work are:         markable progress from recent methods [28, 29, 42, 46, 47,
+• Problem & System. We introduce high-speed 3D point             49, 52]. SpatialTracker [42] lifts 2D points through a tri-
+   tracking via multi-view Event–RGB fusion, presenting a        plane representation into 3D and performs tracking in the
+   synchronized capture device and task formulation tailored     3D space. TAPIP3D [52] represents the input video as a
+   to high-speed motion.                                         sequence of multi-scale 2D feature maps enriched with 3D
+
+
+
+                                                            37033
+           3D Query Points
+
+                  RGB                         Events       2D Feature         Heterogeneous 3D Feature Fusion                                Temporal Transformer
+                                                            Extractor
+   #1        #2         #3      #4           #1 #2
+                                                                                                                                  Tracks
+                                      t1
+                                                               CNN                       3D RGB Feature
+
+
+
+
+                                                                                                                Interpolation
+                                                                                                                                Features
+
+
+
+
+                                                                                                                                                                              Predicted 3D trajectories at high fps
+                                                                                                       at t1
+                                                                                                                                Visibilities
+                                                                            3D           3D RGB Feature
+
+
+
+
+                                                                                                                                                                Transformer
+                                 time tT                                  Lifting
+        Multi-view Event-RGB                                                                           at t2
+          Hybrid Cameras
+
+
+
+
+                                                                                                                                         Temporal Correlation
+                                                               CNN
+                                                               LSTM                                                              tT-1
+                                                                                         3D Event Feature
+                                                               Voxel                                    at tT
+                                      t2                       Grid                                                               tT
+
+
+
+
+                                                                                                                                                                LoRA
+                                                                                            Anchor Sampling
+                                           Time
+                                                                                                                                 tT+1
+                                                                                                        at tT
+                Camera                                  Depth Maps                       Fused 3D Feature
+          Intrinsic/Extrinsic        VGGT              for Each View
+
+
+Figure 2. The main framework of our proposed MER-Tracker. MER-Tracker introduces a dual-modal 2D feature extractor that firstly
+derives motion-change cues from RGB and DVS streams at their native rates, a heterogeneous 3D feature fusion that performs temporal
+interpolation and anchor sampling to aggregate these multi-view, multi-modal 3D motion features into compact spatiotemporal descriptors
+after 3D lifting, and a LoRA-tuned Transformer based on temporal correlations to effectively learn 3D point trajectories at high frame rates.
+
+
+coordinates. DELTA [29] proposes a coarse-to-fine trajec-                           where I1 , ..., In are the RGB frames captured from n opti-
+tory estimation that manages to estimate dense point tracks                         cal cameras, E1 , ..., Em are the event streams captured from
+across the whole image plane, instead of on a set of sparse                         m event cameras respectively, and P̂t is the predicted tra-
+locations. Those methods assume monocular video input.                              jectory of 3D points at target time t.
+   In a different setting, MVTracker [34] aims to perform                              Specifically, for the n-th optical camera, the captured
+online 3D point tracking across multiple views, given a                             RGB frames In could be described as follows:
+set of synchronized RGB frames with known camera pa-
+rameters. Dynamic 3DGS [28] leverages 3D Gaussian re-                                                 In = {In (ti )|i ∈ {1, .., F }},                                                                                (2)
+constructions over time to track dense scene elements in
+                                                                                    where In (ti ) is the RGB image at the i-th frame time ti ,
+3D and perform accurate 2D and 3D point tracking with
+                                                                                    F is the total frames depending on the capturing frame rate
+a multi-camera setup of 27 cameras in Panoptic Studio[23].
+                                                                                    (e.g. 30fps).
+Such methods could achieve reliable point tracking results
+                                                                                       As for the m-th event camera, it captures continuous
+in both standard motion scenarios and synthetic scenarios.
+                                                                                    event streams Em :
+However, these methods struggle in high-speed scenes be-
+cause conventional RGB cameras have limited frame rates.                                     Em = {Em (xj , yj , pj , tj )|j ∈ {1, ..., N }},                                                                         (3)
+In contrast, our MER-Tracker is a framework that aims to
+complete point tracking in high-speed scenarios with the aid                        where Em (xj , yj , pj , tj ) is the j-th captured event. It
+of DVS cameras.                                                                     records the change in intensity of a specific pixel. (xj , yj ) is
+                                                                                    the 2D coordinate of this pixel, pj ∈ {+1, −1} is the event
+3. Problem Statement                                                                polarity indicating whether the intensity at the correspond-
+                                                                                    ing pixel increases or decreases, tj is the moment this event
+We aim to achieve high-speed 3D point tracking with ac-                             occurs, and N is the total number of events.
+curate trajectories at a high frame rate. To reach this goal,
+we build a multi-view event-rgb hybrid stereo capturing de-                         4. Methodology
+vice to capture the high-speed motion, and propose a novel
+method called MER-Tracker for point tracking based on                               4.1. Overview
+continuous event streams with discrete RGB frames. The                              To solve the problem of high-speed 3D point tracking with
+problem could be denoted as:                                                        accurate trajectories, MER-Tracker first introduces a dual-
+                                                                                    modal 2D feature extractor that derives motion-change cues
+  MERTracker : {(I1 , ..., In , E1 , ..., Em ), t} → P̂t                (1)         from RGB and DVS streams at their native rates, as detailed
+
+
+
+                                                                          37034
+in Sec. 4.2. Then, Sec. 4.3 performs temporal interpolation
+and depth lifting to construct modality-aligned 3D motion
+                                                                                       RGB
+features, upon which anchor sampling is applied to aggre-
+gate the resulting multi-view, multi-modal representations                                            t1         tT         tT+1      t2
+into compact spatiotemporal descriptors. Finally, a tempo-
+ral correlation Transformer with LoRA-tuned is adapted to                              DVS
+learn full-trajectory 3D point dynamics at high frame rates
+in Sec. 4.4. The main framework of the MER-Tracker is
+shown in Fig. 2.
+                                                                                    (a) Merge
+
+4.2. Dual-modal 2D Feature Extractor                                             (b) Interpolation
+                                                                                      +Merge
+As we can see, the optical camera provides discrete images
+I at a low frame rate, while the event camera records a con-                     (c) Interpolation
+tinuous asynchronous event stream E. Therefore, we first                              +Merge
+                                                                                     +Sampling
+perform temporal alignment between the two modalities,
+followed by separate 2D feature extraction for each.
+Event Voxel Grid for Alignment. For a time sequence of                        Figure 3. (a) Simply merging the point clouds from all viewpoints
+(tstart , tend ), the asynchronous event streams during this                  at each high-rate frame leads to temporal non-smoothness and spa-
+period are converted into the event voxel grid for subse-                     tial imbalance. (b) Linear interpolation yields a smoother temporal
+quent processing and temporal alignment. We follow [53]                       evolution of the feature point cloud, but it also introduces an ex-
+                                                                              cessive and spatially imbalanced distribution of points. (c) Our
+to evenly populate the events in a sliding window into B
+                                                                              ”interpolation + merge + sampling” method produces a fused fea-
+(B=5) consecutive and non-overlapping bins, where each
+                                                                              ture point cloud with smoother variations, a more balanced distri-
+event contributes to its two adjacent bins.                                   bution, and preserved original spatial structure.
+RGB Feature Maps. For discrete RGB frames, we extract
+dense appearance features using a convolutional neural net-
+work ϕ(In (ti )). Following [20, 34, 52], we also compute                     responding 2D feature maps:
+the feature maps at 4 different scales.
+Event Feature Maps. For continuous event streams, they                                       XIn (t) = (xn , ϕ(In (t))[uy , ux ]),
+                                                                                                                                             (5)
+exhibit (i) strong temporal ordering dependencies and (ii)                                   XEm (t) = (xm , ψ(Em (τt )[uy , ux ]),
+low texture content per time step. Therefore, we build
+a CNN-LSTM network to extract temporally dependent,                           where XIn (t) is the 3D feature point cloud extracted from
+fine-grained 2D feature maps ψ(Em (tstart , tend )) from the                  n-th RGB camera at frame time t, XEm (t) is the 3D feature
+event-camera voxel grid. Specifically, the CNN-LSTM con-                      point cloud extracted from m-th Event camera at frame time
+sists of a three-layer convolution network and a long short-                  t, τt is a ultra-short time interval near t and (ux , uy ) ∈ Ωt
+term memory network, as described in the implementation                       means using the set of valid pixels in 2D plane.
+details. Note that the event features are projected to match                      However, as shown in Fig.3, to achieve fused 3D features
+the RGB feature dimension.                                                    at a high frame rate, simply concatenating the point clouds
+                                                                              from all viewpoints at each high-rate frame leads to two
+4.3. Heterogeneous 3D Feature Fusion                                          critical issues:
+                                                                              • Q1: Temporal non-smoothness, when low-fps RGB
+After extracting multi-view and multi-modal 2D feature                           frames are absent, the fused 3D features exhibit abrupt
+maps, we need to map them into a unified 3D space to obtain                      degradations;
+a multi-view-consistent representation for spatial tracking.                  • Q2: Spatial imbalance, simple merging overpopulates
+3D Feature Lifting. Firstly, following [34], each valid pixel                    certain local regions with feature points while undersam-
+(ux , uy ) on the 2d plane could be lifted into 3D using the                     pling others.
+depth and camera parameters:                                                  Linear Interpolation for Smoothness. To solve the is-
+                  −1          −1
+                                                                              sue Q1, we need to supplement the missing RGB features
+       xv = Evt        (Kvt        (ux , uy , 1)⊤ · Dvt [uy , ux ]),   (4)    at high frame rates. In general, trajectories of high-speed
+                                                                              motion exhibit stronger temporal coherence. Accordingly,
+where E and K are the camera extrinsics and intrinsics for                    we approximate the evolution in the RGB feature space
+v-th camera at frame time t, D is the depth map. Thus, we                     as linear and recover the missing high-frame-rate 3D fea-
+can obtain lifted points x from all RGB&Event cameras.                        ture point clouds via linear interpolation. Specifically, for a
+Then, each of these lifted points x is assigned with its cor-                 given RGB camera viewpoint, let t1 and t2 be two consec-
+
+
+
+                                                                         37035
+         utive timestamps at a low frame rate (e.g., 30fps), and let
+         tT ∈ (t1 , t2 ) denote a target timestamp at a higher frame
+         rate (e.g., 150fps). The supplemented 3D feature point
+         cloud at time tT could be computed as follows:
+DVS 1#                                                                                                                        DVS 1#
+                                                                                           RGB 1#
+                XIn (tT ) = α ∗ XIn (t1 ) + (1 − α) ∗ XIn (t2 ),    (6)
+RGB 2#                    α = (tT − t1 )/(t2 − t1 ).                (7)           DVS 2#                                      RGB 2#
+         Anchor Sampling for Balance. To solve the issue Q2,
+         we adopt a merge-then-anchor-sampling strategy: the
+         two modalities are first aggregated, after which anchor-
+         based resampling is applied. Using anchors yields a more
+         balanced spatial distribution while preserving the original
+         point-cloud geometry and structure. Specifically, for a tar-             RGB 4#
+         get timestamp T , the fused 3D feature point of a total of
+RGB 3#                                                                                                                        RGB 3#
+         n RGB cameras and m Event cameras could be obtained
+         from:
+
+             X (tT ) = FPS({{XIi (tT )}i∈n , {XIj (tT )}j∈m }),     (8)        Figure 4. Our Multi-view Event-RGB Hybrid Camera System.
+                                                                               We place 4 optical RGB cameras and 2 Event cameras (EVK4) to
+         where FPS is the Farthest Point Sampling (FPS) method for             capture the high-speed object in the center of the device.
+         anchor points extraction. As in PointNet++ [32], FPS iter-
+         atively selects points by maximizing the minimum distance             training cost and dataset preparation overhead, we ini-
+         between sampled points, yielding a balanced spatial distri-           tialize the model with Transformer weights pretrained by
+         bution while preserving the original point-cloud geometry             MVTracker[34], and then apply parameter-efficient fine-
+         and structure.                                                        tuning via LoRA(Low-Rank Adaptation)[15] on our self-
+                                                                               made synthetic datasets.
+         4.4. Temporal Correlation Transformer
+                                                                               5. Dataset
+         Temporal Correlation. After extracting the 3D features,
+         the next step is to associate them with query points for tra-         5.1. Camera Prototype
+         jectory prediction. Instead of leveraging spatial association         To simultaneously acquire multi-view, high-resolution
+         modules (e.g., triplane projections or kNN neighborhood               stereoscopic information and high–frame-rate texture dy-
+         aggregation) to capture spatial correlations, we complement           namics, we built a carefully engineered experimental appa-
+         this by incorporating temporal correlation, forming a joint           ratus. We developed an event-guided, cube-shaped multi-
+         spatio-temporal nearest-neighbor correlation.                         view stereo capture rig consisting of 2 Event cameras and
+            For each query point at the target timestamp tT , we find          4 optical RGB cameras. More precisely, our hybrid cam-
+         the K nearest neighbors from adjacent frames:                         era prototype realizes a cuboid observation geometry: 4 op-
+                 CtT = {(xk , fk ) ∈ NK (P̂tT −1 , X (tT −1 )),                tical RGB cameras (30fps and 1080×720 resolution) and
+                                                                               2 event cameras (EVK4, microsecond temporal resolution
+                          (xk , fk ) ∈ NK (P̂tT , X (tT ))},        (9)        and 1080×720 resolution are placed around the target, as
+                          (xk , fk ) ∈ NK (P̂tT +1 , X (tT +1 )),              shown in Fig.4. All camera data is transmitted via optical
+                                                                               fiber to on-board processing chips for hardware time syn-
+         where NK (P̂tT , X (tT )) finds the k-nearest neighbors               chronization and encoding, then decoded and stored on a
+         around the current location estimate P̂tT in the fused 3D             host workstation. During data collection, all cameras are
+         feature point cloud X (tT ). At high frame rates, motion is           time-synchronized to ensure a consistent depiction of mo-
+         effectively “slow-motion,” where each frame’s position is             tion across viewpoints. At present, the device serves small-
+         tightly coupled with its immediate predecessors and suc-              scale testing in the laboratory. Owing to its scalability, it
+         cessors. Modeling this temporal coherence yields stronger             could later be installed on mocap frames or positioned out-
+         representations and preserves the continuity.                         doors to capture larger targets (e.g., human subjects and ve-
+         Lora Fine-tuned Transformer. We follow the work of                    hicles).
+         [21, 34] to construct relationship tokens GtT = Enc(CtT )
+         and pass them to a transformer iteratively and get the full
+                                                                               5.2. Real-world Object Dataset
+         3D trajectory at a high frame rate. To (i) leverage large-            As a first step, we collect real-scene data using the device
+         scale datasets for improved generalization and (ii) reduce            we built. We select small, fast-moving, and representative
+
+
+
+                                                                          37036
+ Table 1. Quantitative evaluation on different datasets. For the competitors, we use the model trained on 5K scenes from the MV-Kub
+ dataset[34] and then evaluate them directly on the test sets of different datasets. In contrast, our method starts from mvtracker-initialized
+ parameters and is fine-tuned on 70 training scenes from FMV-Kubric, after which it is directly evaluated on each test set.
+
+                                                                              FMV-Kubric (30)                 FMV-Panoptic (6)            Real Object (5)
+              Method                                 Train/Finetune    AJ ↑   δavg ↑ OA ↑ MTE ↓        AJ ↑   δavg ↑ OA ↑ MTE ↓              RMSE ↓
+              Tri-SpaTracker[46] + Traj.Inter        MV-Kub (5K)       56.1   66.8     85.4    2.8     55.2    70.5      72.3   9.2           0.338
+              MVTracker[34] + Traj.Inter             MV-Kub (5K)       61.9   72.7     87.9    2.3     62.5    83.2      75.8   7.2           0.324
+              MVTracker + Frame.Repeat               MV-Kub (5K)       60.5   71.0     87.5    2.5     58.3    72.8      73.5   8.6           0.332
+              MVTracker + Frame.Inter                MV-Kub (5K)       62.3   74.4     88.1    2.1     63.1    83.8      77.2   7.1           0.313
+              MVTracker + Frame.Inter + E2V          MV-Kub (5K)       63.5   75.2     88.3    2.0     65.2    84.0      82.6   6.9           0.307
+              Our MER-Tracker                       FMV-Kubric (70)    72.3   82.4     91.5    1.2     76.3    86.2      91.5   6.5           0.228
+
+                             MVTracker+Traj.Inter    Ours             Ground Truth     MVTracker+Traj.Inter           Ours            Ground Truth
+                     View1
+    FMV-Kubric
+                     View2
+                    View1
+   FMV-Panoptic
+                    View2
+                    View1
+Real-world Object
+                    View2
+
+
+
+
+ Figure 5. Qualitative comparison of multi-view 3D point tracking in high-speed scenes. We show the comparisons on three different
+ datasets: FMV-Kubric, FMV-Panoptic, and Real-world Object. The SOTA method fails to predict accurate trajectories due to frame-
+ missing and blur, while ours utilizes event streams for supplementary information. Note that we have no ground truth in the real-world
+ object dataset, so we show the actual trend lines of the movement.
+
+
+ objects, such as a shaking cube, a spinning plane, and a                            2 event views storing event tuples (x, y, p, t) at microsecond
+ swinging toy, totaling 5 typical scenes. During data ac-                            temporal resolution. For 3D point tracking, i) the fixed cam-
+ quisition, the capture device remains stationary, while the                         era extrinsics/intrinsics are acquired from spatial-temporal
+ objects move within a constrained range centered on the                             calibration [25], ii) the initial point clouds are obtained from
+ device. Each scene recording provides 6 viewpoints: 4                               VGGT[40] and utilized as query 3D points, iii) the depth
+ RGB views containing discrete frame images at 30fps, and                            maps for RGB cameras are also obtained from VGGT, and
+
+
+
+
+                                                                               37037
+the depth maps for Event cameras are unprojected-projected        baseline SOTA multi-view 3D tracking methods, we select
+from RGB cameras.                                                 MVTracker[34] and triplane-expanded SpaTracker[34, 46].
+
+5.3. FMV-Kubric Synthetic Dataset                                 6.1.2. Metrcis
+Since our real-world rig does not include a depth camera          For the synthetic dataset, which provides accurate high-
+(to the best of our knowledge, high-frame-rate depth sen-         frame-rate point ground truth, we adopt the same evalua-
+sors are scarce on the market), the real-world object dataset     tion protocol as [34]: MTE (Median Trajectory Error) for
+is not suitable as a standard benchmark for training and          visible points, quantifying spatial accuracy; (2) δavg , the
+quantitative evaluation. We need a large-scale dataset with       average location accuracy over a set of threshold distances;
+complete point-trajectory ground truth. Therefore, follow-        (3) OA (Occlusion Accuracy), measuring the model’s bi-
+ing MVTracker[34], we also build a virtual device in the          nary visibility prediction across views; and (4) AJ (Average
+Kubric physics simulator [12] comprising 4 low-FPS RGB            Jaccard), which jointly evaluates occlusion and position ac-
+cameras and 2 Event cameras arranged around the scene.            curacy. For the real-world dataset, since we do not have
+Multiple objects undergo rapid free-fall from a fixed height      depth cameras to construct ground-truth point clouds, we
+at the scene center, and all cameras record synchronously.        design a surrogate evaluation metric. We first augment the
+We synthesize a total of 100 scenes, 70 for training and 30       original camera setup with an additional high-speed cam-
+for testing. The camera parameters, 3D query points, depth        era operating at 150fps, which records the motion of each
+maps, and ground truth trajectories at high frame rate are        frame from a novel viewpoint; the captured frames are then
+directly extracted from the Kubric simulator.                     converted into depth maps using Depth-Anything[48]. For
+                                                                  each predicted frame, we reproject the reconstructed point
+5.4. FMV-Panoptic Simulated Dataset                               cloud into the high-speed camera view to obtain a rendered
+                                                                  depth map. Finally, we compute a masked RMSE between
+Because FMV-Kubric is fully synthetic, training and testing
+                                                                  the two depth maps. RMSE is defined as the square root of
+on it do not guarantee transferability to other environments,
+                                                                  the mean squared error and is utilized frequently in recent
+especially real-world scenes. Meanwhile, our real-world
+                                                                  works [30, 41, 45].
+object dataset lacks a complete evaluation benchmark. We
+therefore construct a real-scene benchmark with exhaus-           6.1.3. Implementation Details
+tive ground truth by synthetically modifying Panoptic[23]:        We acquire 30fps, 720p RGB frames and 720p event
+we select six suitable viewpoints, temporally decimate four       streams with microsecond-level temporal resolution. Our
+views (keep one out of every five frames) and apply mo-           goal is to reconstruct fast-motion 3D trajectories at 150fps
+tion blur, and convert the remaining two views into con-          (for real-world dataset). i) Stage I: 2D feature extraction.
+tinuous event streams using v2e[16]. The resulting 4 low-         For RGB, CNN features are computed on each 30fps frame,
+frame-rate RGB sequences and 2 microsecond-temporal-              with the input resolution downscaled to reduce computa-
+resolution event streams serve as inputs, while the dataset’s     tion. For Event, the stream is segmented at 150fps intervals,
+original 3D trajectories are used as surrogate high-frame-        voxelized per segment, and processed by a CNN–LSTM.
+rate ground-truth trajectories.                                   The CNN has three layers (64, 128, 256 channels; kernels
+                                                                  7×7, 3×3, 3×3), and the LSTM hidden dimension is 256.
+6. Experiments                                                    ii) Stage II: 3D feature fusion. RGB-derived 3D features
+6.1. Experimental Setup                                           are computed at 30fps and temporally upsampled to 150fps
+                                                                  by linear interpolation. Event-derived spatiotemporal fea-
+6.1.1. Competitors                                                tures, obtained per 150fps slice, are regarded as discrete 3D
+Due to the relative lack of specific methods for 3D point         features at the same rate. We fuse the streams by selecting
+tracking at high temporal resolution, we deploy the com-          3D keypoints with farthest point sampling (FPS), adopting
+parison using 2 kinds of two-stage prediction competitors.        a downsampling rate of 0.3. iii) Stage III: Trajectory predic-
+The first kind of competitor utilizes the low-frame-rate tra-     tion. We build tokens analogous to those in MVTracker[34]
+jectories to directly predict high-frame-rate trajectories via    and use the identical Transformer design with an iterative
+linear interpolation on points. The second kind of competi-       training schedule. During fine-tuning, we load the MV-
+tor synthesizes a full high-frame-rate video by filling miss-     Tracker pretrained checkpoint, augment each Transformer
+ing frames via “Repeat” (extending a video by repeating           layer with LoRA modules, train on our synthetic-dataset
+each frame n times), “Inter” (using the frame interpola-          training set, and persist both the LoRA adapters and the
+tion method such as SimpleFlow [38] and RIFE [17]), or            Transformer weights for later evaluation. Our method is
+“E2V”(converting DVS streams into intensity images via            trained on 70 self-made FMV-Kubric synthetic scenes for
+e2vid[35]); the resulting high-frame-rate frames are subse-       20k steps on 2 NVIDIA A6000 chips with 60GB GPU
+quently used to estimate high-frame-rate trajectories. For        memory over 40 hours (batch size is 2). The model is im-
+
+
+
+                                                             37038
+plemented in PyTorch.                                             Table 2. The contribution of each component. Evaluated on the
+                                                                  FMV-Kubric synthetic dataset.
+6.2. Performance Comparisons
+6.2.1. Comparison on FMV-Kubric Synthetic Dataset                    Methods                                               AJ↑
+We first evaluate on the FMV-Kubric synthetic dataset,               Baseline                                              61.9
+which primarily comprises scenes of numerous objects                 + directly 3D merging                                 65.8
+                                                                     + 3D interpolation                                    68.3
+rapidly falling from height in a simulation environment. We
+                                                                     + 3D interpolation + anchor sampling                  71.2
+assess high-frame-rate trajectory prediction, with quantita-         + 3D interpolation + anchor sampling + temporal TF    72.3
+tive results reported in Table 1.Specifically, for the compar-
+ison with SOTA methods, (i) in the 1st-2nd row, we use
+                                                                  Table 3. 3D tracking performance under different numbers of com-
+only 30fps RGB frames in 4 views as input, with linear in-
+                                                                  bined cameras. Evaluated on the FMV-Kubric synthetic dataset.
+terpolation on trajectories for 150fps output; (ii) in the 3rd
+row, we expand the input RGB frames from 30fps to 150fps
+                                                                     RGB.Num      DVS.Num      AJ↑    δavg ↑   OA ↑       MTE ↓
+by repeating each frame 5 times; (iii) in the 4th row, we
+use RIFE[17] to interpolate intermediate frames for RGB                  3            1        66.5    76.3     88.4       1.7
+inputs; (iv) in the 5th row, we use e2vid[35] to translate               3            2        70.6    81.1     91.0       1.4
+the 2 event views into images and combine them with RGB                  4            0        61.9    72.7     87.9       2.3
+frames to form 6 views of input. We also show the qualita-               4            1        68.1    78.6     89.9       1.6
+tive performances in Fig. 5, showing the accurate prediction             4            2        72.3    82.4     91.5       1.2
+in high-speed synthetic environments.
+6.2.2. Comparison on FMV-Panoptic Simulated Dataset
+                                                                  linear interpolation for RGB 3D feature points and merge
+Next, we evaluate on the FMV-Panoptic simulated dataset
+                                                                  them with Event 3D feature points for direct use. (iv) The
+comprising human actions such as passing a basketball,
+                                                                  fourth row indicates that we utilize the anchor sampling
+throwing a small ball, and placing a box. To emulate high-
+                                                                  to downsample the merged dual-modality 3D feature point
+speed real-world motion, we subsample and blur 4 RGB
+                                                                  cloud. (v) The last row is our full model, which incorpo-
+views and simulate event data on 2 other views. Quantita-
+                                                                  rates the temporal correlation Transformer. Performance in
+tive results are reported in Table 1. The qualitative perfor-
+                                                                  this row achieves the best performance, validating the effec-
+mances are shown in Fig. 5, from which we could see that
+                                                                  tiveness of our design for the event-guided high-speed 3D
+our method provides more accurate trajectory predictions
+                                                                  point tracking task.
+with fewer perturbations in high-speed real-world simulated
+environments.                                                     6.3.2. Ablation on Camera Numbers
+6.2.3. Comparison on Real-world Object Dataset                    In this part, we investigate the relationship between camera
+We also evaluate on our self-captured real-world object           numbers and performance. As shown in Table 3, we present
+dataset. Using a custom multi-view, multi-modal optical           both quantitative comparisons. It demonstrates that increas-
+rig to record small, fast-moving indoor objects, we assess        ing the number of event cameras and RGB cameras leads to
+the method’s ability to predict and track fast-motion trajec-     finer trajectory reconstruction, and that once a basic number
+tories in real scenes. The quantitative results for RMSE are      of RGB views is available, additional event cameras play
+shown in Table 1, which show that ours is the best. We            an increasingly dominant role. This means that our method
+also present the qualitative performances in Fig. 5. It can be    could be extended to more views in the future.
+observed that our predicted trajectory best aligns with the
+object’s true motion pattern.                                     7. Conclusions
+6.3. Ablation Study                                               In this paper, we propose the first task for high-speed 3D
+                                                                  point tracking using Event-RGB hybrid cameras. We de-
+6.3.1. Contribution of Each Module                                sign a cuboid observation device comprising 4 RGB cam-
+We conduct an ablation study to assess the contribution of        eras and 2 Event cameras to synchronously capture high-
+each component in our MER-Tracker. As shown in Table 2,           speed motions, and propose MER-Tracker, a high–frame-
+the results are evaluated by adding each module gradually:        rate 3D point-tracking network that fuses the complemen-
+(i) The baseline results are shown in the first row, which        tary strengths of dual modalities. To verify the effectiveness
+uses only RGB frames as input to MVTracker[34]. (ii) In           of our method, we construct both real-world and simulated
+the second row, we directly merge RGB 3D feature points           high-speed motion datasets. Experiments on these datasets
+with Event 3D feature points to compose the fused fea-            show that our method achieves accurate, high-speed 3D
+ture point cloud. (iii) In the third row, we incorporate the      point tracking, outperforming state-of-the-art methods.
+
+
+
+                                                             37039
+Acknowledgements The study was funded by                                  High-fidelity dynamic reconstruction from the multi-view
+the Shenzhen Science and Technology Program                               event cameras. In ACM MM 2025, 2025. 2
+(KQTD20240729102051063), the National Natural Sci-                   [10] Kyle Gao, Yina Gao, Hongjie He, Dening Lu, Linlin Xu,
+ence Foundation of China under contracts No. 62422602,                    and Jonathan Li. Nerf: Neural radiance field in 3d vision,
+No. 62372010, No. 62425101, No. 62332002, No.                             a comprehensive review. arXiv preprint arXiv:2210.00379,
+                                                                          2022. 2
+62088102, No. 62506190, the Major Key Project of
+                                                                     [11] Nicolas Gorlo, Lukas Schmid, and Luca Carlone. Long-term
+Pengcheng Laboratory (PCL2025A02), and the Key
+                                                                          human trajectory prediction using 3d dynamic scene graphs.
+Laboratory of Guangdong Province (2022B1212010005).                       IEEE Robotics and Automation Letters, 2024. 1
+Computing support was provided by Pengcheng Cloud-                   [12] Klaus Greff, Francois Belletti, Lucas Beyer, Carl Doersch,
+brain.                                                                    Yilun Du, Daniel Duckworth, David J Fleet, Dan Gnanapra-
+                                                                          gasam, Florian Golemo, Charles Herrmann, et al. Kubric: A
+References                                                                scalable dataset generator. In Proceedings of the IEEE/CVF
+                                                                          conference on computer vision and pattern recognition,
+ [1] Jeongmin Bae, Seoha Kim, Youngsik Yun, Hahyun Lee,                   pages 3749–3761, 2022. 7
+     Gun Bang, and Youngjung Uh. Per-gaussian embedding-             [13] Friedhelm Hamann, Daniel Gehrig, Filbert Febryanto,
+     based deformation for deformable 3d gaussian splatting. In           Kostas Daniilidis, and Guillermo Gallego. Etap: Event-
+     European Conference on Computer Vision, pages 321–335.               based tracking of any point. In Proceedings of the Computer
+     Springer, 2024. 2                                                    Vision and Pattern Recognition Conference, pages 27186–
+ [2] Jonathan T Barron, Ben Mildenhall, Matthew Tancik, Peter             27196, 2025. 2, 3
+     Hedman, Ricardo Martin-Brualla, and Pratul P Srinivasan.        [14] Adam W Harley, Zhaoyuan Fang, and Katerina Fragkiadaki.
+     Mip-nerf: A multiscale representation for anti-aliasing neu-         Particle video revisited: Tracking through occlusions using
+     ral radiance fields. In Proceedings of the IEEE/CVF Inter-           point trajectories. In European Conference on Computer Vi-
+     national Conference on Computer Vision, pages 5855–5864,             sion, pages 59–75. Springer, 2022. 1
+     2021. 2                                                         [15] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-
+ [3] Seokju Cho, Jiahui Huang, Jisu Nam, Honggyu An, Seun-                Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al.
+     gryong Kim, and Joon-Young Lee. Local all-pair correspon-            Lora: Low-rank adaptation of large language models. ICLR,
+     dence for point tracking. In European conference on com-             1(2):3, 2022. 5
+     puter vision, pages 306–325. Springer, 2024. 1                  [16] Yuhuang Hu, Shih-Chii Liu, and Tobi Delbruck. v2e: From
+ [4] Gaole Dai, Zhenyu Wang, Qinwen Xu, Ming Lu, Wen Chen,                video frames to realistic dvs events. In Proceedings of
+     Boxin Shi, Shanghang Zhang, and Tiejun Huang. Spikenvs:              the IEEE/CVF conference on computer vision and pattern
+     Enhancing novel view synthesis from blurry images via spike          recognition, pages 1312–1321, 2021. 7
+     camera. arXiv, 2024. 3                                          [17] Zhewei Huang, Tianyuan Zhang, Wen Heng, Boxin Shi, and
+                                                                          Shuchang Zhou. Real-time intermediate flow estimation for
+ [5] Carl Doersch, Ankush Gupta, Larisa Markeeva, Adria Re-
+                                                                          video frame interpolation. In European Conference on Com-
+     casens, Lucas Smaira, Yusuf Aytar, Joao Carreira, Andrew
+                                                                          puter Vision, pages 624–642. Springer, 2022. 7, 8
+     Zisserman, and Yi Yang. Tap-vid: A benchmark for track-
+     ing any point in a video. Advances in Neural Information        [18] Inwoo Hwang, Junho Kim, and Young Min Kim. Ev-nerf:
+     Processing Systems, 35:13610–13626, 2022. 1                          Event based neural radiance field. In Proceedings of the
+                                                                          IEEE/CVF Winter Conference on Applications of Computer
+ [6] Carl Doersch, Yi Yang, Mel Vecerik, Dilara Gokay, Ankush
+                                                                          Vision, pages 837–847, 2023. 2
+     Gupta, Yusuf Aytar, Joao Carreira, and Andrew Zisserman.
+                                                                     [19] Linyi Jin, Richard Tucker, Zhengqi Li, David Fouhey, Noah
+     Tapir: Tracking any point with per-frame initialization and
+                                                                          Snavely, and Aleksander Hołyński. Stereo4d: Learning
+     temporal refinement. In Proceedings of the IEEE/CVF In-
+                                                                          how things move in 3d from internet stereo videos. In
+     ternational Conference on Computer Vision, pages 10061–
+                                                                          2025 IEEE/CVF Conference on Computer Vision and Pat-
+     10072, 2023.
+                                                                          tern Recognition (CVPR), pages 10497–10509. IEEE, 2025.
+ [7] Carl Doersch, Pauline Luc, Yi Yang, Dilara Gokay, Skanda             1
+     Koppula, Ankush Gupta, Joseph Heyward, Ignacio Rocco,           [20] Nikita Karaev, Ignacio Rocco, Benjamin Graham, Natalia
+     Ross Goroshin, Joao Carreira, et al. Bootstap: Bootstrapped          Neverova, Andrea Vedaldi, and Christian Rupprecht. Co-
+     training for tracking-any-point. In Proceedings of the Asian         tracker: It is better to track together. In European conference
+     Conference on Computer Vision, pages 3257–3274, 2024. 1              on computer vision, pages 18–35. Springer, 2024. 1, 2, 4
+ [8] Hao-Shu Fang, Hongjie Fang, Zhenyu Tang, Jirong Liu,            [21] Nikita Karaev, Yuri Makarov, Jianyuan Wang, Natalia
+     Chenxi Wang, Junbo Wang, Haoyi Zhu, and Cewu Lu.                     Neverova, Andrea Vedaldi, and Christian Rupprecht. Co-
+     Rh20t: A comprehensive robotic dataset for learning diverse          tracker3: Simpler and better point tracking by pseudo-
+     skills in one-shot. In 2024 IEEE International Conference            labelling real videos. In Proceedings of the IEEE/CVF Inter-
+     on Robotics and Automation (ICRA), pages 653–660. IEEE,              national Conference on Computer Vision, pages 6013–6022,
+     2024. 1                                                              2025. 5
+ [9] Chaoran Feng, Zhenyu Tang, Wangbo Yu, Yatian Pang, Yian         [22] Bernhard Kerbl, Georgios Kopanas, Thomas Leimkühler,
+     Zhao, Jianbin Zhao, Li Yuan, and Yonghong Tian. E-4dgs:              and George Drettakis. 3d gaussian splatting for real-time
+
+
+
+
+                                                                37040
+     radiance field rendering. ACM Transactions on Graphics, 42         [36] Viktor Rudnev, Mohamed Elgharib, Christian Theobalt, and
+     (4):1–14, 2023. 2                                                       Vladislav Golyanik. Eventnerf: Neural radiance fields from a
+[23] Alexander Kirillov, Kaiming He, Ross Girshick, Carsten                  single colour event camera. In Proceedings of the IEEE/CVF
+     Rother, and Piotr Dollár. Panoptic segmentation. In Pro-               Conference on Computer Vision and Pattern Recognition,
+     ceedings of the IEEE/CVF conference on computer vision                  pages 4992–5002, 2023. 2
+     and pattern recognition, pages 9404–9413, 2019. 3, 7               [37] Shih-Yang Su, Frank Yu, Michael Zollhöfer, and Helge
+[24] Jianing Li, Jia Li, Lin Zhu, Xijie Xiang, Tiejun Huang, and             Rhodin. A-nerf: Articulated neural radiance fields for learn-
+     Yonghong Tian. Asynchronous spatio-temporal memory net-                 ing human shape, appearance, and pose. Advances in Neural
+     work for continuous event-based object detection. IEEE                  Information Processing Systems, 34:12278–12291, 2021. 2
+     Transactions on Image Processing, 31:2975–2987, 2022. 2            [38] Michael Tao, Jiamin Bai, Pushmeet Kohli, and Sylvain Paris.
+[25] Jianing Li, Xiao Wang, Lin Zhu, Jia Li, Tiejun Huang, and               Simpleflow: A non-iterative, sublinear optical flow algo-
+     Yonghong Tian. Retinomorphic object detection in asyn-                  rithm. In Computer Graphics Forum, pages 345–353. Wiley
+     chronous visual streams. In Proceedings of the AAAI Con-                Online Library, 2012. 7
+     ference on Artificial Intelligence, pages 1332–1340, 2022. 6       [39] Sundar Vedula, Simon Baker, Peter Rander, Robert Collins,
+[26] Haotong Lin, Sili Chen, Junhao Liew, Donny Y Chen,                      and Takeo Kanade. Three-dimensional scene flow. In Pro-
+     Zhenyu Li, Guang Shi, Jiashi Feng, and Bingyi Kang. Depth               ceedings of the Seventh IEEE International Conference on
+     anything 3: Recovering the visual space from any views.                 Computer Vision, pages 722–729. IEEE, 1999. 1
+     arXiv preprint arXiv:2511.10647, 2025. 3                           [40] Jianyuan Wang, Minghao Chen, Nikita Karaev, Andrea
+[27] Weng Fei Low and Gim Hee Lee. Robust e-nerf: Nerf                       Vedaldi, Christian Rupprecht, and David Novotny. Vggt: Vi-
+     from sparse & noisy events under non-uniform motion. In                 sual geometry grounded transformer. In Proceedings of the
+     Proceedings of the IEEE/CVF International Conference on                 Computer Vision and Pattern Recognition Conference, pages
+     Computer Vision, pages 18335–18346, 2023. 2                             5294–5306, 2025. 6
+[28] Jonathon Luiten, Georgios Kopanas, Bastian Leibe, and
+                                                                        [41] Kun Wang, Zhiqiang Yan, Junkai Fan, Wanlu Zhu, Xiang
+     Deva Ramanan. Dynamic 3d gaussians: Tracking by per-
+                                                                             Li, Jun Li, and Jian Yang. Dcdepth: Progressive monoc-
+     sistent dynamic view synthesis. In 2024 International Con-
+                                                                             ular depth estimation in discrete cosine domain. Advances
+     ference on 3D Vision (3DV), pages 800–809. IEEE, 2024. 2,
+                                                                             in Neural Information Processing Systems, 37:64629–64648,
+     3
+                                                                             2024. 7
+[29] Tuan Duc Ngo, Peiye Zhuang, Chuang Gan, Evange-
+                                                                        [42] Qianqian Wang, Yen-Yu Chang, Ruojin Cai, Zhengqi Li,
+     los Kalogerakis, Sergey Tulyakov, Hsin-Ying Lee, and
+                                                                             Bharath Hariharan, Aleksander Holynski, and Noah Snavely.
+     Chaoyang Wang. Delta: Dense efficient long-range 3d track-
+                                                                             Tracking everything everywhere all at once. In Proceedings
+     ing for any video. arXiv preprint arXiv:2410.24211, 2024.
+                                                                             of the IEEE/CVF International Conference on Computer Vi-
+     2, 3
+                                                                             sion, pages 19795–19806, 2023. 2
+[30] Chao Ning and Hongping Gan. Trap attention: Monocu-
+     lar depth estimation with manual traps. In Proceedings of          [43] Yuchen Weng, Zhengwen Shen, Ruofan Chen, Qi Wang, and
+     the IEEE/CVF Conference on Computer Vision and Pattern                  Jun Wang. Eadeblur-gs: Event assisted 3d deblur reconstruc-
+     Recognition, pages 5033–5043, 2023. 7                                   tion with gaussian splatting. arXiv, 2024. 2
+[31] Keunhong Park, Utkarsh Sinha, Jonathan T Barron, Sofien            [44] Guanjun Wu, Taoran Yi, Jiemin Fang, Lingxi Xie, Xiaopeng
+     Bouaziz, Dan B Goldman, Steven M Seitz, and Ricardo                     Zhang, Wei Wei, Wenyu Liu, Qi Tian, and Xinggang Wang.
+     Martin-Brualla. Nerfies: Deformable neural radiance fields.             4d gaussian splatting for real-time dynamic scene rendering.
+     In Proceedings of the IEEE/CVF International Conference                 In Proceedings of the IEEE/CVF Conference on Computer
+     on Computer Vision, pages 5865–5874, 2021. 2                            Vision and Pattern Recognition, pages 20310–20320, 2024.
+[32] Charles Ruizhongtai Qi, Li Yi, Hao Su, and Leonidas J                   2
+     Guibas. Pointnet++: Deep hierarchical feature learning on          [45] Haifeng Wu, Shuhang Gu, Lixin Duan, and Wen Li.
+     point sets in a metric space. Advances in neural information            Geodepth: From point-to-depth to plane-to-depth modeling
+     processing systems, 30, 2017. 5                                         for self-supervised monocular depth estimation. In Proceed-
+[33] Yunshan Qi, Lin Zhu, Yu Zhang, and Jia Li. E2nerf: Event                ings of the Computer Vision and Pattern Recognition Con-
+     enhanced neural radiance fields from blurry images. In                  ference, pages 11525–11535, 2025. 7
+     Proceedings of the IEEE/CVF International Conference on            [46] Yuxi Xiao, Qianqian Wang, Shangzhan Zhang, Nan Xue,
+     Computer Vision, pages 13254–13264, 2023. 2                             Sida Peng, Yujun Shen, and Xiaowei Zhou. Spatialtracker:
+[34] Frano Rajič, Haofei Xu, Marko Mihajlovic, Siyuan Li, Irem              Tracking any 2d pixels in 3d space. In Proceedings of
+     Demir, Emircan Gündoğdu, Lei Ke, Sergey Prokudin, Marc                the IEEE/CVF Conference on Computer Vision and Pattern
+     Pollefeys, and Siyu Tang. Multi-view 3d point tracking. In              Recognition, pages 20406–20417, 2024. 1, 2, 6, 7
+     Proceedings of the IEEE/CVF International Conference on            [47] Yuxi Xiao, Jianyuan Wang, Nan Xue, Nikita Karaev, Yuri
+     Computer Vision, pages 59–68, 2025. 1, 3, 4, 5, 6, 7, 8                 Makarov, Bingyi Kang, Xing Zhu, Hujun Bao, Yujun Shen,
+[35] Henri Rebecq, René Ranftl, Vladlen Koltun, and Davide                  and Xiaowei Zhou. Spatialtrackerv2: Advancing 3d point
+     Scaramuzza. High speed and high dynamic range video with                tracking with explicit camera motion. In Proceedings of the
+     an event camera. IEEE transactions on pattern analysis and              IEEE/CVF International Conference on Computer Vision,
+     machine intelligence, 43(6):1964–1980, 2019. 7, 8                       pages 6726–6737, 2025. 1, 2
+
+
+
+
+                                                                37041
+[48] Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiao-
+     gang Xu, Jiashi Feng, and Hengshuang Zhao. Depth any-
+     thing v2. Advances in Neural Information Processing Sys-
+     tems, 37:21875–21911, 2024. 7
+[49] Emilie Yu, Kevin Blackburn-Matzen, Cuong Nguyen,
+     Oliver Wang, Rubaiat Habib Kazi, and Adrien Bousseau.
+     Videodoodles: Hand-drawn animations on videos with
+     scene-aware canvases. ACM Transactions on Graphics
+     (TOG), 42(4):1–12, 2023. 2
+[50] Wangbo Yu, Chaoran Feng, Jianing Li, Jiye Tang, Jiashu
+     Yang, Zhenyu Tang, Meng Cao, Xu Jia, Yuchao Yang, Li
+     Yuan, et al. Evagaussians: Event stream assisted gaus-
+     sian splatting from blurry images. In Proceedings of the
+     IEEE/CVF International Conference on Computer Vision,
+     pages 24780–24790, 2025. 2
+[51] Yu-Jie Yuan, Yang-Tian Sun, Yu-Kun Lai, Yuewen Ma,
+     Rongfei Jia, and Lin Gao. Nerf-editing: geometry editing of
+     neural radiance fields. In Proceedings of the IEEE/CVF Con-
+     ference on Computer Vision and Pattern Recognition, pages
+     18353–18364, 2022. 2
+[52] Bowei Zhang, Lei Ke, Adam W Harley, and Katerina Fragki-
+     adaki. Tapip3d: Tracking any point in persistent 3d geome-
+     try. arXiv preprint arXiv:2504.14717, 2025. 2, 4, 1
+[53] Alex Zihao Zhu, Liangzhe Yuan, Kenneth Chaney, and
+     Kostas Daniilidis. Unsupervised event-based learning of
+     optical flow, depth, and egomotion. In Proceedings of
+     the IEEE/CVF Conference on Computer Vision and Pattern
+     Recognition (CVPR), 2019. 4
+
+
+
+
+                                                               37042
+

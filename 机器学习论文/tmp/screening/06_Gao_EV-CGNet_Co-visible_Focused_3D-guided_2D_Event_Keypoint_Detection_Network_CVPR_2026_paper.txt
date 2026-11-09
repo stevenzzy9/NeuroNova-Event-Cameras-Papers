@@ -1,0 +1,227 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+EV-CGNet: Co-visible Focused 3D-guided 2D Event Keypoint Detection Network
+
+                       Yuan Gao1 , Tianle Ding1 , Yuqing Zhu1 , Tianzhu Zhang1,2 *
+                           1
+                             University of Science and Technology of China
+       2
+         National Key Laboratory of Deep Space Exploration, Deep Space Exploration Laboratory
+                   {wazs98, dtl98, yuqingzhu}@mail.ustc.edu.cn, {tzzhang}@ustc.edu.cn
+
+
+                                                                            Input                         Keypoint Detection                        Keypoint Matching                                   Event Representation
+
+                           Abstract
+                                                                                                                                                                        Event Stream Processing                                       Common Data Structure
+
+
+
+                                                                                               𝐷1
+                                                                       𝐼1
+                                                                                           Individual
+                                                                                           Detection
+                                                                                                                                    Keypoint
+
+
+
+Event keypoint detection has garnered significant attention                                    𝐷2
+                                                                                                                                    Matching
+
+
+                                                                       𝐼2
+due to its ability to establish spatial associations through                               Individual
+                                                                                           Detection
+
+
+
+matching, which is fundamental for various computer vi-                               Without Co-visible Information Utilization (SuperEvent)                                 Retain All                    Event Point                  Standard 3D Point
+
+
+
+
+sion tasks. However, achieving robust event keypoint de-               𝐼1
+
+                                                                                               𝐷                                    Keypoint
+
+tection remains challenging due to the difficulty in bal-                                    Joint                                  Matching
+                                                                                           Detection
+
+ancing the exploitation of event data and compatibility                𝐼2
+
+
+
+
+with established algorithms. Moreover, the limited use of                                  With Co-visible Information Utilization (ours)
+                                                                               (a) Impacts About Co-visible Information On Event Keypoint Detection
+                                                                                                                                                                             Retain A Part                  Event Frame                 Standard 2D Image
+                                                                                                                                                                                     (b) Comparison of Existing Event Stream Processing Paradigms
+
+
+co-visible information often results in excessive keypoint
+detection in non-matching regions, leading to incorrect           Figure 1. Illustration of our motivation. (a) presents keypoint de-
+matches. To address these challenges, we propose a novel          tection and matching results of our method and SuperEvent [4].
+                                                                                     w/o matching priors (SD2Event) w/ matching priors (ours)
+                                                                                        (b) Impact of matching priors on event keypoint detection
+
+
+
+Co-visible Focused 3D-guided 2D Event Keypoint Detec-             Without co-visible information, SuperEvent detects keypoints in
+tion Network (EV-CGNet), which mainly consists of a 3D-           non-matching regions, leading to numerous incorrect matches (red
+guided 2D feature prototype learning (G2PL) module and            stars). While our method restricts keypoints to co-visible regions,
+                                                                  yielding correct matches (green stars). (b) compares the point-
+a co-visible region-focused detector and descriptor learn-
+                                                                  based and frame-based paradigms in event loss (gray points) and
+ing (CDDL) module. The proposed method enjoys several             their correlation with the corresponding traditional data structures.
+merits. First, the proposed G2PL module can leverage fine-
+grained spatio-temporal cues from event points to guide the
+learning of event frame feature prototypes. Second, the pro-
+posed CDDL module can focus keypoint detection on co-             timation [36, 40, 41], and Simultaneous Localization and
+visible regions, ensuring accurate matches. Comprehensive         Mapping (SLAM) [5, 21, 26, 29]. Among these applica-
+experimental evaluations on six challenging benchmarks            tions, event keypoint detection [1, 4, 18, 20, 27, 31, 32, 46]
+show that our method significantly outperforms state-of-          has received increasing attention due to its ability to estab-
+the-art event keypoint detection methods.                         lish spatial associations via matching, which is fundamental
+                                                                  for various computer vision tasks. However, achieving ro-
+                                                                  bust event keypoint detection remains challenging, primar-
+1. Introduction                                                   ily due to the complex data structure, the difficulty in fully
+                                                                  exploiting fine-grained spatio-temporal information inher-
+Event cameras asynchronously capture pixel-level bright-
+                                                                  ent in event data, and the need for reliable matching under
+ness changes and produce event streams {ei }i∈N , where
+                                                                  significant scene appearance variations.
+each event ei = (xi , yi , ti , pi ) encodes pixel position
+(xi , yi ), timestamp ti and brightness change polarity pi .          To address these issues, event keypoint detection meth-
+Compared to traditional frame-based cameras, event cam-           ods typically convert event data into common data struc-
+eras excel with large dynamic range, low bandwidth, high          tures, mainly categorized into point-based methods [8, 25]
+temporal resolution, and minimal power usage [1, 14, 31,          and frame-based methods [1, 4, 18, 20, 27, 32, 33, 43, 46].
+34, 39]. These properties enable diverse applications, par-       Point-based methods convert event streams into spatio-
+ticularly in high-speed motion and extreme lighting condi-        temporal event points in (X, Y, T ) space and then adapt
+tions, such as 3D reconstruction [6, 9, 22, 45], depth es-        standard 3D (X, Y, Z) point cloud algorithms to detect
+                                                                  keypoints. For example, the state-of-the-art point-based
+  * Corresponding Author                                          method eCDT [25] adapts DBSCAN [12] to build clus-
+
+
+
+                                                            15105
+ters for event points and defines the centroid of each clus-         gorithms, offering higher accuracy, but they suffer from
+ter as a keypoint. While these methods fully retain fine-            significant loss of events, as shown in Figure 1(b). No-
+grained spatio-temporal information, the inherent dispar-            tably, these two paradigms exhibit complementary poten-
+ity between the spatio-temporal domain (X, Y, T ) and the            tial: frame-based methods ensure accuracy, while point-
+spatial domain (X, Y, Z) limits the efficacy of standard             based methods enhance them by incorporating fine-grained
+3D algorithms. Differently, frame-based methods trans-               spatio-temporal cues. Therefore, it is necessary to propose
+form event streams into event frames and modify tradi-               a 3D-guided 2D paradigm that captures the fine-grained
+tional image keypoint detectors [10, 17, 23, 42]. State-of-          spatio-temporal cues in event data while maintaining com-
+the-art methods [18, 27] typically segment event streams             patibility with traditional methods, thereby enabling more
+into fixed-duration windows and create an event frame for            robust event keypoint detection.
+each time window with the latest event per pixel. While
+frame-based methods enhance compatibility with conven-                   Motivated by the above observations, we propose a novel
+tional algorithms and consequently achieve higher accuracy           Co-visible Focused 3D-guided 2D Event Keypoint Detec-
+than point-based methods, significant event loss limits the          tion Network (EV-CGNet), which mainly consists of a
+effective utilization of fine-grained spatio-temporal cues,          3D-Guided 2D Feature Prototype Learning (G2PL) mod-
+thereby limiting robustness to scene appearance changes.             ule and a Co-visible Region-focused Detector and Descrip-
+To address this issue, recent methods [4, 46] propose fusing         tor Learning (CDDL) module. In the 3D-guided 2D fea-
+multiple event frames within each window to retain more              ture prototype learning module, it is proposed to utilize
+events. However, computational cost limits the number of             fine-grained spatio-temporal cues encoded in event points
+event frames that can be processed, and discrete sampling            to guide the learning of event frame feature prototypes.
+can introduce inaccuracies. For example, if a pixel’s inten-         Specifically, original event point and frame features are ex-
+sity fluctuates downward while all sampled events are posi-          tracted by a 1 × 1 convolutional layer. Event point proto-
+tive, the model may incorrectly infer a consistent increase in       types then interact with event point features via attention
+pixel intensity. Besides, keypoint detectors are trained and         mechanisms, yielding event point agents that effectively
+evaluated independently for each fused event frame, leading          capture fine-grained spatio-temporal cues. These agents
+to fixed keypoints that lack adaptivity to co-visible infor-         then interact with frame features to form the 3D-guided 2D
+mation across different event frames during matching. This           feature prototypes. In the co-visible region-focused detector
+often results in the detection of numerous keypoints in non-         and descriptor learning module, it is proposed to focus key-
+matching areas, ultimately reducing matching accuracy, as            point detection on co-visible regions between event frames
+shown in Figure 1(a). In summary, two notable limitations            for robust keypoint matching against significant variations
+remain, including the inadequate utilization of co-visible in-       in scene appearance. Specifically, for each event frame pair,
+formation, and limited balance between event exploitation            3D-guided 2D feature prototypes extracted from the indi-
+and compatibility with established algorithms.                       vidual event frames are concatenated into D2 agents and
+                                                                     refined through self-attention mechanisms to capture co-
+    Based on the above discussions, we identify both the uti-        visible information. The updated D2 agents serve as co-
+lization of co-visible information and the balance between           visible region-focused detectors, which can focus on dis-
+event exploitation and compatibility with established algo-          tinctive keypoint patterns in co-visible regions. Finally, co-
+rithms as critical for event keypoint detection. Specifically,       visible region-focused descriptors are obtained by fusing
+the following two issues deserve careful attention. (1) How          keypoint detectors into original event frame features.
+to leverage co-visible information to enhance keypoint
+detection for superior matching performance. State-                      The main contributions of this work can be summarized
+of-the-art methods learn keypoint detectors independently            as follows. (1) We propose a novel event keypoint detection
+for individual event frames. Therefore, the lack of inter-           method by integrating a distinctive 3D-guided 2D paradigm
+frame interaction limits the ability to capture co-visible in-       and an innovative strategy focusing keypoint detection on
+formation. This motivates the use of attention mechanisms            co-visible regions. Our model can realize robust event key-
+to model inter-frame interactions, enabling the capture of           point detection against various challenging factors. (2) The
+co-visible regions and thereby enhancing keypoint detec-             proposed G2PL module can leverage fine-grained spatio-
+tion and matching accuracy. (2) How to balance compat-               temporal cues from event points to guide event frame fea-
+ibility with established algorithms and exploiting fine-             ture prototype learning, enhancing robustness to scene ap-
+grained spatio-temporal cues. Point-based methods excel              pearance changes. And the CDDL module can concentrate
+in preserving the fine-grained spatio-temporal information           keypoint detection on co-visible regions and ensure accu-
+inherent in abundant events, yet they struggle with integra-         rate matches. (3) Extensive experiments on six challenging
+tion into conventional 3D algorithms. In contrast, frame-            benchmarks show that our method outperforms state-of-the-
+based methods are more compatible with traditional 2D al-            art event keypoint detection methods by a large margin.
+
+
+
+                                                             15106
+2. Related Work                                                  tional cost constrains the number of event frames that can be
+                                                                 processed, and discrete sampling introduces inaccuracies.
+In this section, we briefly overview point-based and frame-      Additionally, keypoint detectors are trained and evaluated
+based methods for event keypoint detection.                      independently for each fused event frame, leading to fixed
+Point-based Event Keypoint Detection. Point-based                keypoints that lack the ability to adaptively adjust based on
+methods [8, 25] convert event streams into spatio-temporal       co-visible information across different event frames during
+event points in (X, Y, T ) coordinate space, and then adapt      matching. This often leads to numerous keypoints extracted
+algorithms initially designed for traditional 3D point clouds    in non-matching areas, ultimately reducing matching accu-
+in (X, Y, Z) space to extract keypoints. An early ap-            racy. In contrast, our proposed 3D-guided 2D feature pro-
+proach [8] employs plane fitting on spatio-temporal event        totype learning module can fully use fine-grained spatio-
+points to identify the intersections of planes as keypoints.     temporal cues encoded in event points to guide the learning
+More recently, eCDT [25] leverages DBSCAN [12] clus-             of event frame feature prototypes. Besides, our co-visible
+tering to locate cluster centers as keypoints. However,          region-focused detector and descriptor learning module uti-
+the significant domain gap between spatio-temporal event         lizes inter-frame interactions to capture co-visible regions,
+points in (X, Y, T ) space and traditional 3D point clouds       thereby ensuring robust keypoint matching even under sig-
+in (X, Y, Z) space limits the effectiveness of standard 3D       nificant variations in scene appearance.
+algorithms on event data. Therefore, recent research has
+shifted to frame-based methods. In contrast, we propose a        3. Our Approach
+novel 3D-guided 2D paradigm that retains the advantages
+of point-based methods and leverages fine-grained spatio-        In this section, we present our proposed method by integrat-
+temporal cues to enhance event frame features.                   ing a distinctive 3D-guided 2D paradigm and an innovative
+Frame-based Event Keypoint Detection. Frame-based                strategy focusing keypoint detection on co-visible regions.
+methods [1, 18, 27, 32, 33, 43] transform event streams into     The overall architecture is presented in Figure 2.
+image-like event frames and adapt image keypoint detec-
+tors [10, 17, 23, 42] for keypoint detection. These meth-        3.1. Overview
+ods can be classified into two main categories, includ-          As shown in Figure 2, our proposed model contains a 3D-
+ing event-by-event methods [1, 32, 33, 43] and sliding-          guided 2D feature prototype learning (G2PL) module and
+window methods [4, 18, 27, 46]. Event-by-event meth-             a co-visible region-focused detector and descriptor learning
+ods maintain a continuously updated event frame to iden-         (CDDL) module. Two input event streams are first encoded
+tify keypoints from each incoming event. For instance, ev-       into point and frame representations. In the G2PL module,
+Fast [33] extends the FAST [42] detector to identify key-        a 1×1 convolution extracts original event point and frame
+points on Time Surface [2]. Specifically, each incom-            features. Event point prototypes interact with point fea-
+ing event updates the corresponding pixel with its times-        tures to capture fine-grained spatio-temporal cues, and the
+tamp, and the pixel is identified as a keypoint if a speci-      resulting event point agents further interact with frame fea-
+fied number of consecutive pixels within its circular neigh-     tures to produce 3D-guided 2D prototypes. In the CDDL
+borhood exhibit higher values than others. Nevertheless,         module, prototype pairs are concatenated into D2 (Detector
+these methods exhibit limited accuracy due to the incom-         and Descriptor) agents, with interactions modeled via self-
+patibility of the event-by-event paradigm with state-of-the-     attention. The resulting co-visible region-focused detec-
+art image keypoint detection methods [10, 11, 17], which         tors are then fused into frame features to obtain co-visible
+jointly optimize descriptors and detectors in a data-driven      region-focused descriptor pairs. Finally, a cosine similarity
+manner. To overcome these limitations, sliding-window            constraint on the heatmap pair supervises learning.
+methods [4, 18, 27, 46] segment event streams into fixed-
+duration windows and construct an event frame within each        3.2. Event Encoder
+window for joint learning of descriptors and detectors. For      Event streams {(xi , yi , ti , pi )} are first divided into fixed-
+instance, SD2Event [18] leverages the polarity and times-        duration time windows. For each window (T, T + ∆t), we
+tamp of the most recent event at each pixel to form an event     generate both an event frame and event points. Specifically,
+frame within each window. Attention mechanisms are then          the frame IE ∈ R3×h×w is created following [18],
+applied to optimize both detectors and descriptors for indi-
+vidual event frames. However, excessive event loss during                \mathbf {I_E}[x_i,y_i] = (255,t_{i T},0) \longleftarrow (x_i,y_i,t,+1),\\ \mathbf {I_E}[x_i,y_i] = (0,255-t_{i T},255) \longleftarrow (x_i,y_i,t,-1),
+frame construction prevents it from fully exploiting fine-                                                                                                                                                                       (2)
+grained spatio-temporal cues, thereby limiting accuracy. To
+address this issue, recent methods [4, 46] propose the fu-       where t is the timestamp of the latest event occurred at pixel
+sion of multiple event frames within each window to re-          (xi , yi ), and tiT = 127 × (T + ∆t − t)/∆t. Event points
+tain more events. Despite these advances, the computa-           are created by ignoring polarities pj , which encodes pixel
+
+
+
+                                                            15107
+

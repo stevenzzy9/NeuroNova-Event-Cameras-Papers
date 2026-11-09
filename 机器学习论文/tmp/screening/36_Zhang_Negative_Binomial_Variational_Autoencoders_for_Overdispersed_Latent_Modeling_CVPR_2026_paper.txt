@@ -1,0 +1,191 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+Negative Binomial Variational Autoencoders for Overdispersed Latent Modeling
+
+                 Yixuan Zhang1 *, Jinhao Sheng2 *, Wenxin Zhang3 , Quyu Kong4 , Feng Zhou5†
+                         1
+                           Southeast University, 2 China Medical University Shenyang,
+                        3
+                          University of Chinese Academy of Science, 4 Alibaba Cloud,
+             5
+               Center for Applied Statistics and School of Statistics, Renmin University of China
+                       zh1xuan@hotmail.com, jhsheng@cmu.edu.cn, feng.zhou@ruc.edu.cn
+
+
+
+                            Abstract                               of work that investigates discrete, spike like representations
+                                                                   as a pathway toward enriching the expressiveness of gen-
+Although artificial neural networks are often described as         erative models [2, 16, 30]. From this perspective, study-
+brain-inspired, their representations typically rely on con-       ing count-based representations is not only biologically in-
+tinuous activations, such as the continuous latent variables       spired but also methodologically valuable for expanding the
+in variational autoencoders (VAEs), which limits their bi-         modeling capacity of deep generative frameworks [15, 48].
+ological plausibility compared to the discrete spike-based            Among these frameworks, the variational autoencoder
+signaling in real neurons. Extensions like the Poisson             (VAE) [23] is a powerful generative model grounded in
+VAE introduce discrete count-based latents, but their equal        Bayesian inference that learns structured latent representa-
+mean-variance assumption fails to capture overdispersion           tions of data, and is often described as brain-inspired due
+in neural spikes, leading to less expressive and informative       to its similarity to how the brain encodes sensory informa-
+representations. To address this, we propose NegBio-VAE,           tion [31, 42, 45]. While VAEs have achieved broad success,
+a negative-binomial latent-variable model with a disper-           they typically employ continuous latent variables, in con-
+sion parameter for flexible spike count modeling. NegBio-          trast to the discrete spike counts encoded by the brain. To
+VAE preserves interpretability while improving representa-         bridge this gap, recent works have proposed extensions such
+tion quality and training feasibility via novel KL estima-         as categorical or Poisson VAEs [18, 46, 49], which intro-
+tion and reparameterization. Experiments on four datasets          duce discrete latent variables that not only offer greater bi-
+demonstrate that NegBio-VAE consistently achieves supe-            ological plausibility but also enhance the capacity to model
+rior reconstruction and generation performance compared            categorical or count structures in latent variables.
+to competing single-layer VAE baselines, and yields ro-               The main improvement presented in this paper builds on
+bust, informative latent representations for downstream            the Poisson VAE (P-VAE) [46], which encodes data as dis-
+tasks. Extensive ablation studies are performed to verify          crete spike counts drawn from a Poisson distribution. While
+the model’s robustness w.r.t. various components. Our              the Poisson model provides a natural starting point, it im-
+code is available at https://github.com/co234/                     poses a restrictive assumption: the mean and variance of
+NegBio-VAE.                                                        the discrete spike counts must be equal. In practice, how-
+                                                                   ever, neural spike trains often exhibit overdispersion, where
+                                                                   the variance of the spike counts significantly exceeds the
+1. Introduction                                                    mean [32, 41, 43]. This has been linked to neurobiological
+                                                                   sources such as trial-to-trial gain variability and network-
+Although artificial neural networks (ANNs) have histori-           level fluctuations [41]. While underdispersion can arise in
+cally been described as brain-inspired, their design choices       neurons with refractory periods [4], overdispersion is the
+are primarily driven by computational considerations rather        more prevalent and consequential deviation from Poisson
+than strict biological fidelity [1, 44]. A key distinction lies    statistics across cortical recordings [17, 40]. This coupling
+in how information is represented: while biological neu-           of the mean and variance limits the flexibility of the latent
+rons communicate through sequences of action potentials            space, leading to underestimated uncertainty and reduced
+(spike trains) [33], most machine learning models adopt            representational expressiveness.
+continuous activations. This contrast has motivated a line
+                                                                      To address this limitation, we adopt the negative bino-
+  * Equal contribution.                                            mial (NB) distribution [39], a two-parameter generalization
+  † Corresponding author.                                          of the Poisson distribution that introduces a dispersion pa-
+
+
+
+                                                              16289
+rameter, allowing the variance to exceed the mean. This           ploy Bernoulli [19, 37] or Poisson distributions [46, 52].
+flexibility allows modeling of overdispersed spike counts,        These methods have achieved significant success in speech
+enabling latent representations that better capture the het-      synthesis and image generation. The second category fo-
+erogeneous variability. Building on this idea, we pro-            cuses on VAEs for discrete data, such as text, categorical,
+pose NegBio-VAE (see Fig. 1), a principled extension of           or count data. These models reconstruct discrete data, mak-
+the VAE framework that preserves count-based representa-          ing them suitable for tasks like natural language process-
+tions while more accurately reflecting their statistical vari-    ing and structured prediction [35, 53]. While [53] uses the
+ability. While this formulation greatly enhances represen-        NB distribution to model count data while keeping the la-
+tational flexibility, it also introduces two challenges: (1)      tent variables continuous, our work extends NB modeling
+computing the KL divergence between NB distributions,             to discrete latent variables in a VAE.
+and (2) performing reparameterized sampling. We address
+both with efficient approximations that make NegBio-VAE           3. Preliminaries
+practically trainable. Empirically, NegBio-VAE demon-
+strates superior reconstruction quality, stronger generative      This section reviews VAE and P-VAE, first covering the
+performance, and more informative latent representations          standard VAE framework and then its adaptation to model
+for downstream tasks.                                             latent spike counts with a Poisson distribution.
+    Our main contributions are summarized as follows:
+                                                                  3.1. Variational Autoencoder
+(1) We propose NegBio-VAE, which introduces a disper-
+sion parameter to model overdispersed latent spike counts         VAE [22] is a probabilistic generative model defining a joint
+and improve the flexibility of latent representations. (2)        distribution p(x, z) over data x and latent variables z. Sam-
+We develop efficient training strategies with two KL es-          ples are generated by z → p(z) and decoded via pω (x | z),
+timators (Monte Carlo and Dispersion Sharing) and two             while inference uses an approximate posterior qε (z | x).
+differentiable reparameterizations (Gumbel–Softmax and            Model parameters are learned by maximizing the evidence
+Continuous-time Simulation) for stable optimization. (3)          lower bound (ELBO), a tractable surrogate of log p(x) that
+Experiments on four benchmark datasets show that NegBio-          balances reconstruction and latent regularization:
+VAE outperforms strong baselines in reconstruction and
+generation while learning more informative latent represen-          LVAE = Eqω (z|x) [log pω (x | z)] ↑ DKL [qε (z | x)||p(z)].
+tations for downstream tasks.
+                                                                  The first term enforces faithful reconstruction, while the
+2. Related Works                                                  second term regularizes the latent space. VAEs en-
+                                                                  able gradient-based optimization via the reparameteriza-
+Brain-like ANNs, emerging at the intersection of neuro-           tion trick [22], which introduces differentiable sampling be-
+science and machine learning, aim to mirror the brain’s           tween the encoder and decoder. Standard implementations
+functionality and structure. Related works can be catego-         assume an isotropic Gaussian prior p(z), simplifying com-
+rized into two types: spiking neural networks (SNNs) and          putation but limiting expressiveness.
+brain-like generative models. SNNs [6, 11, 15, 27, 54], like
+biological neurons, use discrete spikes for communication         3.2. Poisson VAE
+instead of continuous activations as in traditional ANNs. A       To better mimic biological neuron activity, the P-VAE [46]
+notable model is the leaky integrate-and-fire (LIF) model,        was proposed to model spike counts as discrete latent vari-
+which simulates the temporal dynamics of spike genera-            ables. Specifically, it uses the Poisson distribution to repre-
+tion. The second category includes generative models that         sent the spike counts of K neurons, with the latent variable
+learn data representations similar to how brain processes         z ↓ Z+K0 . The prior and variational posterior are defined
+sensory information. Key works in this area include brain-        as:
+like VAEs [19, 46, 51], GANs [12, 24, 38], and diffusion                          Prior: p(z) = Poi(z; r),
+models [5, 20, 28]. Our work extends the P-VAE [46] by
+                                                                           Posterior:    q(z | x) = Poi(z; r ↔ ω r (x)),
+incorporating a NB distribution to better capture overdisper-
+sion in latent spike counts, enabling richer and more flexible    where both the prior Poisson !Kand the posterior Poisson are
+variability in the latent representations.                        factorized, i.e., Poi(z) = i=1 Poi(zi ). Here, r ↓ R+K
+   Discrete VAEs are typically categorized into two types:        denotes the prior firing rates, and r ↔ ω r (x) gives the poste-
+discrete representations and discrete data. In VAEs with          rior firing rates, with ↔ denoting element-wise multiplica-
+discrete representations, the variables capture the underly-      tion. The encoder output ω r (x) ↓ R+K modulates the ratio
+ing discrete structure of the data. Most current works on         of posterior to prior firing rates based on the input. In con-
+discrete-representation VAEs use categorical distributions        trast to standard VAEs where latent variables are continuous
+for the latent variables [10, 14, 18, 49]. Other works em-        and typically drawn from a Gaussian, the P-VAE models z
+
+
+
+                                                             16290
+                                             Discrete Dist. of Neural Spikes
+                                   !!(#)
+                                                                                                        +
+                                                                                   Gumbel-Softmax
+                                                                        ...
+                                                   1    2   3   4   5              Continuous-Time
+       !!                                                                                                                           "!
+                                                                                                                                    !
+                       Encoder     !"(#)      Negative Binomial Dist.             Reparameterized              Decoder
+  (input image)                                                                                                                (recon image)
+                                              %& '⨀!!(#), *⨀!"(#)                    Sampling
+
+
+
+Figure 1. Overview of the proposed NegBio-VAE framework. The data are encoded as discrete spike counts drawn from a negative
+binomial distribution, whose variance exceeds the mean, enabling the model to capture overdispersed latent structures.
+
+
+as a vector of discrete spike counts, which better resembles                  (2) The first term in Eq. (2) requires reparameterized sam-
+neural firing behavior. The objective of P-VAE is given by:                   pling from the NB distribution. We address each of these
+                                                                              issues in the following sections.
+                                                K
+                                                "
+ LP-VAE = EPoi(z;r→ωr (x)) [log pω (x | z)] +         ri g(ωri ),             4.1. KL Divergence between NB Distributions
+                                                i=1                           In both vanilla VAE and P-VAE, the KL term is tractable
+                                                      (1)
+                                                                              due to closed-form solutions for Gaussian and Poisson dis-
+where g(a) = 1 ↑ a + a log a corresponds to the KL diver-
+                                                                              tributions. However, no such form exists for the KL di-
+gence between two Poisson distributions.
+                                                                              vergence between two NB distributions, which poses the
+                                                                              first challenge for training NegBio-VAE. To address this,
+4. Methodology                                                                we propose two strategies: a Monte Carlo method for di-
+A key limitation of the Poisson distribution is its restrictive               rect approximation, and a dispersion sharing technique
+assumption that the mean and variance of spike counts are                     that simplifies the KL divergence by partially tying poste-
+equal. This assumption fails to capture the overdispersion                    rior parameters to the prior.
+frequently observed in neural spike train. To address this,                       (1) Monte Carlo. Optimizing the ELBO for NegBio-
+we propose the NegBio-VAE, which applies a more flexi-                        VAE is challenging due to the lack of an analytical form
+ble NB distribution. As a two-parameter generalization of                     for the KL divergence between two NB distributions, pre-
+the Poisson, the NB distribution introduces a dispersion pa-                  venting direct computation of the KL term. We address
+rameter that allows the variance to exceed the mean. This                     this using Monte Carlo estimation. Specifically, using
+makes it more suitable for modeling overdispersed spike                       DKL[q(z)||p(z)] = Eq(z) [log q(z) ↑ log p(z)], the KL di-
+counts. The NB distribution has been widely applied in                        vergence is approximated by sampling from the variational
+various fields, such as spiking neuron models [34], RNA                       posterior and averaging the log-density difference between
+sequence analysis [9], and language modeling [55].                            posterior and prior.
+    We begin by defining the prior and posterior distributions                    Substituting this expression into the ELBO in Eq. (2) we
+over the latent spike counts z ↓ Z+K  as p(z) = NB(z; r, p)                   obtain the following objective:
+                                   0
+and q(z | x) = NB(z; r ↔ ω r (x), p ↔ ω p (x)), respectively.                   L = ENB(z;r→ωr (x),p→ωp (x)) [log pω (x | z)
+Similar to P-VAE, both the prior and!Kposterior NB distribu-
+tion are factorized, i.e., NB(z) = i=1 NB(zi ), ω r (x) and                       ↑ log NB(z; r ↔ ω r (x), p ↔ ω p (x)) + log NB(z; r, p)].
+ω p (x) are outputs of the encoder, which captures the ratio                  Clearly, as long as we can implement reparameterized sam-
+of the posterior parameters to the prior parameters. With                     pling from the NB distribution, we can use the above objec-
+this setup, the ELBO of NegBio-VAE becomes:                                   tive function to train NegBio-VAE.
+                                                                                 (2) Dispersion Sharing. Although the KL divergence
+  L = ENB(z;r→ωr (x),p→ωp (x)) [log pω (x | z)]                               between two general NB distributions, NB(z; r1 , p1 ) and
+     ↑ DKL [NB(z; r ↔ ω r (x), p ↔ ω p (x))||NB(z; r, p)].                    NB(z; r2 , p2 ), does not have an analytical solution, a
+                                                            (2)               tractable analytical form exists when the dispersion param-
+While this formulation enables greater flexibility, it also in-               eters are shared, i.e., r1 = r2 = r.
+troduces two key technical challenges during the training of                     Based on this observation, we propose an alternative
+NegBio-VAE: (1) The second term in Eq. (2) requires cal-                      strategy for computing the KL term in the NegBio-VAE
+culating the KL divergence between two NB distributions;                      by constraining the prior NB(z; r, p) and the posterior
+
+
+
+                                                                        16291
+

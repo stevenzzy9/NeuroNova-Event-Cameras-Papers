@@ -1,0 +1,221 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+        Spk2VidNet: A Hierarchical Recurrent Architecture for High-Fidelity
+             Video Reconstruction from Long Spike-Camera Streams
+
+ Yuanlin Wang1 , Ruiqin Xiong1 *, Jiyu Xie2 , Zhenkun Zhu1 , Zhaofei Yu1 , Xiaopeng Fan3 , Tiejun Huang1
+                    1
+                      State Key Laboratory of Multimedia Information Processing,
+                            School of Computer Science, Peking University
+                            2
+                              Shanghai Radio Equipment Research Institute
+            3
+              School of Computer Science and Technology, Harbin Institute of Technology
+                                           {wangyuanlin,zkzhu}@stu.pku.edu.cn
+          {rqxiong, yuzf12, tjhuang}@pku.edu.cn                  xjy646@mail.ustc.edu.cn                        fxp@hit.edu.cn
+
+
+
+                            Abstract                                           Spk2VidNet
+                                                                                 (Ours)
+                                                                                                          SCSRNet
+                                                                                                          (TIP2025)
+Spike camera is a neuromorphic vision sensor with ultra-
+                                                                                                                      Spk2SRImgNet
+high temporal resolution, capable of capturing fast-moving                                                             (CVPR2025)
+                                                                                                                                       SpikeSR-Net
+                                                                                                                                       (AAAI2023)
+scenes by firing a stream of binary spikes. However, its rel-
+atively low spatial resolution limits the acquisition of fine-
+grained visual details, motivating research on spike camera
+super resolution (SCSR). Existing SCSR methods typically                             # Params (M)                                      VidarSR
+                                                                                                                                     (TCSVT2023)
+operate on fixed-length spike sequences, where the accessi-
+ble information is restricted to a local temporal neighbor-
+hood. Moreover, spike fluctuations hinder reliable intensity                    3M       6M         12M
+
+
+extraction. Both factors affect the performance of SCSR.
+To address these issues, we propose a hierarchical recur-
+rent network named Spk2VidNet to reconstruct high-fidelity         Figure 1. Model comparison of PSNR (×4), runtime, and model
+high resolution image sequences from low resolution spike          size. Our model achieves favorable results in terms of accuracy
+data. To mitigate fluctuations, Spk2VidNet progressively ex-       and efficiency.
+ploits temporal correlations within spike stream to enhance
+                                                                   tonomous driving [6, 8]. Conventional frame-based camera
+feature representation by hierarchically enlarging temporal
+                                                                   records light intensity by accumulating incoming photons
+receptive fields. Within the recurrent block, we introduce
+                                                                   over a fixed exposure time, but it often suffers from motion
+an alignment module that leverages the motion consistency
+                                                                   blur when capturing dynamic scenes.
+among multiple frames to jointly estimate and mutually re-
+                                                                      In recent years, spike camera has emerged as an inno-
+fine inter-frame motions, achieving more accurate tempo-
+                                                                   vative vision sensor. It mimics the working mechanism
+ral alignment. In addition, we develop a fusion module to
+                                                                   of biological retina and records intensity information with
+adaptively integrate neighboring aligned features based on
+                                                                   ultra-high temporal resolution (e.g., 40,000Hz), demon-
+multi-scale similarity for robust feature aggregation. We
+                                                                   strating great potential for high-speed vision tasks. Specif-
+further propose a segment-wise training with state transfer
+                                                                   ically, each pixel of spike camera independently and con-
+strategy to efficiently model long-term dependencies with
+                                                                   tinuously accumulates photons, and generates spikes when-
+limited GPU memory. Experiments on synthetic and real-
+                                                                   ever a predefined threshold is reached. Unlike event cam-
+captured spike data demonstrate that Spk2VidNet achieves
+                                                                   era [1, 9, 11, 15, 16, 20, 21] that capture relative changes
+state-of-the-art performance.
+                                                                   of light intensity, the “accumulation-and-fire” principle of
+1. Introduction                                                    spike camera enables it to record absolute light intensities
+                                                                   over time with fine granularity. By firing a stream of bi-
+High-speed imaging has attracted growing interest with the
+                                                                   nary spikes, spike cameras capture comprehensive intensity
+emergence of applications such as robotics [7, 18] and au-
+                                                                   information of the visual scene.
+  * Corresponding author.                                             One limitation of spike camera lies in its relatively low
+
+
+
+                                                             12140
+spatial resolution, which affects its applicability in sce-          trained on each segment sequentially. For segments from
+narios that demand fine-grained visual details. To ad-               the same spike sequence, the last several states from the
+dress this issue, spike camera super resolution (SCSR)               preceding segment are detached and transferred to the sub-
+[30, 31, 33, 38, 41] has emerged as an active research topic,        sequent segment, enabling Spk2VidNet to model long-term
+aiming to reconstruct high resolution (HR) images from low           dependencies while maintaining controlled memory con-
+resolution (LR) binary spike data. Benefiting from its ex-           sumption. This strategy enables Spk2VidNet to handle ar-
+tremely high temporal resolution, spike camera generate a            bitrarily long spike sequences. Experiments on both syn-
+large number of spike frames within a short period (e.g.,            thetic and real-captured spike data show that the proposed
+40,000 frames per second). However, existing SCSR meth-              model achieves state-of-the-art performance and delivers
+ods typically operate on a short, fixed-length segment (e.g.,        high-quality super resolution results.
+101 frames [30]) of spike sequence, where only limited tem-
+poral information within a local neighborhood can be ac-             2. Related Work
+cessed. Besides, due to the randomness of photon arrivals,
+quantization effect from spike readout, and thermal noise        Video Super Resolution. Video super resolution aims
+from electronic circuits, spike signals suffer from fluctua-     to reconstruct high resolution images from low resolution
+tions that hinder reliable intensity extraction. These issues    input by leveraging temporal complementary information
+collectively affect the performance of SCSR.                     across frames [2–4, 12, 13, 17, 23, 26–28]. A major line
+                                                                 of research focuses on aligning adjacent frames with the
+    To address these challenges, we propose a hierarchical       reference frame to reconstruct a single HR output, where
+recurrent network termed Spk2VidNet to reconstruct high          the alignment module plays a crucial role. Earlier meth-
+resolution image sequences from long spike streams. To           ods [2, 17, 26] explicitly estimate optical flow to perform
+mitigate fluctuations, Spk2VidNet gradually exploits tem-        frame alignment. More recent developments have shifted
+poral correlations within spike streams by hierarchically en-    towards implicit alignment in feature domain, where tech-
+larging temporal receptive fields, enabling progressive re-      niques such as dynamic filtering [13], deformable convo-
+finement of feature representations. Specifically, consid-       lutions [27, 28], and attention mechanisms [12, 23] have
+ering short-term temporal correlations, we first extract an      been explored for motion compensation. Another category
+initial intensity representation for each time point from its    of approaches applies recurrent neural networks to exploit
+temporally neighboring spike signals. Then, we perform           long-term temporal dependencies across multiple frames.
+propagation by aligning and aggregating nearby temporal          FRVSR [22] uses the previous SR frame to recover the sub-
+features to improve representation. Building upon this, we       sequent frame. RBPN [10] generates the frames through an
+further enlarge the temporal receptive field via temporal di-    iterative refinement process. BasicVSR [3] introduces bidi-
+lation and conduct a second-layer propagation, enabling the      rectional recurrent states, which is later extended by Ba-
+network to capture richer and more reliable temporal depen-      sicVSR++ [4] with second-order grid propagation for en-
+dencies and thereby further enhance feature representation.      hanced performance.
+    Within the recurrent propagation block, we introduce a       Spike Camera Image Reconstruction. Spike camera
+multi-frame consistency guided alignment (MFCA) mod-             image reconstruction aims to reconstruct intensity images
+ule, which leverages the motion consistency captured by          from binary spike streams [5, 29, 35, 36, 39, 40, 42, 43, 45].
+spike stream with ultra-high temporal resolution. MFCA           Earlier approaches primarily leverage the temporal statis-
+jointly estimates and mutually refines the motion among          tical properties of spike stream for reconstruction. Zhu et
+multiple frames, facilitating more accurate motion esti-         al. [45] recover the intensity simply by counting the num-
+mation and temporal alignment. Besides, we propose a             ber of spikes within a temporal window or deducing from
+content-aware modulation fusion (CMF) module that adap-          the interval between adjacent spikes. Zhao et al. [40] pro-
+tively aggregates neighboring aligned features based on          pose a hierarchical filtering framework that leverages both
+multi-scale similarity, enabling effective integration of cor-   short- and long-range temporal correlations. Deep learn-
+related information while suppressing misaligned signals.        ing approaches have made notable progress in this domain.
+    Leveraging its recurrent architecture, Spk2VidNet se-        Spk2ImgNet [39] marked the first convolutional architec-
+quentially propagates information along the temporal di-         ture specifically tailored for spike inputs and demonstrates
+mension to model long-term dependencies, exploiting rich         impressive performance. Subsequently, WGSE [36] incor-
+intensity cues in long spike sequences for improved SR re-       porates wavelet-based representation into CNN pipelines.
+construction. However, training directly on long spike se-       BSF [43] designs a multi-granularity alignment method to
+quences is infeasible due to limited GPU memory. To ad-          enhance reconstruction quality. More recently, STIR [5]
+dress this, we propose a segment-wise training with state        proposes a spatio-temporal interactive reconstruction net-
+transfer strategy. Specifically, the long spike sequence is      work with low complexity.
+divided into multiple shorter segments, and Spk2VidNet is        Spike Camera Super Resolution. Spike camera super res-
+
+
+
+                                                             12141
+                                                                                                                                                                                                                                                                                                                       (a)                                                                                                                                                 (c)
+                                                                                                                                                                                                                                                                                                                             Dynamic        Spike
+                                                                                                                                                                                                                                                                                                                              Scene        Camera
+
+                                                                                                                                                                                                                                                                                                                                                                                                      SCSR
+                                                                                                                                                                                                                                                                                                                                                                                                                                      HR
+                                                                                                                                                                                                                                                                                                                                                                          Binary Spike Stream                                       Images
+                                                                                                                                                                                                                                                                                                                                       One Pixel In Spike Camera                                                Clock       Light Intensity
+                                                                                                                                                                                                                                                                                                                        Photons from                                                                  Enable                Threshold
+                                                                                                                                                                                                                                                                                                                                                              Reset
+                                                                                                                                                                                                                                                                                                                           Scene                                                                                            Accumulation
+                                                                                                                                                                                                                                                                                                                                           Photon                                  Spike Flag    Readout
+                                                                                                                                                                                                                                                                                                                                          Receptor
+                                                                                                                                                                                                                                                                                                                                                        Integrator    Comparator
+                                                                                                                                                                                                                                                                                                                                                                                      0/1         Circuit
+                                                                                                                                                                                                                                                                                                                                                                                                                0 0 1 ...   Reset
+                                                                                                                                                                                                                                                                                                                                                                                                                            Readout Time
+
+                                                                                                                                                                                                                                                                                                                       (b)                                                                                                  Spike
+                                                                                                                                                                                                                                                                                                                                                                                                                                              000000010000100101010010
+
+
+                                                                                                                                                                                                                                                                                                                      Figure 2. (a) Spike camera super resolution (SCSR). (b) Working mechanism of spike camera. (c) The relationship between light intensity
+                                                                                                                                                                                                                                                                                                                      I(x, t), the voltage A(x, t) accumulated by the integrator, and the spike sequence {S(x, u)}N
+                                                                                                                                                                                                                                                                                                                                                                                                                  u=1 output by pixel x.
+
+                                                                                                                                                                                                                                                                                                                      olution (SCSR) focuses on generating high resolution im-                                 rate. The readout circuit, driven by a clock signal with pe-
+                                                                                                                                                                                                                                                                                                                      ages from low resolution binary spike frames. MGSR [38]                                  riod δ, periodically checks the spike flag and outputs binary
+                                                                                                                                                                                                                                                                                                                      models the relationship between light intensities and each                               data at timestamps δ, 2δ, 3δ, .... When detecting a spike flag,
+                                                                                                                                                                                                                                                                                                                      spike cycle based on motion information and formulates an                                the circuit outputs “1”, otherwise, it outputs “0”. The out-
+                                                                                                                                                                                                                                                                                                                      optimization objective, which is solved via gradient descent                             put of spike camera is a 3D binary spike matrix {S(u)}N    u=1
+                                                                                                                                                                                                                                                                                                                      to generate HR images. VidarSR [33] proposes an end-                                     with size H ×W ×N , where N denotes the temporal length.
+                                                                                                                                                                                                                                                                                                                      to-end network that exploits multi-level feature learning                                S(u) ∈ {0, 1}H×W denotes the spike frame at time u, and
+                                                                                                                                                                                                                                                                                                                      mechanism for SCSR. Zhao et al.[41] introduce SpikeSR-                                   S(x, u) ∈ {0, 1} denotes the spike value at coordinate x
+                                                                                                                                                                                                                                                                                                                      Net, an optimization-inspired network with iterative archi-                              and time u. The above accumulation-and-fire cycle is illus-
+                                                                                                                                                                                                                                                                                                                      tecture. Wang et al. [31] present Spk2SRImgNet, which                                    trated in Fig. 2(c).
+                                                                                                                                                                                                                                                                                                                      leverages temporal similarity to mitigate disturbances in the                            Basic Light Intensity Inference. Based on the working
+                                                                                                                                                                                                                                                                                                                      transform domain for robust spike representation. SCSRNet                                principle of spike camera, a single spike does not convey
+                                                                                                                                                                                                                                                                                                                      [30] designs a multi-frame sequential alignment module to                                the light intensity. Rather, it indicates the arrival of a cer-
+                                                                                                                                                                                                                                                                                                                      enhance temporal alignment accuracy and recover finer spa-                               tain amount of photons. The stronger the light intensity, the
+                                                                                                                                                                                                                                                                                                                      tial details. While these methods have demonstrated no-                                  shorter the time needed to accumulate to a fixed threshold;
+                                                                                                                                                                                                                                                                                                                      table progress, they typically operate on fixed-length spike                             conversely, weaker light intensity corresponds to a longer
+                                                                                                                                                                                                                                                                                                                      sequences, where the accessible temporal information is re-                              accumulation cycle. TFI (Texture from Interval) [45] infers
+                                                                                                                                                                                                                                                                                                                      stricted to a local neighborhood, thereby limiting SCSR per-                             instantaneous light intensity based on this property. TFI first
+                                                                                                                                                                                                                                                                                                                      formance.                                                                                derives the interval between two temporally adjacent spikes
+                                                                                                                                                                                                                                                                                                                                                                                                               that cover the spatiotemporal point (x, u) by:
+                                                                                                                                                                                                                                                                                                                      3. Spike Camera
+                                                                                                                                                                                                                                                                                                                      Working Mechanism. Spike camera contains a pixel ar-                                                                                                (2)
+                                                                                                                                                                                                                                                                                                                      ray of size H × W . Each pixel independently and con-
+                                                                                                                                                                                                                                                                                                                      tinuously accumulates photons from the scene and outputs
+                                                                                                                                                                                                                                                                                                                                                                                                               Then, TFI infers the light intensity of pixel x at time u by:
+                                                                                                                                                                                                                                                                                                                      spikes to indicate the arrival of a certain amount of pho-
+                                                                                                                                                                                                                                                                                                                      tons. As shown in Fig. 2(a), (b), each pixel consists of three
+                                                                                                                                                                                                                                                                                                                      components. The photoreceptor continuously receives pho-                                                                                            (3)
+                                                                                                                                                                                                                                                                                                                      tons and converts them into electric charges through photo-
+                                                                                                                                                                                                                                                                                                                      electric conversion. The integrator accumulates the electric                             where γ denotes the maximum dynamic range of recon-
+                                                                                                                                                                                                                                                                                                                      charges, while the comparator checks whether the voltage                                 struction.
+                                                                                                                                                                                                                                                                                                                      exceeds a predefined threshold θ. When the accumulated
+                                                                                                                                                                                                                                                                                                                      voltage exceeds θ, the pixel sets up a spike flag and releases                           4. Method
+                                                                                                                                                                                                                                                                                                                      the charges in the integrator, starting a new accumulation
+                                                                                                                                                                                                                                                                                                                      cycle. The voltage accumulated by the integrator at pixel x                              4.1. Overall Framework of Spk2VidNet
+                                                                                                                                                                                                                                                                                                                      at an arbitrary time t can be formulated as [40]:                                        In this paper, we develop an end-to-end trainable hierarchi-
+                                                                                                                                                                                                                                                                                                                                                                                                               cal recurrent spike camera super resolution network named
+                                                                                                                                                                                                                                                                                                                                                                                                (1)            Spk2VidNet, as illustrated in Fig. 3, to reconstruct high res-
+                                                                                                                                                                                                                                                                                                                                                                                                                                             N −1
+                                                                                                                                                                                                                                                                                                                                                                                                               olution image sequences {Ii }i=0    from a long spike stream
+                                                                                                                                                                                                                                                                                                                                                                                                                       tN −1 +w     H×W ×L
+                                                                                                                                                                                                                                                                                                                      where I(x, u) denotes the arrival rate of photons received                               {S(u)}u=t0 −w ∈ B            . Here, Ii ∈ RrH×rW ×1 rep-
+                                                                                                                                                                                                                                                                                                                      by pixel x at time u, η denotes photoelectric conversion                                 resents the reconstructed HR image at time ti , B denotes
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                   12142
+                                                                                                                                                                 \begin {aligned} \Lambda (\mathbf {x},u) &= \min \{k\mid S(\mathbf {x},k)=1,k\geq u\} - \\ &\max \{k\mid S(\mathbf {x},k)=1,k<u\}. \end {aligned} 
+                                                                                I(\mathbf {x},u) = \frac {\gamma }{\Lambda (\mathbf {x},u)}, \label {IR_eq} 
+  A(\mathbf {x},t)=\int _0^t{\eta I(\mathbf {x},u)}du \quad \bmod \theta , 
+

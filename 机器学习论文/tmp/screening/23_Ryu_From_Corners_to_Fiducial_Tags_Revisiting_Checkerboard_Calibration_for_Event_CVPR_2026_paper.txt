@@ -1,0 +1,206 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                                 From Corners to Fiducial Tags:
+                     Revisiting Checkerboard Calibration for Event Cameras
+
+                                 Taehun Ryu, Changwoo Kang, and Kyungdon Joo*
+                                                   UNIST
+                                  {taehunryu,kangchangwoo,kyungdon}@unist.ac.kr
+
+
+
+                            Abstract
+
+The conventional checkerboard-based calibration for stan-
+dard cameras faces fundamental limitations when applied
+to bio-inspired event cameras. Specifically, this stems from
+two challenges: (i) Events are triggered asynchronously at
+different timestamps along motion trajectories. If we accu-
+mulate them directly on the image plane, it causes tempo-              Camera motion      Raw event stream       Fiducial points
+ral misalignment and produces blurred edges. (ii) Checker-
+board corners on event cameras show near-zero event oc-            Figure 1. Illustration of proposed pattern detection. We utilize
+                                                                   checkerboard patterns and AprilTag [46] to directly detect corners
+currence at the corner itself. This hinders reliable cor-
+                                                                   from an event stream (left). Our method can extract the corners of
+ner localization and makes calibration difficult. To ad-           the checkerboard and the distinct fiducial (right).
+dress these issues, we present a novel calibration framework
+that directly detects checkerboard corners from event data             As the demand for such applications increases, calibra-
+without learning-based grayscale image reconstruction. We          tion of event cameras becomes crucial for reliable vision
+first mathematically analyze the absence of events at corner       systems as a process of estimating camera parameters. For
+points. Based on this fact, we then leverage edge-driven           frame-based cameras, the camera parameters are typically
+event cues to initialize corner positions. Using the near-         determined by minimizing the reprojection error between
+zero event occurrence at checkerboard corners, we grad-            2D fiducial points detected from images and their corre-
+ually refine the estimated corner toward low event-density         sponding 3D points pre-defined on the calibration target.
+regions, achieving sub-pixel accuracy. Furthermore, we ex-         Various pre-defined patterns (e.g., checkerboard [7], circu-
+tend the corner detection to fiducial markers such as April-       lar grid [22]) have been developed to provide such easily
+Tag, resulting in reliable detection even under partial visi-      observable fiducial points for accurate calibration. Among
+bility or occlusion. Evaluations on self-collected and pub-        them, the checkerboard pattern is the most common and
+lic data demonstrate reliable checkerboard corner detec-           reliable calibration target [3, 4]. Specifically, the fiducial
+tion and stable camera calibration. Additional information         points of the checkerboard are the corners of black-and-
+is available at the following link: https://vision3d-              white squares, which are defined by the intersections of two
+lab.github.io/corner2tag/.                                         edges. These characteristics maintain geometrically well-
+                                                                   defined under perspective projection or lens distortion.
+1. Introduction                                                        However, the checkerboard pattern remains unexplored
+The event camera, a neuromorphic vision sensor, has at-            for event cameras, as it cannot be directly applied to a raw
+tracted widespread attention for its robustness to motion          event stream. This is because event cameras do not preserve
+blur and low-light conditions compared to conventional             the image structure. Instead, they record relative bright-
+cameras [13, 24]. Consequently, event-based vision has             ness changes asynchronously at each pixel as binary val-
+shown significant effectiveness in diverse computer vision         ues. For this reason, some methods utilize learning-based
+and robotics domains such as 3D scanning [33], robotic             reconstruction to convert a raw event stream into grayscale
+manufacturing [1], high-speed object detection and track-          images, and then apply frame-based calibration to the re-
+ing [17, 31, 34, 50], and autonomous navigation [8, 44].           constructed grayscale images [18, 35]. However, artifacts of
+                                                                   reconstructed images inherently constrain calibration preci-
+  * Corresponding author.                                          sion. Some methods utilize blinking LED boards to directly
+
+
+
+                                                             29557
+process a raw event stream [19, 40]. They generally yield            alizes to fiducial markers (e.g., AprilTag [46]), ensuring
+accurate calibration results, but they demand high hardware          robust detection under partial visibility.
+requirements and rely on dedicated procedures. Other ap-
+proaches employ circle-grid patterns for event-based cali-       2. Related Work
+bration [6, 23, 41]. They exhibit motion-invariant charac-
+                                                                 Camera calibration process can be divided into two steps:
+teristics and achieve robust detection performance, yet their
+                                                                 Pattern detection and camera parameter optimization [48].
+design inherits the drawback of circular patterns, which are
+                                                                 Pattern detection aims to identify accurate fiducial points
+sensitive to lens distortion [43]. Compared to the above
+                                                                 that serve as 2D-3D correspondences from predefined cal-
+approaches, the checkerboard pattern provides geometri-
+                                                                 ibration targets. Camera parameter optimization then esti-
+cally consistent and precisely localized corners, ensuring
+                                                                 mates the intrinsic and extrinsic parameters of cameras by
+high calibration performance. It also holds strong poten-
+                                                                 solving an optimization problem based on these correspon-
+tial for extension to ID-based markers such as ARTag [9],
+                                                                 dences. In this section, we mainly deal with pattern detec-
+and AprilTag [36, 46], as they share a similar corner-based
+                                                                 tion for both frame-based and event cameras. Please refer
+detection principle.
+                                                                 to other frameworks [3, 4, 10] for details of the optimization
+    In this work, we advocate the revisit of the standard        process.
+checkerboard pattern using event cameras to preserve its
+proven accuracy and its extensibility to fiducial mark-          Pattern Detection for Frame-Based Cameras. As fidu-
+ers (see Fig. 1). However, this approach faces two key chal-     cial points directly provide 2D-3D correspondences, vari-
+lenges. First, due to the asynchronous characteristic of each    ous calibration targets have been proposed [4, 7, 22, 46].
+event, stacking them into a single image produces blurred        Among them, the checkerboard pattern [3, 4, 7, 29] serves
+edges [11]. Second, events are not triggered at checker-         as the standard for high-precision calibration due to its ge-
+board corners due to their locally symmetric intensity pat-      ometrically well-defined and densely distributed corners,
+tern, which limits reliable corner detection.                    which enable robust and sub-pixel localization even un-
+    To resolve these, we propose the first event camera cal-     der perspective transformation or lens distortion. Build-
+ibration framework that directly detects checkerboard cor-       ing upon this concept, ARTag [9], AprilTag [36, 46], and
+ners from event representation without grayscale image re-       ArUco marker [14] encode unique marker IDs to ensure
+construction (see Fig. 2). We create an Image of Warped          reliable detection under partial observations. Accordingly,
+Events (IWE) to temporally align asynchronous events.            the checkerboard remains the most widely adopted target in
+This process produces a sharp, static representation, which      frameworks such as OpenCV [4]. In parallel, other primi-
+is essential for precise corner detection. Then, we provide a    tives such as circular features or dots are used for calibration
+mathematical analysis of Event Rate (ER) at checkerboard         targets [22, 26, 27]. They use centroids of circular shapes as
+corners. This analysis confirms that events are theoreti-        fiducial points. They exhibit rotational invariance but suffer
+cally absent at the exact corner intersections. Grounded         from degraded localization accuracy under nonlinear trans-
+in this analysis, our method first initializes corners using     formations such as lens distortion [28, 43].
+strong edge cues, instead of finding corners directly. We            In this work, our objective is to apply the well-validated
+then refine the initial corners by moving them toward the        checkerboard pattern to event cameras while leveraging its
+point of minimum event density to achieve sub-pixel accu-        proven calibration accuracy and structural extensibility to
+racy. These accurate corner estimates are then utilized to       ID-coded fiducial systems [9, 14, 36, 46].
+optimize the camera parameters. Furthermore, we demon-
+strate that our framework extends to fiducial markers, such      Pattern Detection for Event Cameras. Conventional
+as AprilTag [46]. This enables reliable tag identification       pattern detection approaches are not directly applicable to
+even under partial visibility.                                   event-based data due to its frameless and binary-valued na-
+    Our main contributions are summarized as follows:            ture [45]. As a straightforward approach, active-target (e.g.,
+• Event-based checkerboard calibration: We present the           LCD or blinking LED) and wand are initially adopted for
+   first calibration framework using detected checkerboard       event cameras [5, 19, 20, 40, 47]. Their design is well-
+   corners without grayscale image reconstruction.               tailored to the triggering mechanism of events, making them
+• Mathematical analysis of corner events: We analyze             intuitive and accurate. However, these approaches require
+   the absence of events at corner intersections, which we       specialized hardware and corresponding methodologies.
+   then exploit for corner initialization and refinement.            In the other directions, several studies attempt to detect
+• Analysis-based corner localization: Based on our anal-         circular or circle-grid patterns directly from a raw event
+   ysis of corner events, we initialize the corners and refine   stream [6, 23, 41]. These patterns offer robustness, as events
+   them to achieve sub-pixel accuracy.                           are generated along every edge regardless of motion direc-
+• Extension to fiducial markers: Our framework gener-            tion. In these approaches, events are typically clustered and
+
+
+
+                                                             29558
+modeled by fitting cylindrical or elliptical shapes to a raw                Raw Event Stream               Pattern Detection
+event stream. They share the drawback of high sensitivity
+                                                                                                            Patch Extraction
+to lens distortion with circular patterns, with the cylindrical
+fitting making precise localization even more difficult.                                                  Corner Initialization
+    With the recent advances in learning-based approaches,
+some methods [18, 35] leverage the event-to-video recon-                  Event Representation             Corner Refinement
+struction network [39] to convert a raw event stream into                    Events Warping
+grayscale images and apply the Harris corner detector [21]                                                Intrinsic Optimization
+to identify fiducial points. However, event-to-video recon-                Events Accumulation
+struction introduces artifacts [49], which may degrade the                                                 Camera Parameters
+accuracy of subsequent corner localization. These limita-                    IWE       pIWE                         ,
+tions motivate direct detection of fiducial points from event-
+domain representations rather than reconstructed images.
+                                                                   Figure 2. Overview of the proposed calibration pipeline. The
+    In this work, we detect fiducial points directly from
+                                                                   framework converts a raw event stream into both IWE and pIWE,
+event representation, specifically IWE [12], rather than re-       which are representations well-suited for extracting corner points.
+lying on imprecise reconstruction. To this end, we analyze         These representations are then used by the pattern detection mod-
+event generation at corner points and propose a calibration        ule, which feeds the detected corners into the intrinsic optimiza-
+pipeline specialized to event characteristics.                     tion process to estimate the final camera parameters K, d.
+
+3. Method                                                          the checkerboard corner, using the intensity model of the
+                                                                   checkerboard corner in frame-based cameras [29] and the
+3.1. Overview                                                      event generation rate formulation [32]. Details of the anal-
+We investigate the event camera calibration directly in the        ysis are described in the supplementary material.
+event domain, without relying on grayscale image recon-
+                                                                   Intensity Model on Checkerboard Corner. In frame-
+struction. Calibrating event cameras with a checkerboard
+                                                                   based cameras, the ideal intensity distribution of the
+is challenging due to asynchronous event generation, which
+                                                                   checkerboard corner can be defined with a step function ρ(·)
+leads to blurred edges when events are accumulated [11].
+                                                                   as [29]:
+In addition, the absence of events at the corner intersection                                         (
+makes corner detection difficult.                                     ˆ                                +1 if x > 0,
+                                                                      I(x)  = ρ(n⊤       ⊤
+                                                                                 1 x)ρ(n2 x), ρ(x)=                         (1)
+    To address these, we propose an event camera calibration                                           −1 otherwise,
+pipeline using a checkerboard pattern (see Fig. 2). We take
+as input a raw event stream E = {ek }N                             where ni denotes unit normals to checkerboard edges. Us-
+                                        k=1 , where each event
+ek = (xk , tk , pk ) consists of the pixel location xk , times-    ing this definition, Krüger et al. [29] define the intensity
+tamp tk , and polarity pk (−1 or +1). Then, we convert a raw       model of the checkerboard corner I˜ by replacing the step
+event stream into an IWE [12] via events warping and events        function ρ(·) with a centered sigmoid smoothed by a Gaus-
+accumulation process to obtain sharper edges (Sec. 3.3).           sian filter of width σ:
+Given IWE, we initialize checkerboard corners by leverag-
+                                                                                   ˜
+                                                                                   I(x) ≈ S(n⊤         ⊤
+ing reliable edge cues, and then refine them toward the lo-                                  1 x, σ)S(n2 x, σ),                    (2)
+cal minimum of event density to obtain sub-pixel accuracy.
+                                                                   where S(x, σ) = 2/(1+e−x/σ )−1 is a centered sigmoid.
+Both steps are motivated by our analysis in Sec. 3.2, which
+                                                                   In this model, the ideal checkerboard corner is located
+shows that events are stably generated along edges while
+                                                                   x = 0. Note that since construction S(x, σ) ∈ (−1, 1),
+vanishing at the corner. The refined corners are fed into the      ˜
+                                                                   I(x)  ∈ [−1, 1] represents the idealized contrast pattern of
+batch optimization process to estimate the camera parame-
+                                                                   the checkerboard, rather than the actual brightness observed
+ters K, d (Sec. 3.4). Moreover, we show that our framework
+                                                                   by the camera.
+generalizes to other fiducial markers, such as AprilTag [46],
+allowing for robust tag identification even under partial oc-      Event Generation Rate. Based on the event-triggering
+clusion (Sec. 3.5).                                                mechanism, an event is generated whenever the change
+                                                                   in logarithmic intensity at a pixel exceeds a fixed con-
+3.2. Event Rate on Checkerboard Corner
+                                                                   trast threshold C [13]. This implies that, at a given loca-
+Understanding how events are generated around an ideal             tion, faster or larger brightness variations result in a greater
+checkerboard corner helps to explain the underlying char-          number of events accumulated within a fixed time win-
+acteristics of event data and to design more robust detection      dow. Thus, Event Rate (ER) can be defined as the number
+methods. Here, we analyze that events are not triggered in         of events generated per unit time in a given time interval.
+
+
+
+                                                              29559
+

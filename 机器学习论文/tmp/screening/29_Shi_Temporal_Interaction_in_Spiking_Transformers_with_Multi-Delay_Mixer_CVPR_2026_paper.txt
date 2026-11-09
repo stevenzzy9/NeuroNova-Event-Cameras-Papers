@@ -1,0 +1,199 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+       Temporal Interaction in Spiking Transformers with Multi-Delay Mixer
+
+                Kexin Shi1 Hanwen Liu1 Zeyang Song2 Yang Liu1 Jieyuan Zhang1
+                        Shuai Wang1 Jibin Wu3 Malu Zhang1,∗ Yang Yang1
+                        1
+                          University of Electronic Science and Technology of China
+                                      2
+                                        National University of Singapore
+                                    3
+                                      Hong Kong Polytechnic University
+                                ∗
+                                    Corresponding author:        maluzhang@uestc.edu.cn
+
+
+
+                         Abstract                                    discrete, event-driven spikes, which are triggered when
+                                                                     membrane potentials surpass firing thresholds. The sparse
+Spiking Neural Networks (SNNs) have gained significant at-           and event-driven nature [4] of spike-based computation en-
+tention due to their event-driven computational paradigm,            ables remarkable energy efficiency when deployed on neu-
+making them promising for neuromorphic computing. In                 romorphic hardware platforms [1, 5, 28, 30]. Moreover, the
+recent years, the integration of SNNs and Transformer ar-            inherent temporal dynamics [52] embedded in spike timing
+chitectures has made remarkable progress in various tasks.           provide a natural framework for processing spatiotempo-
+However, existing spiking self-attention mechanisms pre-             ral information. These distinctive characteristics establish
+dominantly focus on spatial information while neglecting             SNNs as ideal candidates in energy-constrained spatiotem-
+explicit temporal modeling, leading to suboptimal perfor-            poral computing scenarios [21, 22, 24, 25].
+mance. In this paper, we introduce the Temporal Interaction              To further unlock their potential, Transformer architec-
+Coefficient (TIC) to analyze temporal dependency patterns            tures have recently been integrated into SNNs, spawning
+in these spatial-only attention mechanisms, revealing their          numerous Spiking Transformer models [35, 45, 53, 56,
+limited temporal interactions and restricted pattern diver-          62, 63], demonstrating substantial performance improve-
+sity. To overcome this issue, we propose the Multi-Delay             ments across diverse applications [19, 36, 49, 60]. Despite
+Mixer (MD-Mixer), drawing inspiration from time delay                these advances, existing self-attention mechanisms [11, 38,
+mechanisms in the nervous system. Specifically, MD-Mixer             41, 51] suffer from a fundamental limitation that they
+introduces multiple temporal delays to perform effective             effectively capture spatial relationships within individual
+time mixing and facilitate temporally enriched spatial at-           timesteps but critically fail to model temporal dependen-
+tention. In addition, it can be integrated seamlessly into ex-       cies. This temporal modeling deficiency stems from the
+isting Spiking Transformers as a drop-in replacement while           exclusive reliance on intrinsic spiking neuron dynamics [8,
+maintaining computational efficiency. Extensive evalua-              10], which proves insufficient for capturing temporal pat-
+tions on static and neuromorphic benchmarks demonstrate              terns inherent in neuromorphic data [33, 58]. Existing so-
+that MD-Mixer substantially improves the performance of              lutions attempting to address temporal dependencies either
+Spiking Transformers, outperforming existing state-of-the-           incur prohibitive computational costs or sacrifice modeling
+art (SOTA) methods. This work establishes MD-Mixer as                capacity [18, 34, 48], leaving temporal modeling as a crit-
+an effective and general solution for temporal modeling in           ical unresolved challenge in Spiking Transformers. Com-
+event-driven architectures.                                          pounding this issue, the absence of proper evaluation met-
+                                                                     rics limits researchers to task-specific performance metrics,
+                                                                     impeding both theoretical understanding and practical de-
+1. Introduction                                                      velopment of Spiking Transformers.
+                                                                         In this paper, we introduce the Temporal Interaction Co-
+Spiking Neural Networks (SNNs) have emerged as a                     efficient (TIC), a quantitative metric that measures tempo-
+promising paradigm in neuromorphic computing, offering               ral modeling capability in attention mechanisms. Through
+a fundamentally different approach to information process-           TIC-based analysis, we reveal that existing spiking attention
+ing compared to conventional Artificial Neural Networks              mechanisms exhibit sharply peaked reliance distributions
+(ANNs) [9, 14, 27]. Drawing inspiration from biological              at current timesteps with negligible historical contributions,
+neurons, SNNs encode and transmit information through                indicating severely limited temporal interactions. This find-
+
+
+
+                                                             34555
+ing establishes temporal modeling as a critical bottleneck        spikes rather than continuous activations, which endows
+in Spiking Transformers. To address this limitation, we           them with promising advantages in terms of energy effi-
+draw inspiration from biological axonal transmission delays       ciency [26, 37] and biological plausibility. The introduction
+and propose the Multi-Delay Mixer (MD-Mixer), which               of direct training methods [8, 50] and ANN-to-SNN conver-
+introduces multiple learnable delay branches with adap-           sion strategies [2, 12] has enabled the development of high-
+tive channel-wise weighting to explicitly model multi-scale       performance and energy-efficient SNNs [15, 39, 40, 47].
+temporal dependencies. We further develop a soft-to-hard          Building on these advances, researchers have incorporated
+optimization strategy with progressive temperature anneal-        spiking attention mechanisms [55, 59, 64] into SNNs to
+ing, enabling efficient learning of discrete delays through       further enhance recognition performance on ImageNet [6]
+continuous gradient descent. Building upon MD-Mixer’s             and neuromorphic datasets [20]. Moreover, the adoption
+temporal mixing capability, we construct the Multi-Delay          of residual connections [7, 13] has effectively mitigated
+Self-Attention Framework that integrates delay-based tem-         the gradient vanishing problem in deep SNNs, enabling
+poral interactions with spatial attention. By applying MD-        large-scale network training. Additionally, recent studies
+Mixer to compute temporally enriched Keys and Values              have explored integrating Transformer architectures into
+while maintaining temporally aligned Queries, our frame-          SNNs, resulting in representative models such as Spik-
+work enables effective space-time mixing that captures both       former [63], SpikingResformer [38], and the Spike-Driven
+spatial and temporal dependencies in spike-driven compu-          Transformer [53, 57]. These models have further improved
+tation. Extensive experiments demonstrate that MD-Mixer           the performance of SNNs on image recognition and neuro-
+consistently improves the performance of various Spiking          morphic datasets.
+Transformer architectures across static, neuromorphic, and
+long-sequence benchmarks. Our main contributions are              2.2. Temporal Interactions in Spiking Transformers
+summarized as follows:                                            Spiking Transformers have shown strong representation ca-
+• We introduce the Temporal Interaction Coefficient (TIC)         pability while consuming substantially less energy than
+   to quantify temporal modeling capacity in spiking at-          their ANN counterparts. However, temporal modeling in
+   tention mechanisms. TIC analysis reveals that existing         existing methods remains limited, as it is mainly handled
+   mechanisms exhibit sharply peaked reliance distributions       implicitly through spiking neuron dynamics. Existing stud-
+   at current timesteps with negligible historical contribu-      ies on temporal interactions in spiking transformers mainly
+   tions, establishing temporal modeling as a fundamental         follow two directions: explicit spatiotemporal modeling and
+   bottleneck in Spiking Transformers.                            lightweight temporal enhancement. In the first direction,
+• We propose the Multi-Delay Mixer (MD-Mixer), which              STSA [48] jointly models temporal and spatial interactions,
+   employs multiple learnable delay branches and adaptive         improving performance on neuromorphic datasets at the
+   channel-wise weighting to explicitly capture multi-scale       cost of increased computational overhead. STAtten [18] fur-
+   temporal dependencies. We further develop the Multi-           ther improves efficiency by adopting a block-wise strategy
+   Delay Self-Attention Framework that integrates MD-             for temporal and spatial feature modeling while preserv-
+   Mixer with spatial attention to achieve effective space-       ing the same computational complexity as spatial-only ap-
+   time mixing through delay-based temporal interactions.         proaches. In the second direction, TIM [34], built on Spik-
+• We design a soft-to-hard optimization strategy with             former [63], incorporates historical temporal information
+   progressive temperature annealing that enables efficient       into the query branch with only a few additional parameters,
+   learning of discrete delays through continuous gradient        thereby improving temporal modeling. SNN-ViT [46] in-
+   descent, facilitating the discovery of optimal temporal de-    troduces a dedicated Saccadic Spike Self-Attention (SSSA)
+   lay configurations.                                            mechanism to enhance whole-scene understanding through
+• We conduct comprehensive experiments demonstrating              temporal interactions.
+   that MD-Mixer consistently improves various Spiking
+   Transformer architectures across static datasets, neuro-       3. Preliminary
+   morphic benchmarks, and long-sequence tasks, establish-
+   ing new state-of-the-art results while maintaining compu-      3.1. Leaky Integrate-and-Fire Neuron
+   tational efficiency.
+                                                                  Spiking neurons serve as the fundamental computational
+                                                                  units of SNNs, with the leaky integrate-and-fire (LIF) model
+2. Related Work                                                   being the most widely adopted due to its balance between
+                                                                  biological plausibility and computational efficiency. The
+2.1. Spiking Neural Networks
+                                                                  LIF neuron integrates incoming input currents over time
+SNNs fundamentally differ from conventional ANNs by               while allowing a gradual decay of the membrane potential
+encoding and transmitting information through discrete            through a leakage mechanism. When the accumulated po-
+
+
+
+                                                             34556
+                                                                         R4                  T=4                      R8                 T=8
+tential surpasses a predefined threshold, the neuron gener-          1                                            1
+ates a spike and resets its state. This process can be formally                   TIC4=1.47            QKTA                                        QKTA
+described by the following equations:                                                                  SSA                     TIC8=1.71           SSA
+                                                                                                       SDSA                                        SDSA
+
+                     Ut = λHt−1 + It                       (1)                                                            TIC8=2.04
+                                                                                      TIC4=1.70
+                                                                                                                                               TIC8=2.32
+                    St = Θ (Ut − Vth )                     (2)                                TIC4=1.88
+                                                                     0                                            0
+                                                                         0    2   4      6    8     10 12 14 16       0    2     4   6     8   10 12 14 16
+                Ht = Ut (1 − St ) + Vreset St              (3)                        Timestep                                         Timestep
+Here, t denotes the discrete time step. I represents the input           R12                 T=12                     R16                T=16
+                                                                     1                                            1
+current, and U denotes the membrane potential after inte-                         QKTA                                          QKTA
+gration but prior to spike generation. H indicates the mem-                       SSA         TIC12=1.73                        SSA
+                                                                                                                                               TIC16=1.74
+brane potential after firing, which decays exponentially un-                      SDSA                                          SDSA
+
+der the influence of the leaky factor λ. Θ(·) is the Heavi-                           TIC12=2.09                                           TIC16=2.10
+side step function responsible for spike activation. When U                  TIC12=2.34                                     TIC16=2.35
+exceeds the firing threshold Vth , the neuron emits a spike,         0                                            0
+                                                                         0    2   4    6      8    10 12 14 16        0    2     4   6     8   10 12 14 16
+and its membrane potential is reset to Vreset ; otherwise, no                         Timestep                                         Timestep
+spike is generated. For brevity, we denote the spiking neu-
+ron layer as SN (·) throughout the following sections.                Figure 1. Visualization of reliance vectors for SSA, QKTA, and
+                                                                      SDSA attention mechanisms, based on the CIFAR10-DVS dataset.
+3.2. Spiking Self-Attention
+Spikformer [63] pioneers the design of Spiking Self-                 where H(·) denotes the information entropy [29]. The re-
+Attention (SSA) as the first attention mechanism explicitly
+                                                                     liance distribution Re q is obtained by applying L1 normal-
+tailored for SNNs. Given binary queries (Q), keys (K), and
+                                                                     ization to the reliance vector Rq = [Rq→1 , . . . , Rq→q ].
+values (V) derived from the input tensor X ∈ RT ×N ×D ,
+                                                                     Each temporal reliance coefficient Rq→p measures the de-
+where T , N and D denote the numbers of time steps, to-
+                                                                     pendency of the attention output Z at timestep q with re-
+kens, and feature dimensions, respectively, the SSA mecha-
+                                                                     spect to the input representation X from the current or pre-
+nism can be formulated as:
+                                                                     ceding timestep p, which is computed as:
+                  Q = SN (BN(WQ X)),
+                                                                                                           ∂Zq
+                  K = SN (BN(WK X)),                                                         Rq→p =                   ,     for p ≤ q.                     (6)
+                                                           (4)                                             ∂Xp    1
+                  V = SN (BN(WV X)),
+                                                                         A higher TICq indicates broader temporal reliance and
+                  Z = SN (α · QK⊤ V),                                richer temporal interactions, whereas a lower TICq reflects
+Here, BN(·) denotes batch normalization, WQ , WK and                 more concentrated dependence on only a few timesteps (see
+WV are learnable linear projection matrices for Q, K, V,             Supplementary Material for details).
+respectively, and α is a scaling factor. SN (·) denotes the              Building on the above definitions, we visualize the tem-
+spiking neuron layer, and Z represents the final output of           poral reliance vectors [R1 , R2 , . . . , R16 ] for SSA [63],
+SSA. Notably, temporal dependencies in SSA are handled               QKTA [62], and SDSA [53] on the CIFAR10-DVS dataset.
+implicitly through the intrinsic dynamics of spiking neu-            Representative reliance vectors R4 , R8 , R12 , and R16
+rons, without explicit temporal interaction modeling, which          are illustrated in Fig. 1. The complete visualizations are
+limits its temporal modeling capability.                             provided in the Supplementary Material. Empirically, we
+                                                                     observe that, for all baseline attention mechanisms, the
+4. Methodology                                                       reliance distributions are sharply peaked at the current
+                                                                     timestep, while contributions from distant timesteps are al-
+4.1. Problem Analysis                                                most absent. This narrow temporal interaction range leads
+Despite significant advances in Spiking Transformers, ex-            to consistently low TIC values across timesteps, indicating
+isting spiking self-attention mechanisms lack explicit mod-          limited temporal integration capability and potentially hin-
+eling of temporal dependencies. To better analyze the tem-           dering performance.
+poral interaction patterns within attention mechanisms, we           4.2. Multi-Delay Mixer
+propose a new metric, the Temporal Interaction Coefficient
+(TIC), drawing inspiration from the analytical framework             In biological neural systems, axonal structures naturally en-
+in [61]. At timestep q, the TIC is defined as:                       able temporal processing by introducing diverse transmis-
+                                                                     sion delays [43], as illustrated in Fig. 2(a). Such delay-
+                      TICq = H(R
+                               e q ),                      (5)       based modulation enables neurons to integrate information
+
+
+
+                                                                 34557
+

@@ -1,0 +1,192 @@
+                   This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                Except for this watermark, it is identical to the accepted version;
+                          the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+      FastEventDGS: Deformable Gaussian Splatting for Fast Dynamic Scenes
+                         from a Single Event Camera
+
+ Zijia Dai1 Nico Messikommer2 Rong Zou2 Nikola Zubić2 Davide Scaramuzza2 Laurent Kneip1
+               1
+                 ShanghaiTech University, China 2 University of Zurich, Switzerland
+
+
+                        Abstract                                             Fast Dynamic Scene          Deformable Gaussians               4D reconstruc8on
+
+
+
+The demand for dynamic 3D assets in AR/VR has recently
+popularized Deformable Gaussian Splatting. However, tra-
+ditional RGB cameras are limited in their ability to re-
+construct high-speed scenes due to motion blur and low
+temporal resolution. While event cameras offer a promis-                                               Motion               Regulariza4on
+ing alternative, reconstructing a complete scene from their                                           Constraint                Term
+                                                                     Event                                           Depth
+sparse and noisy output is a significant challenge. Exist-          camera                        t                Constraint
+
+ing event-based methods rely on an auxiliary sensor, such
+as a frame camera, thereby inducing tedious hardware             Figure 1. FastEventDGS is a novel framework built upon a
+and calibration challenges. We introduce FastEventDGS,           state-of-the-art Deformable 3D Gaussian Splatting representation,
+                                                                 achieving high-fidelity 4D dynamic scene reconstruction from
+a novel Deformable Gaussian Splatting-based framework
+                                                                 a single event camera stream. This strong performance is at-
+that leverages a single event camera for high-fidelity 4D
+                                                                 tributable to the combined effect of the proposed motion con-
+reconstruction. Our method utilizes a continuous camera          straint, depth constraint, and regularization term.
+trajectory parametrization and integrates two event gener-
+ation models to provide both photometric and geometric
+constraints. We further propose a local patch event motion       ble to motion blur and operate at low temporal resolution
+loss to constrain object motion, effectively mitigating over-    [39]. Consequently, frame-based methods are often limited
+fitting. To ensure robust reconstruction, we employ an off-      to modeling only moderate motion.
+the-shelf model for depth correction and apply noise reg-           Event cameras—or neuromorphic sensors—have re-
+ularization terms in the final stage. We demonstrate ro-         cently gained significant attention due to their ability to de-
+bust results on both new synthetic and real-world datasets,      tect brightness changes asynchronously with microsecond-
+highlighting our framework’s ability to provide a simpli-        level latency [7]. This makes them highly effective for cap-
+fied, event-only solution for high-fidelity 4D reconstruction    turing high-speed dynamic scenarios. Nevertheless, recon-
+in dynamic scenes. Our code and dataset are available at         structing the spatio-temporal representation of a dynamic
+github.com/daizijia/FastEventDGS.                                scene from events is a non-trivial task due to their inher-
+                                                                 ent sparsity, noise, and lack of absolute intensity informa-
+                                                                 tion. To overcome these obstacles, the majority of event-
+1. Introduction
+                                                                 based novel view synthesis methods leverage RGB frames
+Driven by the growing demand for dynamic environments            [32, 41] or perform sensor fusion with Lidar [41] to provide
+in AR/VR, content creation, and robotics, researchers            a global contextual prior. To simplify the sensor setup, this
+have extended seminal static novel view synthesis frame-         work addresses a fundamental research question: Is it possi-
+works [21] by incorporating a temporal dimension [13, 19].       ble to reconstruct a dynamic scene using only a monocular
+This approach allows for the flexible representation of di-      event camera?
+verse dynamic scenes, aiming to recover their appearance            Our approach, named FastEventDGS, is a novel frame-
+and geometry from multi-view sensor observations with            work built upon a state-of-the-art Deformable 3D Gaussian
+corresponding pose information. Sharp, high-temporal-            Splatting representation, achieving high-fidelity dynamic
+resolution images are essential for high-fidelity, fast dy-      4D scene reconstruction from a single event camera stream.
+namic reconstruction. However, conventional frame-based          Because event cameras operate at a much higher sensing
+sensors (RGB and RGB-D cameras) are highly suscepti-             frequency than standard pose estimation systems (e.g., mo-
+
+
+
+                                                            29537
+tion capture or SLAM), we adopt a continuous represen-             formations at arbitrary timestamps. However, MLP-based
+tation of the camera trajectory [20]. This enables super-          neural deformation fields often suffer from overfitting to the
+vision at arbitrary time intervals between available camera        training data. Furthermore, their performance typically de-
+poses, allowing accurate reconstruction of fine-grained tem-       grades when encountering complex motion because of the
+poral motion. Based on this continuous representation, be-         lack of explicit motion guidance. To address these prob-
+sides the general event generation model used for the brigth-      lems, recent works [25, 27, 30, 38] have begun to leverage
+ness change consistency loss, we propose leveraging a lin-         2D flow priors to supervise the deformation field of 3DGS,
+ear event generation model that utilizes rendered image gra-       achieving higher rendering quality. Inspired by the impor-
+dients and optical flow to supervise brightness increments.        tance of motion guidance, our method utilizes a local mo-
+We furthermore exploit the inherent motion information of          tion constraint to enforce spatio-temporal consistency be-
+event cameras by proposing a novel method for supervising          tween the 3D gaussians and event data, thereby enabling
+the motion of Gaussians, ensuring spatio-temporal consis-          high-fidelity dynamic reconstruction.
+tency with the surrounding event stream. To ground the re-
+construction geometrically, we propose leveraging a recent
+feed-forward scene reconstruction approach, VGGT [26], to          Event-based 3D scene reconstruction. Driven by the
+correct depth inconsistencies, thereby enhancing the overall       popularity of neural representations, the reconstruction of
+quality of the reconstruction. Additionally, regularization        3D scenes from event cameras has become a prominent
+terms are introduced to improve robustness against noise           task in event-based vision. Early works applying the NeRF
+and promote a smooth, consistent result. A comprehen-              representation [14, 18, 24] are the first to demonstrate that
+sive and rigorous evaluation is enabled by two new datasets,       pure event data can be used to reconstruct a dense 3D
+comprising both synthetic and real-world data, which will          representation of a static scene. To overcome the com-
+be publicly released.                                              putational bottlenecks of event-based NeRF methods, re-
+    The main contributions of our work are summarized be-          cent work has shifted toward static 3DGS, including Event-
+low:                                                               3DGS[9], EventSplat[36], and IncEventGS[12]. In addi-
+• We propose a novel event-based Deformable Gaussian               tion to methods that use pure event data, other frameworks
+   Splatting framework for fast dynamic scene reconstruc-          [3, 15, 35, 40] focus on mitigating motion blur in RGB
+   tion, which operates on asynchronous data from a sin-           frames with the help of the event stream, thus obtaining
+   gle event camera, thereby simplifying the sensor setup for      sharp images for reconstruction. Existing methods for dy-
+   real-world applications.                                        namic scene reconstruction with event cameras primarily
+• We develop our method based on a continuous representa-          rely on sensor fusion. For example, [41] combines RGB,
+   tion of the camera trajectory, and integrate an event gener-    depth, and event data to perform Deformable 3D Gaussian
+   ation model that provides both photometric and geometric        Splatting, while others leverage RGB frames together with
+   constraints by leveraging inter-frame brightness changes        the event stream [6, 10, 32, 37]. Although some of these
+   and moving edges. Furthermore, we propose a local patch         works do not apply explicit motion constraints [6, 32, 41],
+   event motion loss to enforce spatio-temporal consistency        STD-GS [37] uses weak motion guidance by making the
+   and mitigate overfitting.                                       distribution of events and Gaussians consistent via spatial
+• We refine our reconstruction by leveraging a feed-forward        histograms.
+   scene reconstruction approach (VGGT) and applying reg-             To the best of our knowledge, our work is the first
+   ularization terms in the final optimization stage.              to successfully tackle the problem of training a Dynamic
+                                                                   Gaussian Splatting representation from a monocular event
+2. Related Works                                                   stream.
+Novel view synthesis (NVS) for dynamic scenes. Novel
+view synthesis for dynamic scenes is a challenging task            3. Preliminaries
+in 3D reconstruction, primarily due to the complexities of
+                                                                   3.1. Event Generation Model
+modeling object motion and deformation over time. The
+previous neural radiance fields method, D-NeRF[21], in-            Event-based cameras, such as [16], are renowned for their
+corporates time as an additional input parameter, enabling         low latency, high temporal resolution, and high dynamic
+the reconstruction of both dynamic and static scenes from a        range, which enable them to capture high-speed scene
+single camera. Recently, NVS methods based on 3D Gaus-             changes with minimal latency. These impressive sens-
+sian Splatting (3DGS) [13] have leveraged their advantage          ing capabilities are possible because event cameras trig-
+of faster rendering speed to extend explicit representations       ger an event at a pixel xk = (xk , yk ) when the bright-
+to dynamic scenes. These methods [29, 31, 33, 34] learn a          ness change ∆I(xk , tk ) in their logarithmic space I(x, y) =
+deformation field or 4D primitives to predict Gaussian de-         log I(x, y) at time tk reaches a certain threshold during the
+
+
+
+                                                              29538
+                                                                                                                                                                                                                                                                                                           Reﬁnement
+   Camera Poses Input                                                                                                                                                                                                                                                                                      Stage
+                                                                                                                                                                                          ❄                                                     𝑑
+                                                                                                                                                                                                   VGGT                                                                    -                                           ℒ$
+                                                   Con!nuous                                                                                                                                       ℐ"                                                                           𝑑"
+                                                   Trajectory                                                                                                                               Diﬀ Gaussian                                                                             ℐ"
+                                                   Representa!on                                                                                                                                                                                                                                               ℒ%" + ℒ&'
+                                                                                                                                                       𝑟 𝑥 𝑠
+                                                                                                                                                                                            Rasteriza'on
+
+                                                                                                                               𝑡                               Δ𝑟 Δ𝑥 Δ𝑠                                                                                                                         View points
+                                                                                                                                                        𝒟                 +                      Projec'on
+                                                                                                                                                                                                                                                                                                Camera parameters
+
+   Events Input                                                                                                                                         ℒ!                                                                                                                        +              Element-wise add
+                                                                                                                                                                                                                                        ℐ"                                        -               Pixel-wise subtract
+                                                                                                                                                        ℒ"                                 -
+                                                                                                                                                                                                                                                                                                  Opera!on ﬂow
+                                                                                                                                                                                ∆𝐼                  Δ𝐼(
+                                                                                  !me                                                                   ℒ"#                                                                                                                                       Gradient back-prop
+                                                                                                                                                                                 𝑑" , ℐ" , ℱ !
+
+
+Figure 2. Overview of our proposed FastEventDGS. The framework takes a monocular event stream and its continuous camera pose
+trajectory (modeled via B-spline) as input. The core pipeline is built around Deformable Gaussian Splatting with a temporal dimension.
+Explicit motion guidance is derived by calculating the temporal motion loss (Lm ) and the event flow loss (Lef ) to supervise the Gaussian
+deformation (∆r, ∆x, ∆s). The photometric loss (Le ) provides global consistency. The Refinement Stage improves geometric quality
+by leveraging VGGT [26], as off-the-shelf depth estimations to enforce a depth loss (Ld ), and utilizes texture (Lne ) and spatial (Lsp )
+regularization terms to suppress noisy outputs.
+
+
+past ∆tk , i.e.                                                                                                                                                               used to represent Σ, which simplifies learning of the covari-
+                                                                                                                                                                              ance matrix: Σ = RSS T RT . The color of each pixel C(p)
+           I(\textbf {x}_k, t_k) - I(\textbf {x}_k, t_k-\Delta t_k) &= \Delta I(\textbf {x}_k,t_k) \label {egm}\\ \Delta I(\textbf {x}_k,t_k)&=p_kC.                          originates from blending N ordered overlapping Gaussians:
+                                                                                                                                                                  (2)
+
+The contrast sensitivity threshold C > 0 determines the                                                                                                                                               C(\mathbf {p})=\sum ^N_ic_i\alpha _i\prod ^{i-1}_{j=1}(1-\alpha _j).                                                  (5)
+minimum required brightness change, and the polarity pk ∈
+{+1, −1} indicates the sign of the brightness change.                                                                                                                         ci and αi represent the color and density along the ray,
+   With the assumption of brightness constancy, Equation 1                                                                                                                    which are obtained from the projected 3D Gaussians.
+can be linearized for a short time interval ∆τ [8]:                                                                                                                              Compared to the original 3D Gaussian Splatting, De-
+                                                                                                                                                                              formable Gaussian Splatting incorporates a temporal di-
+                                  \Delta I(\mathbf {x}) \approx - \nabla \mathcal {I}(\mathbf {x})\cdot \mathbf {v}(\mathbf {x})\Delta \tau ,                     (3)         mension, thereby enabling the modeling of scene changes
+                                                                                                                                                                              over time. The motion of each Gaussian is learned by a de-
+where ∇I(x) = (δx I, δy I)T symbolizes the spatial gra-                                                                                                                       formation MLP, which transforms the discrete state of time
+dients of the brightness image, and v(x) represents pixel                                                                                                                     into canonical space [33]. The input of the deformation net-
+movement (i.e. optical flow).                                                                                                                                                 work is the time t and the position x of the Gaussian. The
+                                                                                                                                                                              changes of the scene through time can be obtained from the
+3.2. Deformable 3D Gaussian Splatting                                                                                                                                         MLP outputs:
+Deformable Gaussian splatting is renowned for its applica-
+tion in novel view synthesis of dynamic scenes, which fo-                                                                                                                                                   (\Delta \boldsymbol {x},\Delta \boldsymbol {r},\Delta \boldsymbol {s})= \mathcal {D}(\boldsymbol {x},t)         (6)
+cuses on monocular camera inputs. It follows the same con-                                                                                                                    where x and t are the center position of the Gaussian and
+cepts as 3D Gaussian Splatting, where the 3D Gaussians are                                                                                                                    the timestamp, and ∆x, ∆r, ∆s denote changes in position,
+projected into a 2D image plane and rendered on each pixel                                                                                                                    rotation, and scale over time.
+with the usage of a 2D covariance matrix [13]
+                                                                                                                                                                              4. Event-Based Deformable Gaussian Splatting
+                                                        \Sigma ^{\prime }=JV\Sigma V^TJ^T.                                                                        (4)
+                                                                                                                                                                              Our framework, which aims for high-fidelity 4D reconstruc-
+Here, J is the Jacobian of the projective transformation, V                                                                                                                   tion from a single event camera, begins with a monocular
+denotes the viewing transform matrix, and Σ symbolizes the                                                                                                                    event stream and its camera poses. We first model the cam-
+3D covariance matrix. The scaling matrices S and R are                                                                                                                        era trajectory as a continuous representation using B-spline
+
+
+
+                                                                                                                                                                     29539
+

@@ -1,0 +1,230 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+       MER-Tracker: Towards High-Speed 3D Point Tracking via Multi-View
+                        Event-RGB Hybrid Cameras
+
+     Yiqian Chang1,2 Qinghong Ye3 Haoran Xu2,4 Jianing Li5 Dongyang Ma5 Xuan Wang1 *
+                              Wei Zhang2 Yonghong Tian2,3,5 Peixi Peng2,3 *
+          1
+            Harbin Institute of Technology, Shenzhen, China 2 Peng Cheng Laboratory, China
+ 3
+   School of Electronic and Computer Engineering, Shenzhen Graduate School, Peking University, China
+                            4
+                              Shenzhen Campus of Sun Yat-sen University, China
+                          5
+                            School of Computer Science, Peking University, China
+
+
+                              Abstract                              RGB
+                                                                     1#
+
+This paper proposes the first task for high-speed 3D point
+                                                                                                                      Camera
+tracking using multi-view Event-RGB hybrid cameras. We              RGB                                                Pose
+                                                                     2#
+design a cuboid observation device comprising 4 RGB
+cameras (30fps) and 2 Event cameras to synchronously                                                                   MER-Tracker
+capture high-speed motions, and propose MER-Tracker, a              RGB
+                                                                     3#
+high–frame-rate 3D point-tracking network that fuses the
+complementary strengths of dual modalities. We first re-                  ...
+
+spectively extract 2D motion-change features from the RGB                       t1    t2       t3       t4
+                                                                    DVS
+and Event modalities, then apply linear interpolation and            1#
+
+anchor sampling to fuse the discrete RGB 3D features and
+                                                                          ...
+                                                                                                                        High-speed
+continuous Event 3D features after 3D lifting, and finally                                                             Point Tracking
+employ a LoRA-tuned Transformer based on temporal cor-
+relationship to predict the high-frame-rate 3D point tra-         Figure 1. We propose MER-Tracker, a high-speed 3D point track-
+jectories over fast motions, accomplishing high-speed 3D          ing method that predicts accurate high-frame-rate 3D trajectories
+point tracking. To verify the effectiveness of our method, we     using six different views of information, including four low-frame-
+                                                                  rate, blurry RGB images and two continuous event streams.
+construct both real-world and simulated high-speed motion
+datasets. Experiments on our datasets show that we achieve
+accurate high-speed 3D point tracking at high-frame-rate
+                                                                  using a single moving camera, while multi-view methods
+(150fps), outperforming state-of-the-art methods.
+                                                                  such as MVTracker[34] leverage multiple fixed viewpoints
+                                                                  to capture trajectories with more complete coverage and
+                                                                  fewer occlusions. However, most successes remain lim-
+1. Introduction                                                   ited to ordinary low-speed motion. Faithfully recovering
+3D point tracking [39] refers to the estimation of continu-       3D point trajectories in truly high-speed phenomena (e.g.
+ous, temporally coherent trajectories of arbitrary points in      a running man, insect wingbeats, or a spinning rotator) re-
+three-dimensional space from visual observations. Com-            mains challenging. Accurately reconstructing such motions
+pared with 2D point tracking [3, 5–7, 14, 20], 3D point           could illuminate physical processes and enable new experi-
+tracking records motion details from a more comprehensive         mental observations, offering substantial scientific value.
+spatial perspective, and therefore holds greater promise for         A key bottleneck lies in sensing. Current 3D point track-
+applications in robotics[8, 11] and 3D reconstruction[19],        ing typically relies on optical RGB cameras to provide
+etc. Recently, as 3D vision has evolved, 3D point track-          frames for building spatiotemporal models. However, com-
+ing has seen remarkable gains. Monocular methods like             modity RGB sensors operate at relatively low frame rates
+SpatialTracker[46, 47] could recover 3D point trajectories        (≈ 30fps), which leads to motion blur and large inter-frame
+                                                                  gaps that miss crucial dynamics in fast motion. On the other
+   * Corresponding authors.                                       hand, simply increasing frame rate with high-speed RGB
+
+
+
+                                                            37032
+cameras incurs substantial storage and bandwidth costs and       • Method. We propose MER-Tracker, featuring a dual-
+demands strong illumination, imposing overly stringent ex-         modal 2D feature extractor, a heterogeneous 3D feature
+perimental conditions.                                             fusion, and a temporal correlation Transformer that re-
+    Neuromorphic sensing offers a promising complement.            covers dense, high-frame-rate 3D point trajectories.
+Event cameras, also known as DVS (Dynamic Vision                 • Benchmarks & Evaluation. We provide a real and a
+Sensor), are inspired by biological vision, providing              simulated dataset, along with evaluation metrics and a re-
+microsecond-level temporal resolution and a vast dynamic           producible experimental framework, establishing a foun-
+range by asynchronously reporting brightness changes.              dation for future work.
+Prior work has used event streams to mitigate camera-shake
+blur in static-scene reconstruction[33, 50]. However, be-        2. Related Work
+cause events encode temporal derivatives rather than abso-
+lute intensities, they capture edges and motion onsets well      2.1. Event-based Stereo Vision
+but lack dense textures and are largely insensitive to sta-      Traditional RGB-based stereo vision has been extensively
+tionary regions. This raises a natural question: Can we fuse     studied for decades, with major applications including
+the texture fidelity of RGB with the temporal acuity of event    novel view synthesis [1, 2, 10, 22, 27, 31, 37, 44, 51], point
+data to recover high–frame-rate 3D point trajectories for        tracking [20, 42, 46, 52], etc. However, these frame-based
+high-speed motions?                                              methods often suffer from motion blur and limited temporal
+    We answer this question with MER-Tracker (Multi-             resolution in high-speed dynamic environments. Dynamic
+view Event–RGB Tracker), a capturing system and learning         Vision Sensors (DVS, also called event cameras) operate
+method for high-speed 3D point tracking from multi-view          asynchronously and output events triggered by pixel inten-
+RGB and event streams, as shown in Fig.1. Our design             sity changes. These sensors offer microsecond latency, high
+is driven by three challenges: (1) Building an Event–RGB         dynamic range, and low power consumption. Those advan-
+fusion device that achieves multi-view, multi-modal spa-         tages make them suitable for high-speed Stereo Vision tasks
+tiotemporal synchronization. (2) Extracting complementary        where conventional cameras fail [24].
+3D motion-dynamics features from two modalities and fus-             Event cameras have achieved numerous innovative
+ing them to yield a precise high-frame-rate 3D spatiotempo-      works in the field of 3D reconstruction. E2NeRF [33],
+ral representation. (3) Establishing a temporally continuous     EventNeRF [36], Ev-NeRF [18], and other works have ex-
+association between the high-frame-rate 3D spatiotempo-          plored the reconstruction of a 3D representation from a
+ral representation and each query point, guiding the Trans-      rapidly moving event camera. More recently, Evagaus-
+former to learn a generalizable 3D high-speed trajectory.        sians [50] and Eadeblur-gs [43] have fused event data and
+    To this end, we first construct a cuboid capturing setup     blurry frames to reconstruct high-quality images. However,
+with 4 RGB and 2 event cameras that are tightly synchro-         these methods are primarily limited to static or quasi-static
+nized in time and calibrated in space. On top of this hard-      scenes, which restricts their applicability in dynamic envi-
+ware, MER-Tracker introduces a dual-modal 2D feature ex-         ronments. So E-4DGS [9] achieves dynamic reconstruction
+tractor that firstly derives motion-change cues from RGB         from multi-view event cameras, enabling more general and
+and DVS streams at their native rates, a heterogeneous 3D        practical applications in dynamic 3D scene understanding
+feature fusion that performs temporal interpolation and an-      and motion analysis. Dynamic 3D reconstruction results in-
+chor sampling to aggregate these multi-view, multi-modal         herently rely on accurate point-level correspondences over
+3D motion features into compact spatiotemporal descrip-          time, as they depend on consistent point tracking through-
+tors after 3D lifting, and a LoRA-tuned Transformer based        out the scene. This close relationship motivates the use of
+on temporal correlations to effectively learn 3D point tra-      point tracking techniques in event-based stereo vision.
+jectories at high frame rates. Extensive experiments on both
+simulated and real datasets demonstrate that MER-Tracker         2.2. 3D Point Tracking via Stereo Vision
+produces accurate, temporally stable 3D point trajectories       While stereo vision aims to recover varying geometry,
+for high-speed motions. To our knowledge, we are the first       3D point tracking addresses the complementary problem
+to propose the systematic high-speed 3D point tracking task.     of maintaining consistent correspondences of scene points
+We contribute datasets, methods, and a complete evaluation       over time. Accurate point tracking is crucial for under-
+protocol to facilitate future research on this emerging task.    standing complex motion patterns. This field has seen re-
+    In summary, the main contributions of this work are:         markable progress from recent methods [28, 29, 42, 46, 47,
+• Problem & System. We introduce high-speed 3D point             49, 52]. SpatialTracker [42] lifts 2D points through a tri-
+   tracking via multi-view Event–RGB fusion, presenting a        plane representation into 3D and performs tracking in the
+   synchronized capture device and task formulation tailored     3D space. TAPIP3D [52] represents the input video as a
+   to high-speed motion.                                         sequence of multi-scale 2D feature maps enriched with 3D
+
+
+
+                                                            37033
+           3D Query Points
+
+                  RGB                         Events       2D Feature         Heterogeneous 3D Feature Fusion                                Temporal Transformer
+                                                            Extractor
+   #1        #2         #3      #4           #1 #2
+                                                                                                                                  Tracks
+                                      t1
+                                                               CNN                       3D RGB Feature
+
+
+
+
+                                                                                                                Interpolation
+                                                                                                                                Features
+
+
+
+
+                                                                                                                                                                              Predicted 3D trajectories at high fps
+                                                                                                       at t1
+                                                                                                                                Visibilities
+                                                                            3D           3D RGB Feature
+
+
+
+
+                                                                                                                                                                Transformer
+                                 time tT                                  Lifting
+        Multi-view Event-RGB                                                                           at t2
+          Hybrid Cameras
+
+
+
+
+                                                                                                                                         Temporal Correlation
+                                                               CNN
+                                                               LSTM                                                              tT-1
+                                                                                         3D Event Feature
+                                                               Voxel                                    at tT
+                                      t2                       Grid                                                               tT
+
+
+
+
+                                                                                                                                                                LoRA
+                                                                                            Anchor Sampling
+                                           Time
+                                                                                                                                 tT+1
+                                                                                                        at tT
+                Camera                                  Depth Maps                       Fused 3D Feature
+          Intrinsic/Extrinsic        VGGT              for Each View
+
+
+Figure 2. The main framework of our proposed MER-Tracker. MER-Tracker introduces a dual-modal 2D feature extractor that firstly
+derives motion-change cues from RGB and DVS streams at their native rates, a heterogeneous 3D feature fusion that performs temporal
+interpolation and anchor sampling to aggregate these multi-view, multi-modal 3D motion features into compact spatiotemporal descriptors
+after 3D lifting, and a LoRA-tuned Transformer based on temporal correlations to effectively learn 3D point trajectories at high frame rates.
+
+
+coordinates. DELTA [29] proposes a coarse-to-fine trajec-                           where I1 , ..., In are the RGB frames captured from n opti-
+tory estimation that manages to estimate dense point tracks                         cal cameras, E1 , ..., Em are the event streams captured from
+across the whole image plane, instead of on a set of sparse                         m event cameras respectively, and P̂t is the predicted tra-
+locations. Those methods assume monocular video input.                              jectory of 3D points at target time t.
+   In a different setting, MVTracker [34] aims to perform                              Specifically, for the n-th optical camera, the captured
+online 3D point tracking across multiple views, given a                             RGB frames In could be described as follows:
+set of synchronized RGB frames with known camera pa-
+rameters. Dynamic 3DGS [28] leverages 3D Gaussian re-                                                 In = {In (ti )|i ∈ {1, .., F }},                                                                                (2)
+constructions over time to track dense scene elements in
+                                                                                    where In (ti ) is the RGB image at the i-th frame time ti ,
+3D and perform accurate 2D and 3D point tracking with
+                                                                                    F is the total frames depending on the capturing frame rate
+a multi-camera setup of 27 cameras in Panoptic Studio[23].
+                                                                                    (e.g. 30fps).
+Such methods could achieve reliable point tracking results
+                                                                                       As for the m-th event camera, it captures continuous
+in both standard motion scenarios and synthetic scenarios.
+                                                                                    event streams Em :
+However, these methods struggle in high-speed scenes be-
+cause conventional RGB cameras have limited frame rates.                                     Em = {Em (xj , yj , pj , tj )|j ∈ {1, ..., N }},                                                                         (3)
+In contrast, our MER-Tracker is a framework that aims to
+complete point tracking in high-speed scenarios with the aid                        where Em (xj , yj , pj , tj ) is the j-th captured event. It
+of DVS cameras.                                                                     records the change in intensity of a specific pixel. (xj , yj ) is
+                                                                                    the 2D coordinate of this pixel, pj ∈ {+1, −1} is the event
+3. Problem Statement                                                                polarity indicating whether the intensity at the correspond-
+                                                                                    ing pixel increases or decreases, tj is the moment this event
+We aim to achieve high-speed 3D point tracking with ac-                             occurs, and N is the total number of events.
+curate trajectories at a high frame rate. To reach this goal,
+we build a multi-view event-rgb hybrid stereo capturing de-                         4. Methodology
+vice to capture the high-speed motion, and propose a novel
+method called MER-Tracker for point tracking based on                               4.1. Overview
+continuous event streams with discrete RGB frames. The                              To solve the problem of high-speed 3D point tracking with
+problem could be denoted as:                                                        accurate trajectories, MER-Tracker first introduces a dual-
+                                                                                    modal 2D feature extractor that derives motion-change cues
+  MERTracker : {(I1 , ..., In , E1 , ..., Em ), t} → P̂t                (1)         from RGB and DVS streams at their native rates, as detailed
+
+
+
+                                                                          37034
+

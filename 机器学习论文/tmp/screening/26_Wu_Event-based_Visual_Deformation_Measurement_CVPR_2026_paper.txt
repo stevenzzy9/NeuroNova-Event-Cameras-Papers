@@ -1,0 +1,200 @@
+                      This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                   Except for this watermark, it is identical to the accepted version;
+                             the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+                              Event-based Visual Deformation Measurement
+
+             Yuliang Wu1 , Wei Zhai1,† , Yuxin Cui1 , Tiesong Zhao2 , Yang Cao1 , Zheng-Jun Zha1
+                 1
+                     MoE Key Laboratory of Brain-inspired Intelligent Perception and Cognition,
+                                                                          2
+                      University of Science and Technology of China         Fuzhou University
+                             {tronliang@mail., wzhai056@, yuxincui@mail.}ustc.edu.cn
+                               t.zhao@fzu.edu.cn            {forrest@, zhazj@}ustc.edu.cn
+
+
+
+                                                                       a) Event-based Dense Tracking
+                             Abstract                                                                         Dense Motion Field
+
+
+
+
+    Visual Deformation Measurement (VDM) aims to re-
+cover dense deformation fields by tracking surface motion
+from camera observations. Traditional image-based meth-
+ods rely on minimal inter-frame motion to constrain the cor-
+respondence search space, which limits their applicability
+to highly dynamic scenes or necessitates high-speed cam-
+eras at the cost of prohibitive storage and computational
+overhead. We propose an event-frame fusion framework                   b) Deformation Measurement
+that exploits events for temporally dense motion cues and
+frames for spatially dense precise estimation. Revisiting the                                                Stress Field
+
+solid elastic modeling prior, we propose an Affine Invariant
+Simplicial (AIS) framework. It partitions the deformation
+field into linearized sub-regions with low-parametric rep-
+resentation, effectively mitigating motion ambiguities aris-
+ing from sparse and noisy events. To speed up optimization
+and reduce error accumulation, a neighborhood-greedy op-
+timization strategy is introduced, enabling well-converged
+sub-regions to guide their poorly-converged neighbors, ef-
+fectively suppress local error accumulation in long-term              Figure 1. Overview of Event-based Deformation Measurement.
+dense tracking. To evaluate the proposed method, a bench-             (a) Our approach regresses deformation fields by leveraging affine-
+mark dataset with temporally aligned event streams and                invariant spatiotemporal trajectory flows extracted from both
+                                                                      events and images. (b) Measuring tire deformation while rolling
+frames is established, encompassing over 120 sequences
+                                                                      over a step obstacle. Demonstrating robust and accurate measure-
+spanning diverse deformation scenarios. Experimental re-              ment capabilities of our event-based VDM approach for objects
+sults show that our method outperforms the state-of-the-art           experiencing rapid self-motion.
+baseline by 1.6× in survival rate. Remarkably, it achieves
+this using only 18.9% of the data storage and process-
+ing resources of high-speed video methods. Project page:              tion fields by accurately tracking surface motion from cam-
+https://wyl-ovo.github.io/EVDM/.                                      era observations, serving as an efficient non-contact tech-
+                                                                      nique for structural monitoring [29, 38], mechanics analysis
+                                                                      [6, 26, 30], and biomechanics research [54].
+1. Introduction                                                          As a dense tracking vision problem, the goal of VDM
+                                                                      is to estimate the surface motion of a target at the cur-
+Deformation is ubiquitous in the real world, ranging from
+                                                                      rent moment relative to its initial undeformed state. How-
+subtle material strain to large-scale structural changes. Vi-
+                                                                      ever, unlike rigid motion with only 6-DoF, deformable sur-
+sual Deformation Measurement (VDM) recovers deforma-
+                                                                      faces have significantly higher degrees of freedom where
+   † Corresponding author.                                            surface points can move with considerable independence.
+
+
+
+                                                                903
+This poses fundamental challenges to image-based meth-                 converged subregions that significantly deviate from mean
+ods stemming from: (i) an intractably large correspon-                 convergence states. Then, Leveraging continuity priors, the
+dence search space, and (ii) texture similarity and geomet-            optimization of this subregions are guided by their well-
+ric changes from deformation that impede reliable feature              converged counterparts, significantly reducing long-term
+matching. To mitigate these challenges, existing image-                error accumulation in dense tracking.
+based deformation measurement methods rely on costly                       To establish a comprehensive evaluation benchmark for
+high-speed cameras to capture videos with minimal inter-               our method and a series of baselines, we captured a dataset
+frame motion, thereby constraining the correspondence                  comprising over 120 real-world sequences spanning vari-
+search space. However, this strategy incurs prohibitive stor-          ous deformation modes and magnitudes, with temporally
+age and computational costs from processing massive re-                aligned event and frame data. Ground truth deformation
+dundant frames, limiting the practicality and scalability.             fields derived from high-speed videos are provided to facil-
+    In this paper, we address these challenges by introducing          itate quantitative evaluation and advance research.
+an event-frame hybrid system that exploits the complemen-                  In summary, our contributions are as follows.
+tary nature of two vision modalities. Events, being tem-               1. A hybrid VDM system that leverages the high temporal
+porally dense yet spatially sparse, capture motion dynam-                  resolution of event cameras to capture rapid texture mo-
+ics efficiently without the massive redundancy. Conversely,                tion, enabling accurate measurement of large-scale de-
+conventional frames offer spatially dense, low-noise obser-                formations and those involving significant self-motion.
+vations to ensure precise dense field estimation. This syn-            2. An affine invariant simplicial framework is proposed
+ergy enables accurate deformation tracking without the pro-                for robust deformation measurement from events and
+hibitive costs of traditional high-speed imaging. However,                 frames. This formulation retains the expressive power
+employing the hybrid system for deformation measurement                    for complex deformation fields while mitigating the mo-
+presents numerous challenges. Firstly, the sparse spatiotem-               tion estimation ambiguity and noise sensitivity inherent
+poral sampling inherent to event cameras, coupled with                     to spacial-temporal sparse event data.
+their high noise levels, introduces ambiguities in the esti-           3. A neighborhood-greedy optimization strategy is pro-
+mation of dense field motion information.                                  posed to enable well-converged sub-regions to guide
+    Secondly, long-term tracking suffers from error accumu-                their poorly-converged neighbors, mitigating local error
+lation, which is significantly amplified in dense tracking due             accumulation in long term dense tracking.
+to the large number of descriptors at each time step. The ac-          4. Extensive experiments demonstrate the competitiveness
+cumulated local errors can potentially lead to global failure.             of the proposed approach, achieving a 1.6× survival rate
+                                                                           of SOTA baseline, while maintaining superior EPE accu-
+    In this paper, we propose an Affine Invariant Simplicial
+                                                                           racy with only 18.9% of the data storage and processing
+(AIS) framework to locally linearize the deformation field,
+                                                                           cost of traditional high-speed video methods.
+reduce the number of motion field descriptors and mitigate
+motion estimation ambiguities. Meanwhile, we introduce
+                                                                       2. Related Work
+a neighborhood-greedy optimization strategy that corrects
+mismatched sub-regions using their well-converged neigh-               2.1. Visual Deformation Measurement
+bors, thereby reducing error accumulation in dense tracking
+                                                                       As an efficient non-contact deformation sensing approach,
+and achieving long term global optimality.
+                                                                       visual deformation measurement (VDM) has been widely
+    In the proposed AIS framework, the nonlinear defor-                applied in scientific research [15, 22, 27, 36, 44, 54, 57] and
+mation field of the object surface is systematically divided           engineering fields [6, 26]. Image-based VDM algorithms
+into multiple sub-regions. Within each sub-region, defor-              use correlation criteria to match intensity values between
+mation parameters are linearized using simplicial motion               regions before and after deformation,
+parameterization, effectively reducing their dimensionality.
+Then, leveraging event contrast maximization and image
+cross-correlation as optimization objectives, a coarse-to-                         \label {eq:dic} C=\sum _{i=1}^{N}\left (a f\left (x_{i}, y_{i}\right )+b-g\left (x_{i}^{\prime }, y_{i}^{\prime }\right )\right )^{2}.    (1)
+fine scheme is adopted to hierarchically decouple and se-
+quentially solve for: rigid self-motion and fine-grained de-           Where (xi , yi ) ∈ R and (x′i , yi′ ) ∈ R′ denote correspond-
+formations across multi-level mesh subdivisions. The AIS               ing point pairs in the original and deformed regions, respec-
+framework hits two birds with one stone: it reduces the diffi-         tively. Here, a represents a scale factor and b represents an
+culty of solving the high-dimensional deformation field and            intensity offset. The task of the VDM is to minimize the
+addresses the ambiguity in motion information estimation               coefficient C in Eq. 1 to detect the best matching. How-
+from event data. Building upon the framework, we em-                   ever, unlike rigid body motion tracking in everyday scenar-
+ploy the neighborhood-greedy optimization strategy. We                 ios that only requires estimating a limited number of pa-
+design a global convergence criterion to distinguish poorly-           rameters, VDM is fundamentally a dense tracking task that
+
+
+
+                                                                 904
+demands high accuracy, involves complex variations, and                                                                                                                                                                                    local neighborhoods [18]. However, neither approach ap-
+requires optimization over a large parameter space, mak-                                                                                                                                                                                   plies to VDM tasks: deformations lack global parametric
+ing it a complex high-dimensional optimization problem.                                                                                                                                                                                    models, while smoothness constraints suppress the frame-
+To reduce the complexity of subset matching, VDM meth-                                                                                                                                                                                     work’s ability to capture deformation details. Incorporat-
+ods adopt the spatiotemporal continuity prior of motion and                                                                                                                                                                                ing physical priors, such as solid elastic modeling, offers a
+search for matching subsets in the vicinity of the original                                                                                                                                                                                promising solution to capture complex deformable behav-
+subset positions [20, 32].                                                                                                                                                                                                                 iors [1, 2, 24, 31]. In this paper, a simplicial parameteri-
+    This limitation prevents them from effectively handling                                                                                                                                                                                zation framework is proposed to address the dilemma. The
+large deformations and large displacement scenarios with                                                                                                                                                                                   surface region of the deformed object is divided into a set of
+rapid object self-motion [4, 47, 51, 52], or necessitates the                                                                                                                                                                              continuous local sub-regions and simplify the deformation
+use of costly high-speed cameras, which introduces a sig-                                                                                                                                                                                  of each sub-region as a low-parameter description. This al-
+nificant data storage burden, greatly restricting the potential                                                                                                                                                                            lows achieving low-ambiguity CM motion estimation while
+applications of the VDM method.                                                                                                                                                                                                            preserving the ability to describe the deformation.
+2.2. Event-based Vision                                                                                                                                                                                                                    3. Methodology
+Different from traditional frame-based camera, the neu-
+romorphic event camera abandons the fixed-interval sam-                                                                                                                                                                                    In this section, we present our approach for dense track-
+pling approach. Instead, it uses trigger-based sampling                                                                                                                                                                                    ing of deformable objects using hybrid event-frame data.
+to passively capture dynamic information from the scene                                                                                                                                                                                    Sec. 3.1 formulates the VDM problem and introduces the
+[5, 10, 11, 19, 28, 39, 45, 46]. Specifically, the i-th event                                                                                                                                                                              affine-invariant property that enables efficient field repre-
+ei := (xi , yi , ti , pi ) is triggered at time ti whenever the                                                                                                                                                                            sentation. Sec. 3.2 describes how we decompose the de-
+log-scale scene brightness I(t) = log (Ixi ,yi (t)) change ex-                                                                                                                                                                             formation field into sparse anchor trajectories and associate
+ceeds threshold c, i.e,                                                                                                                                                                                                                    events/images with these anchors through geometric opera-
+                                                                                                                                                                                                                                           tions. Sec. 3.3 details our coarse-to-fine and neighborhood-
+           p_{i}=\left \{\begin {array}{ll} 1, & \text { if } \mathbf {I}(t_i)-\mathbf {I}(t_{i}-\Delta t_{i}) \geq c, \\ -1, & \text { if } \mathbf {I}(t_i)-\mathbf {I}(t_{i}-\Delta t_{i}) \leq -c, \end {array}\right .    (2)         greedy optimization strategy for efficient solving.
+
+ Here, ∆ti indicates the time since the last event at (xi , yi ),
+                                                                                                                                                                                                                                           3.1. Preliminaries
+and pi ∈ {−1, +1} denotes the event polarity. This sam-                                                                                                                                                                                    VDM problem. The goal of VDM is to recover the surface
+pling strategy provides event cameras with high temporal                                                                                                                                                                                   mapping relationship before and after object deformation
+resolution [7, 42, 43], high dynamic range [34, 48, 53, 59],                                                                                                                                                                               through visual methods, i.e., the deformation field u. Under
+and low storage redundancy [17], making them ideal for                                                                                                                                                                                     the Lagrangian perspective, we formulate the problem as
+                                                                                                                                                                                                                                           follows. At any time ti , a material point initially located
+continuous motion observation in non-rigid shape estima-
+                                                                                                                                                                                                                                           at position X ∈ S on the object surface S deforms to its
+tion and reconstruction tasks [33, 35, 49, 50].                                                                                                                                                                                            current position:
+2.3. Contrast Maximization                                                                                                                                                                                                                                           x\left (X, t_{i}\right )=X+u\left (X, t_{i}\right ), \quad X \in S,                                                          (3)
+Currently, there are various model-based [9, 12, 41] and                                                                                                                                                                                    where u(X, t) represents the displacement vector of the
+learning-based [13, 14, 40, 58] approaches being capable                                                                                                                                                                                   material point initially located at X on surface S. In tra-
+of motion tracking from event streams at the pixel level.                                                                                                                                                                                  ditional image-based tasks, this is defined as a simple map-
+Regrettably, there is currently no event dataset suitable for                                                                                                                                                                              ping between two frames, whereas in event-based VDM, we
+VDM (Visual Deformation Modeling) tasks. Moreover,                                                                                                                                                                                         need to construct a data structure to represent the deforma-
+creating large-scale deformation datasets is costly and in-                                                                                                                                                                                tion field in continuous spatiotemporal space.
+efficient. In this work, the data-independent contrast maxi-                                                                                                                                                                               Affine-invariant property. For any given triangular sub-
+mization (CM) method is employed for motion estimation.                                                                                                                                                                                    region defined as: σ = conv {X1 , X2 , X3 }1 , the affine in-
+As a versatile method, CM works by maximizing the con-                                                                                                                                                                                     terpolation operator can be expressed as:
+trast of the image of warped events (IWE) to find the motion
+field that best fits the event set [9, 14, 41]. This allows it to                                                                                                                                                                                 I[f](X)=\sum _{i=1}^{3} \lambda _{i}(X) f\left (X_{i}\right ), \quad \text {s.t.} \sum _{i=1}^{3} \lambda _{i}(X) = 1. \label {eq:invariant}    (4)
+be more robust than the fixed-template matching methods
+[12], especially for handling feature shape changes caused
+                                                                                                                                                                                                                                              For any arbitrary affine function of the form f (X) =
+by deformations. However, due to spatiotemporal sparsity
+                                                                                                                                                                                                                                           AX + b, the interpolation operator satisfies the reproduc-
+and high noise level in event data, pixel-level CM-based
+                                                                                                                                                                                                                                           tion property I[f ] = f . This fundamental property en-
+motion estimation suffers from significant ambiguity. Ex-
+                                                                                                                                                                                                                                           ables modeling of spatiotemporal deformation fields via
+isting CM frameworks address this through low-parameter
+                                                                                                                                                                                                                                           low-parametric sparse triangle sub-regions.
+modeling for global motion (e.g., camera ego-motion or pla-
+nar scenes[9]) or smoothness/regularization constraints for                                                                                                                                                                                  1 The conv {.} operator denotes the convex hull
+
+
+
+
+                                                                                                                                                                                                                                     905
+

@@ -1,0 +1,176 @@
+                    This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                 Except for this watermark, it is identical to the accepted version;
+                           the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+            Moving Border Ownership for Event-based Motion Segmentation
+
+                         Zhiyuan Hua            Cornelia Fermüller      Yiannis Aloimonos
+                                           University of Maryland, College Park
+                                              College Park, Maryland, USA
+                            howardh@umd.edu            fermulcm@umd.edu           jyaloimo@umd.edu
+
+
+
+
+Figure 1. Moving border ownership detection on real event-based datasets. Our model, trained solely on synthetic data, generalizes zero-
+shot to EVIMO1, EVIMO2, EED, and EMSMC datasets. Red boundaries indicate moving object edges; yellow-to-blue gradients visualize
+the predicted ownership field, showing which side of each border belongs to the moving foreground object.
+
+
+                          Abstract                                     1. Introduction
+                                                                       Neuromorphic event-based sensors have attracted growing
+   Event cameras provide accurate information at motion                attention in the computer vision and robotics communi-
+boundaries—exactly where disentangling ego-motion, ob-                 ties, driving advances in visual motion analysis applica-
+ject motion, and border ownership determines segmentation              tions [5, 10]. Among the fundamental problems is ob-
+quality. We argue that the missing ingredient in dynamic               ject motion segmentation—detecting and localizing inde-
+scene interpretation is moving border ownership: detect-               pendently moving objects within a scene—and by their very
+ing motion boundaries and assigning which side is fore-                nature, the sparse, temporally precise events produced by
+ground so occlusions are resolved by design. Traditional               these sensors offer a rich and information-efficient repre-
+geometric motion segmentation pipelines (e.g., flow cluster-           sentation for this task.
+ing, simple motion models) remain assumption-heavy and                     When the camera is static, this task is straightforward:
+slow, while deep models often fail to generalize across sen-           events are primarily generated along the contours and tex-
+sors or datasets. We introduce a lightweight, ownership-               ture of moving objects, making segmentation easier. How-
+aware predictor trained solely on synthetic events with per-           ever, when the sensor itself is in motion, the challenge in-
+fect supervision for boundaries, ownership, and motion,                creases substantially [22]. Then, the event stream captures
+generated via a Blender pipeline. Its key targets—a signed-            both the camera’s ego-motion and the movement of objects
+distance ownership field and a motion mask—focus learn-                in the environment, which must be disentangled [35].
+ing where events occur and yield stable gradients. The                     In contemporary computer vision, moving-object detec-
+model runs in real time and generalizes without tuning:                tion is often treated as an object-detection or semantic-
+trained on synthetic events, it achieves zero-shot transfer on         segmentation problem, relying mainly on appearance rather
+EED, EVIMO1, EVIMO2, and EMSMC, delivering state-                      than motion cues. Earlier classical methods instead in-
+of-the-art performance. By casting motion segmentation as              ferred independent motion from geometric constraints, but
+ownership-aware edge understanding, we combine the ro-                 only under restrictive assumptions about camera or scene
+bustness of model-based reasoning with the scalability of              dynamics. Event-based vision has largely adopted simi-
+learning.                                                              lar structure-from-motion strategies, using motion cluster-
+                                                                       ing and simplified motion models [3, 32, 41], which re-
+
+
+
+                                                                37043
+main assumption-heavy and computationally demanding.             2. Related Work
+More recently, learning-based approaches have been ex-
+plored [8, 20, 37], though their generalization capabilities     2.1. Event-Based Perception and Representations
+are still limited.                                               Event cameras produce sparse asynchronous streams of
+   Inspired by biological vision, we propose a lightweight       brightness-change events. Event representations are typ-
+and efficient mechanism for detecting moving objects and         ically either stream-based, operating directly on events,
+their boundaries, including border ownership—that is, de-        or frame-based, aggregating events into images or voxel
+termining which side of a border belongs to the foreground       grids [10]. Time surfaces encode recent event history
+or background. This capability is crucial for handling com-      for motion analysis [17, 29], while voxel grids preserve
+plex dynamic interactions, such as when objects move in          finer timing for learning-based flow, depth, and egomo-
+front of or behind each other. Our approach leverages a          tion [42, 43]. We adopt a temporal time-surface represen-
+MobileNet-based LSTM architecture trained on temporal            tation that preserves fine motion structure while remaining
+time slices. A large synthetic dataset with diverse event        lightweight for real-time processing.
+patterns (scenes, textures, motions, lighting, bias settings)    2.2. Border Ownership and Occlusion Reasoning
+enables our model to learn robust motion and border repre-
+sentations.                                                      Assigning which side of a contour “owns” a border is fun-
+                                                                 damental to objectness and occlusion resolution. Border-
+Retinal Ganglion Cells: Detecting independently mov-             ownership signals arise early in visual cortex and sup-
+ing objects is a fundamental visual capability. Pioneering       port figure–ground organization and motion layer assign-
+neuroscience work by Meister and colleagues showed that          ment [40]. The concept has been explored for images, for
+the segregation of object and background motion begins as        example in [34], where ownership cues were inferred using
+early as the retina [23], where a subset of ganglion cells re-   random forests.
+sponds selectively to object motion and enables early fore-         In computer vision, geometry- and learning-based ap-
+ground–background separation.                                    proaches infer occlusion boundaries and their owner-
+   These findings suggest that moving-object detection may       ship/orientation from images and videos [30, 36]. In
+function as a simple, robust early-stage mechanism support-      event data—where edges dominate and motion is ex-
+ing higher-level processes such as tracking, and structure-      plicit—ownership is rarely modeled explicitly. Prior learn-
+from-motion. Event-based data are well suited for such           ing pipelines for moving object detection typically pro-
+a mechanism, providing high-temporal-resolution informa-         duce only moving-object masks [11, 18, 20, 21, 26]. Our
+tion exactly along motion boundaries. Yet existing learning-     approach elevates border and ownership to first-class rep-
+based approaches have struggled to generalize broadly. We        resentations by learning an ownership-signed border field
+argue that effective motion segmentation must learn not          tightly coupled to motion grouping, allowing occlusion rea-
+only moving-object locations but also their boundaries and       soning to emerge naturally as a by-product of segmentation.
+border ownership, mirroring key computations in biological          In images, border-ownership reflects relative depth along
+vision.                                                          edges and is largely conveyed by static appearance cues
+                                                                 such as convexity, contrast, and texture or intensity gradi-
+   Our main contributions are as follows:
+                                                                 ents [24]. In contrast, motion information alone is often
+• Moving border-ownership for events. We formulate               insufficient to disambiguate boundaries from textures, par-
+  motion segmentation as ownership-aware border predic-          ticularly when depth differences are subtle. For example,
+  tion, jointly estimating motion boundaries and which side      in static scenes where apparent motion arises solely from
+  belongs to the moving object, which is a cue defined by        camera movement [2], event data do not provide enough
+  depth; this yields stronger, more transferable event-only      evidence for reliable ownership inference at all boundaries.
+  segmentation than prior approaches.                            The concept introduced here focuses specifically on learn-
+• Synthetic supervision that transfers.         A Blender        ing border and ownership representations for moving ob-
+  pipeline renders photorealistic indoor scenes with per-        jects, where motion cues provide unambiguous, physically
+  fect border-ownership and motion labels; models trained        grounded evidence of figure–ground separation.
+  only on this synthetic data generalize zero-shot across
+  EVIMO1/2, EED, and EMSMC.                                      2.3. Motion Segmentation with Events
+• Real-time streaming with optional few-shot adapters.           Event-based motion segmentation has progressed from
+  A lightweight time-surface + ConvLSTM stream runs in           model-based optimization to learned methods. Contrast
+  real time, and ConvLoRA enables few-shot adaptation on         maximization fits motion models by warping events under
+  EVIMO2, improving from strong zero-shot to state-of-           candidate motions and selecting parameters that sharpen the
+  the-art event-only performance.                                integrated image [9]; geometric clustering then extends this
+
+
+
+                                                             37044
+idea to jointly estimate motions and assign events to mo-          codes the recency of the last event at each pixel u:
+tion layers [32, 41]. Although these classical/unsupervised                                      tlast (u) − τk
+pipelines require no training data, they typically depend                           Tk (u) :=                   ,
+                                                                                                        ∆t
+on scene-specific choices such as layer count, temporal            where tlast (u) is the timestamp of the most recent event
+windows, and thresholds. Learned methods instead pre-              at pixel u within Wk . Pixels that receive no event dur-
+dict independent-motion masks from event representations,          ing the window are set to zero. Because temporal context
+spanning supervised and self-/unsupervised formulations;           across windows is maintained by the recurrent hidden state
+representative milestones include EV-IMO’s dataset and             (Sec. 3.4), no explicit multi-frame stacking is needed, keep-
+pipeline [20], event-surface-based graph segmentation [21],        ing the input a single channel and the preprocessing mini-
+and spiking models for low-latency inference [26]. More re-        mal.
+cent work broadens the application scope (e.g., EV-IMO in-
+doors and DSEC-MOTS outdoors) but still trains per dataset         3.3. Label Construction
+rather than demonstrating cross-dataset zero-shot trans-
+                                                                   At each end-of-window timestamp (τk + ∆t), we derive
+fer [11]. Unsupervised domain adaptation addresses this
+                                                                   two dense supervision targets from the available annota-
+shift by transferring from labeled RGB/flow to unlabeled
+                                                                   tions: an ownership-signed distance field for borders and
+events, with strong gains on EVIMO2 and MOD++ [18],
+                                                                   a binary motion mask.
+but still requires an adaptation stage. In contrast, our goal
+is ownership-aware motion segmentation trained purely on
+synthetic data and evaluated zero-shot across datasets and
+sensors.
+
+3. Method
+We present our approach in a natural data-flow order: we
+first define the event stream and windowing conventions
+(Sec. 3.1), describe the input representation (Sec. 3.2), spec-
+ify the ground-truth labels for supervision (Sec. 3.3), de-
+tail the network architecture (Sec. 3.4), introduce LoRA for
+bridging the synthetic-to-real domain gap (Sec. 8.1), and fi-
+nally define the training objectives (Sec. 3.6).
+                                                                   Figure 2. Border ownership label illustration (zoomed in). Grid
+3.1. Notation and Task Setup                                       labels indicate the quantized ground-truth border ownership value
+                                                                   for each cell.
+Event stream.        We observe an asynchronous event se-
+quence                                                                 Border ownership-signed distance field. Given the in-
+       E = {(xi , yi , ti , pi )}N
+                                 i=1 ,   pi ∈ {−1, +1},            stance segmentation and depth maps provided by the syn-
+where (xi , yi ) are pixel coordinates, ti is the timestamp, and   thetic renderer, we assign border ownership (Fig. 2) as fol-
+pi is the polarity.                                                lows. A border pixel lies at the boundary between two or
+   Temporal windows. We integrate events over fixed-               more instances in a 4-connected neighborhood. Each such
+duration windows                                                   pixel is owned by the instance that is closest in depth (to the
+                                                                   virtual camera) among its neighbors. Owned-border pix-
+                      Wk = [τk , τk + ∆t),
+                                                                   els receive a target value of 0. For every pixel that lies
+and align all labels to the end-of-window timestamp (τk +          inside a foreground instance, we compute the Euclidean
+∆t). This convention is applied consistently during pre-           distance to the nearest owned border of that instance via
+processing, training, and evaluation to eliminate start/end        a distance transform, negate it, and clamp the result to
+misalignment with frame-based ground-truth masks. For              [−10, 0]. The resulting signed distance field therefore tran-
+datasets with nonuniform annotation times (e.g., EED), we          sitions smoothly from 0 at borders to −10 deep inside ob-
+instead construct windows at the intervals between succes-         jects. Background and unlabeled regions (e.g., scene leak-
+sive ground-truth timestamps, preserving the same end-of-          age with infinite depth) are assigned a sentinel value and
+window alignment.                                                  excluded from supervision.
+                                                                       Motion mask. We additionally construct a binary mask
+3.2. Input Representation
+                                                                   mk ∈ {0, 1}H×W indicating moving-object regions (1 for
+Time surface. For each window Wk , we construct a single-          foreground motion, 0 for static background). For syn-
+channel, normalized time surface Tk ∈ [0, 1]H×W that en-           thetic data, this mask is provided directly per frame. For
+
+
+
+                                                               37045
+

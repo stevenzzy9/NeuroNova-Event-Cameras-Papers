@@ -1,0 +1,193 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+     Bidirectional Cross-Modal Prompting for Event-Frame Asymmetric Stereo
+
+     Ninghui Xu1,2,†              Fabio Tosi2             Lihui Wang1,∗          Jiawei Han2,4     Luca Bartolomei2
+                                 Zhiting Yao3             Matteo Poggi2          Stefano Mattoccia2
+
+                                    1
+                                    School of Instrument Science and Engineering, Southeast University,
+                               State Key Lab of Comprehensive PNT Network and Equipment Technology,
+                             Key Lab of Micro-Inertial Instrument and Advanced Navigation Technology, MOE
+                                2
+                                  Department of Computer Science and Engineering, University of Bologna
+                                3
+                                  College of Computer Science and Software Engineering, Hohai University
+                                                     4
+                                                       Beijing Institute of Technology
+
+
+
+
+Figure 1. Qualitative comparison on event–frame asymmetric stereo. Compared to the state-of-the-art ZEST [41], our method achieves
+higher accuracy and higher-quality structural details in both complex-texture (first row) and sparse low-light scenes (second row).
+
+                            Abstract                                   1. Introduction
+
+Conventional frame-based cameras capture rich contextual               Stereo matching aims to establish pixel-wise correspon-
+information but suffer from limited temporal resolution and            dences between stereo images, which is a fundamental
+motion blur in dynamic scenes. Event cameras offer an al-              technique in computer vision to compute dense disparity
+ternative visual representation with higher dynamic range              maps for depth estimation [55], with critical applications
+free from such limitations. The complementary character-               in robotics, autonomous driving, and AR/VR. Deep learn-
+istics of the two modalities make event-frame asymmetric               ing has driven remarkable progress for conventional RGB
+stereo promising for reliable 3D perception under fast mo-             camera stereo in recent years [32, 52, 61], with iterative
+tion and challenging illumination. However, the modality               refinement-based methods demonstrating particular promi-
+gap often leads to marginalization of domain-specific cues             nence [33, 39, 66, 68].
+essential for cross-modal stereo matching. In this paper, we               As novel bio-inspired neuromorphic sensors, event cam-
+introduce Bi-CMPStereo, a novel bidirectional cross-modal              eras asynchronously detect per-pixel illumination changes
+prompting framework that fully exploits semantic and struc-            (i.e., events) with microsecond temporal resolution [37],
+tural features from both domains for robust matching. Our              embodying a paradigmatic shift from traditional visual
+approach learns finely aligned stereo representations within           modalities [72]. By rapidly capturing the dynamic infor-
+a target canonical space and integrates complementary rep-             mation, event-based sensors exhibit compelling advantages
+resentations by projecting each modality into both event               over frame-based vision: extremely low latency (≤3 µs
+and frame domains. Extensive experiments demonstrate                   vs. 30 ms) and high dynamic range (≥120 dB vs. 60 dB)
+that our approach significantly outperforms state-of-the-art           [19, 73]. These properties have motivated their use in stereo
+methods in accuracy and generalization.                                matching for highly-dynamic scenarios with challenging il-
+                                                                       lumination or high-speed motion [22, 48, 62, 84].
+   † Work done while visiting the University of Bologna                   However, the inherent sparsity of events, which responds
+*Corresponding author                                                  exclusively to temporal intensity variations, limits symmet-
+
+
+
+                                                                 914
+ric event stereo in extracting sufficient contextual informa-            text features, we adopt Hierarchical Visual Transformation
+tion for dense disparity estimation [1, 13]. Moreover, the               (HVT) [75] for enhanced robustness and generalization.
+high cost of neuromorphic sensors further limits the de-                    Fig. 1 shows the compelling performance of our propos-
+ployment of dual-event systems in practical settings. Con-               als, and our contributions can be summarized as follows:
+sequently, conventional frame-based cameras, offering rich               • We propose CMPStereo with SCC and CDEA to preserve
+contextual information and cost efficiency [47], are comple-               domain-specific features and achieve high-fidelity cross-
+mentary to event sensors, motivating growing interest in the               modal alignment in a target canonical space.
+stereo setups combining an event camera with a standard                  • We introduce Bi-CMPStereo, a bidirection framework in-
+RGB sensor [9, 15, 18, 38, 41, 65, 79]. Such stereo con-                   tegrating complementary information from event and im-
+figurations with heterogeneous binocular inputs are defined                age domains to enable robust disparity estimation.
+as asymmetric systems, since they do not support a fully                 • Our method significantly outperforms state-of-the-art ap-
+symmetric processing pipeline for the two views.                           proaches in both accuracy and generalization on DSEC
+    Despite the potential benefits of cross-modal asymmet-                 and MVSEC benchmarks.
+ric stereo, the significant modality gap between events and
+frames undermines the feature-space alignment assumption                 2. Related Work
+underlying stereo models to infer cross-view feature simi-
+                                                                         Frame-based Stereo.          Stereo matching has evolved
+larities. Several attempts have been made to mitigate the
+                                                                         from classical hand-crafted methods [55] to deep learning
+discrepancy through either 1) domain-level alignment that
+                                                                         paradigms [24, 32, 52, 61]. Early CNN-based networks [42,
+unifies events and frames into a common representation for
+                                                                         78] replaced individual pipeline components, while end-
+a Siamese feature extractor [30, 41, 65] or 2) feature-level
+                                                                         to-end architectures diverged into 2D [36, 43, 70, 77] and
+alignment employing separate extractors for each domain to
+                                                                         3D approaches [7, 29, 56, 80] processing cost volumes
+derive shared embeddings [15, 18, 38]. However, focusing
+                                                                         through 3D convolutions. RAFT-Stereo [39] pioneered it-
+on cross-modal commonalities can marginalize discrimina-
+                                                                         erative refinement with correlation volume-based updates,
+tive domain-specific features that are salient in one domain
+                                                                         followed by subsequent works [10, 33, 63, 68, 69, 86].
+but sparsely captured in the other. For instance, color cues
+                                                                         Transformer-based architectures [26, 35, 45, 71] leverage
+readily available in images require complex networks to be
+                                                                         self-attention for long-range dependencies, while [25] pro-
+extracted from events, making them prone to marginaliza-
+                                                                         pose data-driven MRF models. To improve generalization,
+tion during alignment. This trade-off limits these models
+                                                                         various strategies have been explored, including domain-
+from achieving performance competitive with event sym-
+                                                                         invariant feature learning [8, 17, 40, 81, 83], geometric pri-
+metric counterparts using homogeneous binocular inputs.
+                                                                         ors [2, 60], and self-supervised learning with photometric
+Therefore, the key challenge is learning expressive repre-
+                                                                         losses [23, 50, 64] or pseudo-labels [51, 58, 59]. Recently,
+sentations without information-lossy marginalization.
+                                                                         foundation stereo models [5, 11, 28, 66, 76] combine pre-
+    In this paper, we address this challenge by proposing
+                                                                         trained monocular depth with stereo matching, achieving
+Cross-Modal Prompting Stereo (CMPStereo) network, a
+                                                                         superior generalization through large-scale diverse training.
+novel network that preserves domain-specific semantic and
+                                                                             Event-based Stereo. Symmetric event stereo leverages
+structural cues crucial for robust stereo matching. Our
+                                                                         binocular event cameras to estimate disparity. Early stud-
+key idea is to alternately designate the asymmetric stereo
+                                                                         ies [62, 84] modeled the asynchronous nature of events
+inputs as the target-domain and source-domain modali-
+                                                                         through temporal convolutions, with [84] introducing con-
+ties, using the target domain as the canonical space for
+                                                                         tinuous and discrete time operations to capture intrinsic dy-
+feature alignment. To this end, we introduce a Stereo
+                                                                         namics. Recent works exploit the high temporal resolu-
+Canonicalization Constraint (SCC) that regularizes the net-
+                                                                         tion of events via temporal aggregation: [48] learns from
+work to learn target-domain discriminative features from
+                                                                         past and future events to produce compact representations,
+both modalities, promoting high-fidelity cross-modal align-
+                                                                         while [16] introduces stereoscopic flow to continuously ex-
+ment. A Cross-Domain Embedding Adapter (CDEA)
+                                                                         ploit information across timesteps, and [85] unifies event-
+further reinforces target-domain cues weakly encoded in
+                                                                         based flow and stereo in a shared correspondence space.
+source-domain representations. Through two complemen-
+                                                                         However, event sparsity in static or low-texture regions hin-
+tary CMPStereo variants with events and images as target
+                                                                         ders dense disparity estimation. To overcome this, [1, 21]
+domains, we present Bidirectional Cross-Modal Prompting
+                                                                         reconstruct image features from events to estimate dense
+(Bi-CMPStereo) framework that simultaneously exploits
+                                                                         disparity maps, while others transfer knowledge from im-
+bidirectional cost volumes across domains to achieve ro-
+                                                                         age to event domains through unsupervised adaptation [14]
+bust asymmetric stereo. To prevent shortcut learning in con-
+                                                                         or cross-sensor distillation [82]. Complementary efforts in-
+   Code is available at: https : / / github . com / xnh97 / Bi -         tegrate additional sensing modalities, such as LiDAR [3] or
+CMPStereo.                                                               active projection [34]. Despite notable progress, symmetric
+
+
+
+                                                                   915
+Figure 2. Overview of the proposed CMPStereo network. In our bidirectional framework, the asymmetric stereo inputs are alternately
+designated as the target-domain and source-domain modalities. The Cross-Domain Embedding Adapter (CDEA) operates on the source
+domain to achieve initial source-to-target adaptation. CMPStereo employs domain-specific encoders Ft (·) and Fs (·) combined with Stereo
+Canonicalization Constraint (SCC) to map the source and target domains onto a canonical space of the target domain. The multi-scale stereo
+features produced by a shared decoder FD (·) are fed to cascaded ConvGRUs for iterative disparity refinement. The context is extracted
+from the image frame F with the Hierarchical Visual Transformation (HVT) [75] to avoid shortcut-learning.
+
+event stereo remains constrained by inherent sparsity, moti-             Bi-CMPStereo, a bidirectional framework that enforces se-
+vating asymmetric setups that combine events with frames.                mantic and structural consistency across domains. At its
+   Cross-Modal Event-Frame Stereo. Cross-modal stereo                    core, CMPStereo learns aligned stereo representations by
+leverages the complementary strengths of events and                      mapping both target modality Xt and source modality Xs
+frames. Event-frame fusion stereo employs binocular pairs                into a canonical space of the target domain for disparity esti-
+of both modalities, using sequential fusion [47], differen-              mation. To exploit complementary cues, we instantiate this
+tiable event selection with cross-similarity [13], and cross-            architecture in two configurations that alternate the domain
+modality propagation [12] to complement sparse event fea-                roles: evCMPStereo, which treats events (represented as
+tures with dense frame information. However, requiring                   event concentration E [48]) as Xt and the frame F as Xs ,
+both modalities per view increases complexity and cost.                  and imgCMPStereo, which reverses this assignment using
+Asymmetric stereo alleviates this by deploying an event                  F as Xt and events (encoded as voxel grid V [88]) as Xs ,
+camera in one view and a frame camera in the other, but                  following established practices in event-based vision. The
+the cross-view modality gap significantly intensifies match-             key components of CMPStereo are detailed below.
+ing challenges. Early handcrafted approaches [30, 65] rely
+on edge-based matching, while [9] decomposes the problem                 3.1. CMPStereo
+via temporal fusion and [79] proposes a two-stage learn-                 The overall architecture of CMPStereo is illustrated in
+ing framework for event–frame association. More recently,                Fig. 2. The network employs domain-specific encoders
+Zhuang et al. [89] address the domain gap by gating frame                to extract stereo features, which are aligned in the tar-
+features with temporal cues from frame sequences, and [41]               get canonical space through the Cross-Domain Embedding
+achieves zero-shot generalization through visual prompting.              Adapter (CDEA) and Stereo Canonicalization Constraint
+However, existing strategies risk marginalizing discrimi-                (SCC). Context features are learned via Hierarchical Visual
+native domain-specific cues essential for stereo matching.               Transformation (HVT) to prevent shortcut learning, and dis-
+Other recent works exploit event–frame disparity as an in-               parity is iteratively refined through cascaded ConvGRUs.
+termediate representation for tasks such as video interpola-                Cross-Domain Embedding Adapter. CMPStereo be-
+tion [18] and motion deblurring [15, 38].                                gins with the Cross-Domain Embedding Adapter (CDEA)
+                                                                         for the source-domain modality Xs , which employs a U-
+3. Method Overview                                                       shaped [54] adapter As2t (·) to map Xs into an embedding
+                                                                         space aligned with the target domain. This process ex-
+We aim to estimate disparity from a calibrated event-frame               plicitly activates discriminative target-domain cues latent in
+asymmetric stereo setup. To address the inherent percep-                 the source representations, facilitating fine-grained feature
+tual gap between the two sensing modalities, we introduce                alignment in the target domain.
+
+
+
+                                                                   916
+

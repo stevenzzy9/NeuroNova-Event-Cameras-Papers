@@ -1,0 +1,189 @@
+                     This CVPR paper is the Open Access version, provided by the Computer Vision Foundation.
+                                  Except for this watermark, it is identical to the accepted version;
+                            the final published version of the proceedings is available on IEEE Xplore.
+
+
+
+
+Adaptive Spatial-Temporal Window: Unlocking the Potential of Event Cameras
+                    in Heterogeneous Velocity Scenarios
+
+                Zhipeng Sui Haiqing Hao Weihua He Seng-Hong Lee Wenhui Wang*
+                 State Key Laboratory of Precision Measurement Technology and Instrument,
+                          Department of Precision Instrument, Tsinghua University
+          {hzp22@mails, hhq23@mails, hwh20@mails, lsh25@mails, wwh@mail}.tsinghua.edu.cn
+
+
+
+                            Abstract                                   [2, 5, 6, 11, 17, 23, 30, 38]. In contrast, research on parti-
+                                                                       tioning strategies remains relatively limited, and is the main
+Most event-based algorithms typically split the event stream           focus of our work. The most commonly used partitioning
+into fixed groups (e.g., fixed time or fixed count) for down-          methods are Fixed Time Window [23] and Fixed Number
+stream processing, lacking adaptivity to scene dynamics.               of Events [28]. However, such fixed strategies rely on pre-
+Several adaptive partitioning strategies have been pro-                determined partitioning rules that cannot adapt to scene dy-
+posed, but they are unable to cope well with heterogeneous             namics, and apply a uniform processing scheme across the
+velocity scenarios (HVS) involving both fast- and slow-                entire field of view (FOV), thereby lacking spatial locality.
+moving objects. To address this issue, we propose Adap-                    Several adaptive partitioning strategies have been pro-
+tive Spatial-Temporal Window (ASTW) strategy, which si-                posed, but they typically focus only on temporal adaptiv-
+multaneously achieves temporal adaptivity and spatial lo-              ity while neglecting spatial locality [7, 8, 18, 25, 26, 37].
+cality in event partitioning. Based on the principle of max-           For scenarios containing only a single object whose veloc-
+imum entropy, we derive a patch-level time window de-                  ity varies over time (i.e., temporal heterogeneity), existing
+termination criterion and efficiently implement it based on            adaptive strategies can handle the situation reasonably well.
+event density and vectorized calculations. Experiments on              However, in more common scenarios where multiple ob-
+publicly available event-based object detection and track-             jects in the FOV exhibit distinct motion velocities (i.e., spa-
+ing datasets demonstrate that ASTW significantly outper-               tial heterogeneity), existing adaptive strategies struggle to
+forms existing state-of-the-art partitioning strategies. We            perform effectively due to the lack of spatial locality. These
+also construct HetVel, the first RGB-event dual-modality               scenarios involving temporal heterogeneity and spatial het-
+dataset for HVS, and further highlight the advantages of               erogeneity are collectively referred to as heterogeneous ve-
+ASTW on this challenging benchmark. We believe that our                locity scenarios (HVS) [13, 16]. Among the partitioning
+ASTW strategy and the constructed HetVel dataset will ad-              strategies that account for spatial locality, however, they
+vance the field of neuromorphic vision.                                either lack adaptivity [3] or introduce high computational
+                                                                       overhead [24]. Therefore, it is particularly important to de-
+                                                                       velop a computationally efficient event partitioning strategy
+1. Introduction                                                        that simultaneously ensures both spatial locality and tempo-
+                                                                       ral adaptivity.
+Event cameras [10, 35] are bio-inspired vision sensors
+                                                                           In this work, we thus propose an Adaptive Spatial-
+with advantages such as high temporal resolution, low la-
+                                                                       temporal Window (ASTW) strategy, which enables a com-
+tency, and high dynamic range [19], which have demon-
+                                                                       putationally efficient event partitioning method incorporat-
+strated strong potential across a wide range of vision tasks
+                                                                       ing both spatial locality and temporal adaptivity. To intro-
+[4, 12, 15, 31, 34]. In event-based vision tasks, event
+                                                                       duce spatial locality, we divide the pixel plane into non-
+streams are typically converted into suitable event repre-
+                                                                       overlapping patches and regard each patch as the fundamen-
+sentations for subsequent processing. This process typi-
+                                                                       tal spatial unit. Based on the principle of maximum entropy,
+cally consists of two steps: (i) partitioning the event stream
+                                                                       the partitioning strategy should simultaneously satisfy spa-
+into different groups, and (ii) transforming them into repre-
+                                                                       tial consistency constraint and local information maximiza-
+sentations using the representation strategy. Considerable
+                                                                       tion: the former ensures a balanced distribution of infor-
+research has been conducted on representation strategies
+                                                                       mation throughout the FOV, while the latter guarantees that
+  * Corresponding author.                                              each local patch contains sufficient information. Building
+
+
+
+                                                                 946
+  Dense
+  Scene
+
+                                          SSIM: 0.75 SSIM: 0.70               SSIM: 0.45 SSIM: 0.85            SSIM: 0.76 SSIM: 0.82
+
+
+
+
+ Sparse
+ Scene
+
+                                            SSIM: 0.58                          SSIM: 0.80                       SSIM: 0.79
+                                                              SSIM: 0.69                          SSIM: 0.55                       SSIM: 0.72
+
+
+                  RGB Frame                   Fixed Time Window                   Fixed Time Window                       ASTW
+                                                (Short Window)                      (Long Window)                         (Ours)
+
+Figure 1. Visualization of Fixed Time Window (baseline) and our proposed Adaptive Spatial-Temporal Window (ASTW) in HVS. Red
+and blue boxes highlight fast- and slow-moving objects, respectively, with zoom-in views. ASTW strategy maintains a high structural
+similarity index measure (SSIM) with RGB images among objects with varying velocities, verifying its temporal adaptivity and spatial
+locality.
+
+
+on the above constraints, we further derive an analytical                  the partitioning process while effectively handling motion
+formula for determining the patch-level time window based                  speeds of up to 2400 px/s. Our contributions are summa-
+on event density to reduce the computational overhead on                   rized as follows:
+velocity estimation. To enhance the robustness and multi-                  • We propose Adaptive Spatial-temporal Window (ASTW)
+scale adaptivity of event density, we apply spatial smooth-                   strategy that simultaneously ensures both spatial locality
+ing to the event density and fuse historical information over                 and temporal adaptivity in event partitioning.
+time using Exponential Moving Average (EMA). To main-                      • We derive an analytical formula for determining the
+tain causal consistency of the scene, we propose a minimum                    patch-level time window based on the principle of max-
+time-step strategy that unifies the temporal reference across                 imum entropy, and efficiently implement it using event
+all patches and achieves progressive updates of the parti-                    density and vectorized calculations.
+tioning process. A vectorized implementation is employed                   • Experiments on object detection and tracking tasks show
+to avoid per-patch iterative computations, reducing the al-                   that our ASTW strategy significantly outperforms state-
+gorithm’s computational complexity to O(N ).                                  of-the-art (SOTA) partitioning strategies.
+                                                                           • We construct HetVel, the first RGB-Event dual-modality
+    We validate our ASTW strategy on both object detec-                       dataset designed for HVS, further highlighting the advan-
+tion and object tracking tasks. We conduct experiments on                     tages of ASTW.
+different network architectures (recurrent and feedforward)
+and backbone networks (CNNs and Transformers), and the                     2. Related Work
+results consistently demonstrate that applying the ASTW
+strategy leads to performance improvements. Compared to                    In event-based vision, HVS can be handled at the repre-
+the second-best results, ASTW achieves improvements of                     sentation level. Methods such as SITS [22] and VK-SITS
+up to 2.6 mAP and 2.0 AP50 on the Gen1 dataset, as well                    [1] adapt event representations according to local velocity
+as gains of 0.2 SR, comparable PR, and 0.3 NPR on the                      to produce more consistent feature appearances. However,
+EventVOT dataset. Given the lack of event-based bench-                     they still rely on upstream partitioning to determine the time
+mark datasets for temporal and spatial heterogeneity, we                   window, making it difficult to simultaneously achieve low-
+construct HetVel, the first RGB-event dual-modality dataset                latency responses for fast objects and sufficient information
+focusing on HVS. On this challenging dataset, the advan-                   accumulation for slow objects. As an orthogonal approach,
+tage of the ASTW strategy over other partitioning meth-                    event partitioning offers greater flexibility and potential for
+ods is further highlighted. Through case studies, we intu-                 handling HVS. Therefore, this section primarily focuses on
+itively demonstrate the temporal adaptivity and spatial lo-                the research progress of event partitioning strategies.
+cality of the ASTW strategy. Experiments show that our                        A common approach is to partition event data into non-
+ASTW strategy greatly reduces the latency introduced by                    overlapping slices using Fixed Time Window [23], thereby
+
+
+
+                                                                   947
+    𝜟𝒕𝐫𝐞𝐟
+
+
+
+
+Figure 2. Workflow of Adaptive Spatial-Temporal Window strategy. First, count the number of events within a reference time window and
+calculate the event density for each patch. Then, calculate the patch-level time window length based on the event density. Finally, achieve
+local and adaptive partitioning through an efficient vectorized implementation.
+
+
+generating a fixed-frame-rate video. Another approach is                     Table 1. Comparison of different partitioning strategies.
+to partition event data using Fixed Number of Events [28],
+                                                                                Partitioning Strategy       Temporal Adaptivity   Spatial Locality
+which ensures the consistent size of data blocks and im-
+                                                                              Fixed Time Window [23]               %                     %
+proves computational efficiency in sparse scenes. How-                      Fixed Number of Events [28]            %                     %
+ever, both fixed strategies cannot adapt to scene dynamics                          ATSLTD [8]                     "                     %
+and typically require parameter tuning. These methods are                 Adaptive Temporal Sampling [18]          "                     %
+straightforward and normally used as baselines.                            Adaptive Event Conversion [26]          "                     %
+                                                                            Adaptive Global Decay [25]             "                     %
+    To achieve temporal adaptivity, several adaptive strate-                       SpikeSlicer [7]                 "                     %
+gies have been proposed. Adaptive Time-Surface with Lin-                              TORE [3]                     %                     "
+ear Time Decay (ATSLTD) strategy [8] measures the infor-                         Event Lifetime [24]               "                     "
+mation content of the current frame and triggers partitioning                      ASTW (Ours)                     "                     "
+
+when it reaches a predefined confidence interval. Adaptive
+Temporal Sampling (ATS) strategy [18] searches for the op-
+timal time window such that the number of events within                     We summarize the common partitioning strategies and
+the window approximates a dynamic target value. Adaptive                 their characteristics in Tab. 1. In summary, existing parti-
+Global Decay strategy [25] integrates scene dynamics into                tioning strategies either fail to achieve both adaptivity and
+the decay process, enabling an adaptive partitioning of the              locality simultaneously, or introduce high computational
+event stream. Adaptive Event Conversion (AEC) strategy                   overhead. Our proposed ASTW strategy incorporates both
+[26] partitions the event stream when the number of events               adaptivity and locality. Based on spatial consistency con-
+within a given time window exceeds a predefined thresh-                  straint and local information maximization, we derive an
+old, while streams that do not reach the threshold continue              analytical formula for determining the patch-level time win-
+to accumulate. SpikeSlicer [7] employs a spiking neural                  dow. This formula reveals that the selection of the time win-
+network (SNN) as a dynamic trigger that emits spikes at                  dow depends on edge length and motion velocity. By intro-
+moments corresponding to optimal downstream task per-                    ducing a statistics-based event density, we avoid explicitly
+formance, thereby achieving event stream partitioning. Al-               estimating these quantities and achieved efficient computa-
+though the aforementioned strategies are adaptive, they lack             tion through vectorized implementation.
+spatial locality, which is also crucial for event partitioning.
+                                                                         3. Method
+    Although some strategies consider spatial locality, they
+each still have certain limitations. Time-Ordered Recent                 In this section, we first model the event data triggered
+Event (TORE) strategy [3] constructs queues of length k at               by motion and identify the core task in handling HVS as
+each pixel location, which ensures locality but lacks adap-              determining an appropriate time window for each spatial
+tivity. Event Lifetime [24] estimates per-event velocity to              patch. We then introduce two constraints based on the
+infer its lifetime by incorporating both locality and adap-              maximum entropy principle and further derive an analyti-
+tivity, but it suffers from high computational overhead and              cal formula for determining the patch-level time window.
+limited robustness. Moreover, TORE and Event Lifetime                    Finally, we present an efficient vectorized implementation
+only select events at a given moment, without providing a                that achieves acceptable computational complexity and la-
+mechanism for dynamically updating the partitioning pro-                 tency. The overall workflow of the ASTW strategy is illus-
+cess.                                                                    trated in Fig. 2.
+
+
+
+                                                                   948
+
